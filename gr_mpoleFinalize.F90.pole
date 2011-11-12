@@ -1,0 +1,68 @@
+!!****if* source/Grid/GridSolvers/Multipole_experimental/gr_mpoleFinalize
+!!
+!! NAME
+!!
+!!  gr_mpoleFinalize
+!!
+!! 
+!! SYNOPSIS
+!!
+!!  gr_mpoleFinalize()
+!!
+!!
+!! DESCRIPTION
+!!
+!!  Finalize the multipole Poisson solver.  Deallocate all storage.
+!!
+!!***
+
+subroutine gr_mpoleFinalize()
+
+  use gr_mpoleData
+
+  implicit none
+
+  deallocate (R_Moment)
+  deallocate (I_Moment)
+  deallocate (Old_R_Moment)
+  deallocate (Old_I_Moment)
+  deallocate (Tot_R_Moment)
+  deallocate (Tot_I_Moment)
+  deallocate (Old_Tot_R_Moment)
+  deallocate (Old_Tot_I_Moment)
+  deallocate (R_Damper)
+  deallocate (I_Damper)
+  deallocate (Old_R_Damper)
+  deallocate (Old_I_Damper)
+  deallocate (Tot_R_Damper)
+  deallocate (Tot_I_Damper)
+  deallocate (Old_Tot_R_Damper)
+  deallocate (Old_Tot_I_Damper)
+  deallocate (zone_rmax)
+  deallocate (zone_qmax)
+  deallocate (zone_type)
+  deallocate (zone_scalar)
+  deallocate (zone_lognorm)
+  deallocate (zone_exponent)
+  deallocate (zone_scalar_inv)
+  deallocate (zone_lognorm_inv)
+  deallocate (zone_exponent_inv)
+  deallocate (zone_max_radius_fraction)
+  deallocate (delta)
+  deallocate (bndBox)
+  deallocate (blkLimits)
+  deallocate (blkLimitsGC)
+  deallocate (blockList)
+
+  if (max_L > 0) then
+      deallocate (NumberInv)
+      deallocate (Denorm_R)
+      deallocate (Denorm_I)
+      deallocate (Tot_Denorm_R)
+      deallocate (Tot_Denorm_I)
+      deallocate (Old_Tot_Denorm_R)
+      deallocate (Old_Tot_Denorm_I)
+  end if
+
+  return
+end subroutine gr_mpoleFinalize

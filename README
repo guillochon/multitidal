@@ -1,0 +1,3 @@
+# Code originally written by James Guillochon. README last updated 10/12/2010.
+
+This simulation setup allows one to simulate the interaction between an extended, polytropic object and a point mass. The code integrates the orbit equations, enabling the user to simulate many orbits and thus allowing one to determine an object's long-term survival prospects.

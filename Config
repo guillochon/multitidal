@@ -1,0 +1,78 @@
+#       Configuration file for the Sedov explosion problem
+#       (Sedov, L. I., 1959, Similarity and Dimensional Methods
+#       in Mechanics [New York:  Academic])
+
+DATAFILES *.dat
+DATAFILES *.dek
+DATAFILES *.h
+
+REQUIRES Driver
+REQUIRES physics/Hydro
+REQUIRES physics/Eos/EosMain/Multigamma
+REQUIRES Simulation/SimulationComposition
+REQUIRES Multispecies/MultispeciesMain
+
+REQUIRES physics/Gravity/GravityMain/Poisson/Multipole
+
+SPECIES H1
+SPECIES HE4
+
+PARAMETER refine_level_1      INTEGER 0
+PARAMETER refine_level_2      INTEGER 0
+PARAMETER refine_level_3      INTEGER 0
+PARAMETER refine_level_4      INTEGER 0
+PARAMETER refine_val_cutoff_1 REAL    0.E0
+PARAMETER refine_val_cutoff_2 REAL    0.E0
+PARAMETER refine_val_cutoff_3 REAL    0.E0
+PARAMETER refine_val_cutoff_4 REAL    0.E0
+PARAMETER sim_periDist        REAL    0.E0
+PARAMETER sim_periBeta        REAL    0.E0
+PARAMETER sim_periTime        REAL    0.E0
+PARAMETER sim_periodFac       REAL    0.E0
+PARAMETER sim_orbEcc          REAL    0.E0
+PARAMETER sim_startBeta       REAL    0.E0
+PARAMETER ptmass              REAL    0.E0
+PARAMETER sim_pAmbient        REAL    1.E4
+PARAMETER sim_tRelax          REAL    0.E0
+PARAMETER sim_relaxRate       REAL    0.99E0
+PARAMETER larget              REAL    1.E10
+PARAMETER sim_sinkRadius      REAL    1.E0
+PARAMETER sim_sinkRef         INTEGER 0
+PARAMETER sim_objMass         REAL    0.E0
+PARAMETER sim_objPolyN        REAL    0.E0
+PARAMETER sim_objCentDen      REAL    0.E0
+PARAMETER sim_fluidGamma      REAL    2.E0
+PARAMETER sim_fluffDampCoeff  REAL    1.E0
+PARAMETER sim_fluffDampCutoff REAL    1.E-20
+PARAMETER sim_maxBlocks       INTEGER 10000
+
+PARAMETER grv_comCutoff       REAL    0.E0
+PARAMETER grv_cfl             REAL    1.E0
+PARAMETER grv_outdsfac        REAL    8.E0
+PARAMETER grv_outrad          REAL    4.E11
+
+D sim_rhoAmbient     Initial ambient density
+PARAMETER sim_rhoAmbient   REAL    1.
+
+D sim_nsubzones       Number of `sub-zones' in cells for applying 1d profile
+PARAMETER sim_nsubzones     INTEGER 7
+
+PARAMETER sim_xctr         REAL 0.5E0
+PARAMETER sim_yctr         REAL 0.5E0
+PARAMETER sim_zctr         REAL 0.5E0
+
+PARAMETER eos_largee       REAL 1.0E30
+
+PARAMETER plot_var_13 STRING "none"
+PARAMETER plot_var_14 STRING "none"
+PARAMETER plot_var_15 STRING "none"
+PARAMETER plot_var_16 STRING "none"
+PARAMETER plot_var_17 STRING "none"
+PARAMETER plot_var_18 STRING "none"
+PARAMETER plot_var_19 STRING "none"
+PARAMETER plot_var_20 STRING "none"
+PARAMETER plot_var_21 STRING "none"
+PARAMETER plot_var_22 STRING "none"
+PARAMETER plot_var_23 STRING "none"
+
+PPDEFINE HIDE_SANITIZE

@@ -1,0 +1,9 @@
+#PBS -S /bin/bash
+#PBS -N frw_27_0.9
+#PBS -l nodes=16:ppn=4
+#PBS -l walltime=200:00:00
+cd $PBS_O_WORKDIR
+cat $PBS_NODEFILE
+
+mpirun -hostfile $PBS_NODEFILE -np 64 ~/FLASH3.2/object_multitidalpoly/flash3
+

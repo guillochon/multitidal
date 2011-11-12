@@ -7,8 +7,6 @@
 !!
 !!  use Grid_data
 !!
-!! DESCRIPTION 
-!!  
 !!  This includes the global integer identifier for a block, the grid geometry information
 !!  
 !!  
@@ -23,8 +21,6 @@
 !!   
 !!***
 
-!!REORDER(5):scratch, scratch_ctr, scratch_facevar[xyz], gr_[xyz]flx
-
 Module Grid_data
 
   implicit none
@@ -38,6 +34,7 @@ Module Grid_data
 
   integer, parameter :: somethingBig = 20
 
+  integer, save :: gr_myPE, gr_numProcs
 
   real,save,dimension(3,somethingBig) :: gr_delta
   integer, save :: gr_iloGc = GRID_ILO_GC
@@ -63,12 +60,7 @@ Module Grid_data
   logical, save :: gr_justExchangedGC, gr_allPeriodic, gr_isolatedBoundaries
   logical, save :: gr_useParticles,gr_refineOnParticleCount,gr_refineOnPdens
   integer, save :: gr_minParticlesPerBlk, gr_maxParticlesPerBlk
-  integer, save :: gr_globalComm, gr_globalMe, gr_globalNumProcs
-  integer, save :: gr_meshComm, gr_meshMe, gr_meshNumProcs
-  integer, save :: gr_meshAcrossComm, gr_meshAcrossMe, gr_meshAcrossNumProcs
-
-  logical, save :: gr_useEnergyDeposition
-
+  
   type gridBlock
      !!cornerID is integer coordinates of the lower left cornor
      !! (ie the smallest point) of a block
@@ -78,61 +70,35 @@ Module Grid_data
      real,dimension(3,GRID_IHI_GC) :: firstAxisCoords
      real,dimension(3,GRID_JHI_GC) :: secondAxisCoords
      real,dimension(3,GRID_KHI_GC) :: thirdAxisCoords
-     integer :: blockType
   end type gridBlock
 
   type(gridBlock),save,dimension(MAXBLOCKS),target :: gr_oneBlock
   
-#if NSCRATCH_GRID_VARS > 0
-  real,target,dimension(SCRATCH_GRID_VARS_BEGIN:SCRATCH_GRID_VARS_END,&
-                        GRID_IHI_GC+1,&
-                        GRID_JHI_GC+1,&
-                        GRID_KHI_GC+1,&
-                        MAXBLOCKS) :: scratch
+#if NSCRATCH_GRID_VARS>0
+  real,target,dimension(GRID_IHI_GC+1,GRID_JHI_GC+1,GRID_KHI_GC+1,&
+          SCRATCH_GRID_VARS_BEGIN:SCRATCH_GRID_VARS_END,MAXBLOCKS) :: scratch
 #else
   real,target,dimension(1,1,1,1,1) :: scratch
 #endif
 
-#if NSCRATCH_CENTER_VARS > 0
-  real,target,dimension(SCRATCH_CENTER_VARS_BEGIN:SCRATCH_CENTER_VARS_END,&
-                        GRID_IHI_GC,&
-                        GRID_JHI_GC,&
-                        GRID_KHI_GC,&
-                        MAXBLOCKS) :: scratch_ctr
+#ifdef NSCRATCH_CENTER_VARS 
+  real,target,dimension(GRID_IHI_GC,GRID_JHI_GC,GRID_KHI_GC,&
+          SCRATCH_CENTER_VARS_BEGIN:SCRATCH_CENTER_VARS_END,MAXBLOCKS) :: scratch_ctr
 #else
   real,target,dimension(1,1,1,1,1):: scratch_ctr
 #endif
 
-#if NSCRATCH_FACEX_VARS > 0
-  real,target,dimension(SCRATCH_FACEX_VARS_BEGIN:SCRATCH_FACEX_VARS_END,&
-                        GRID_IHI_GC+1,&
-                        GRID_JHI_GC,  &
-                        GRID_KHI_GC,  &
-                        MAXBLOCKS) :: scratch_facevarx
-#else
-  real, target,dimension(1,1,1,1,1):: scratch_facevarx
-#endif
 
-#if NSCRATCH_FACEY_VARS > 0
-  real,target,dimension(SCRATCH_FACEY_VARS_BEGIN:SCRATCH_FACEY_VARS_END,&
-                        GRID_IHI_GC,  &
-                        GRID_JHI_GC+1,&
-                        GRID_KHI_GC,  &
-                        MAXBLOCKS) :: scratch_facevary
+#ifdef NSCRATCH_FACE_VARS 
+  real,target,dimension(GRID_IHI_GC+1,GRID_JHI_GC,GRID_KHI_GC,&
+       SCRATCH_FACE_VARS_BEGIN:SCRATCH_FACE_VARS_END,MAXBLOCKS) :: scratch_facevarx
+  real,target,dimension(GRID_IHI_GC,GRID_JHI_GC+1,GRID_KHI_GC,&
+          SCRATCH_FACE_VARS_BEGIN:SCRATCH_FACE_VARS_END,MAXBLOCKS) :: scratch_facevary
+  real,target,dimension(GRID_IHI_GC,GRID_JHI_GC,GRID_KHI_GC+1,&
+          SCRATCH_FACE_VARS_BEGIN:SCRATCH_FACE_VARS_END,MAXBLOCKS) :: scratch_facevarz
 #else
-  real, target,dimension(1,1,1,1,1):: scratch_facevary
+  real, target,dimension(1,1,1,1,1):: scratch_facevarx,scratch_facevary,scratch_facevarz
 #endif
-
-#if NSCRATCH_FACEZ_VARS > 0
-  real,target,dimension(SCRATCH_FACEZ_VARS_BEGIN:SCRATCH_FACEZ_VARS_END,&
-                        GRID_IHI_GC,  &
-                        GRID_JHI_GC,  &
-                        GRID_KHI_GC+1,&
-                        MAXBLOCKS) :: scratch_facevarz
-#else
-  real, target,dimension(1,1,1,1,1):: scratch_facevarz
-#endif
-
 
   integer, save :: gr_eosMode
   integer, save :: gr_eosModeInit, gr_eosModeNow
@@ -153,24 +119,20 @@ Module Grid_data
   integer ,save :: gr_geometry
   integer, save, dimension(MDIM) :: gr_dirGeom
   logical, save, dimension(MDIM) :: gr_dirIsAngular
-  logical, save :: gr_geometryOverride
   character(len=MAX_STRING_LENGTH) :: gr_str_geometry
   integer ,save :: gr_nblockX, gr_nblockY, gr_nblockZ
   integer ,save, dimension(MAXREFVARS) :: gr_refine_var    
   real,save,dimension(MAXCELLS,UNK_VARS_BEGIN:UNK_VARS_END) :: gr_oneRow
   real,dimension(MAXREFVARS), save::gr_refine_cutoff,&
        gr_derefine_cutoff,gr_refine_filter,gr_refine_val_cutoff
-  integer,dimension(MAXREFVARS), save :: gr_refine_level
   real, save :: gr_smalle,gr_smallrho
-  integer, save :: gr_blkCount, gr_matchCount
-  integer ,dimension(MAXBLOCKS), save :: gr_blkList,gr_matchList
+  integer ,dimension(MAXBLOCKS), save :: gr_blkList
   integer, allocatable:: gr_mortons(:)
   real, save :: gr_minCellSize
-  real, save, dimension(MDIM) :: gr_minCellSizes
 
   !below values needed to make data structures for IO output
   integer,save :: gr_globalOffset !stores beginning blk offset for a proc
-  integer,save,allocatable,target,dimension(:,:) :: gr_gid  !holds neigh, child, parent info for checkpoint files
+  integer,save,allocatable, dimension(:,:) :: gr_gid  !holds neigh, child, parent info for checkpoint files
   integer, save :: gr_globalNumBlocks !
   integer, save, allocatable :: gr_nToLeft(:) !holds 
   real,save, dimension(NFLUXES,2,NYB,NZB,MAXBLOCKS) :: gr_xflx
@@ -227,18 +189,7 @@ Module Grid_data
   real,save :: gr_lrefineMaxRedRadiusSq
   real,save :: gr_lrefineCenterI,gr_lrefineCenterJ,gr_lrefineCenterK
   real,save :: gr_lrefineMaxRedTimeScale, gr_lrefineMaxRedTRef, gr_lrefineMaxRedLogBase
-  integer,save :: gr_restrictAllMethod
-
-! Stuff for customRegion 
-  logical, save :: gr_useQuietStart, gr_usePiston, gr_useHole
-  real, save, dimension(LOW:HIGH,MDIM) :: gr_quietStartBnd
-  real, save, dimension(LOW:HIGH,MDIM) :: gr_pistonBnd
-  real, save :: gr_holeRad, gr_holeTime, gr_holeVel
-  integer, save :: gr_holeBnd
-
-  real, save :: gr_quietStartDens, gr_quietStartTemp
-  real, save :: gr_pistonDens, gr_pistonVelx, gr_pistonVely, gr_pistonVelz
-  real, save, allocatable, dimension(:,:,:,:) :: gr_customRegionData
+  real,save :: gr_lrefineLimit
 
 end Module Grid_data
 

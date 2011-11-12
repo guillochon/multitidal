@@ -1,57 +1,94 @@
-!!****f* source/physics/Gravity/Gravity_computeDt
+!!****if* source/physics/Hydro/HydroMain/split/PPM/Hydro_computeDt
 !!
 !! NAME
 !!
-!!  Gravity_computeDt
-!!  
+!!  Hydro_computeDt
+!!
+!!
 !! SYNOPSIS
 !!
-!!  Gravity_computeDt(integer(IN)        :: blockID,
-!!                    
-!!                    real (OUT)         :: dt_grav,
-!!                    integer(:)(INOUT)  :: dt_minloc(5))
+!!  Gravity_computeDt(integer(IN):: blockID, 
+!!                  integer(IN) :: myPE, 
+!!                  real(IN) :: x(:), 
+!!                  real(IN) :: dx(:), 
+!!                  real(IN) :: uxgrid(:),
+!!                  real(IN) :: y(:), 
+!!                  real(IN) :: dy(:), 
+!!                  real(IN) :: uygrid(:), 
+!!                  real(IN) :: z(:), 
+!!                  real(IN) :: dz(:), 
+!!                  real(IN) :: uzgrid(:), 
+!!                  integer(IN) :: blkLimits(2,MDIM)
+!!                  integer(IN) :: blkLimitsGC(2,MDIM)
+!!                  real,pointer ::  solnData(:,:,:,:),   
+!!                  real,(INOUT) ::   dtCheck, 
+!!                  integer(INOUT) :: dtMinLoc(:) )
 !!
 !! DESCRIPTION
 !!
-!!  Compute the timestep limiter due to the gravitational solver.
+!!  Computes the timestep limiter for point mass gravity.
 !!
 !! ARGUMENTS
 !!
-!!  MyPE:          local processor number
-!!  dt_grav:       Will Return the limiting timestep. Should be
-!!                 set to a large value (1.D99) on input.
-!!  dt_minloc(5):  An array to receive information about which
-!!                 processor, block, and zone was responsible
-!!                 for setting the limiting timestep.  The order
-!!                 is i, j, k, b, p, where (i,j,k) = zone
-!!                 indices, b = local block ID, and p = PE #.
-!!                 This routine should only modify these values
-!!                 if it changes dt_grav.
-!!  blockID:       The local ID of the block to compute the
-!!                 limiter on.
+!!  blockID -       local block ID
+!!  myPE -          local processor number
+!!  x, y, z -       coordinates
+!!  dx, dy, dz -    deltas in each {x, y z} directions
+!!  uxgrid, uygrid, uzgrid - velocity of grid expansion in {x, y z} directions
+!!  blkLimits -    the indices for the interior endpoints of the block
+!!  blkLimitsGC - the indices for endpoints including the guardcells
+!!  solnData -      the physical, solution data from grid
+!!  dtCheck -      variable to hold timestep constraint
+!!  dtMinLoc(5) -  array to hold location of cell responsible for minimum dt:
+!!                 dtMinLoc(1) = i index
+!!                 dtMinLoc(2) = j index
+!!                 dtMinLoc(3) = k index
+!!                 dtMinLoc(4) = blockID
+!!                 dtMinLoc(5) = myPE
 !!
 !!***
 
-subroutine Gravity_computeDt (blockID, dt_grav, dt_minloc)
+! solnData depends on the ordering on unk
+!!REORDER(4): solnData
 
-!==============================================================================
-  use Grid_interface, ONLY : Grid_getMinCellSize
-  use Gravity_data, ONLY : grv_obvec, grv_ptvec
+
+subroutine Gravity_computeDt ( dtCheck )
+     
+  
+#include "Flash.h"
+#include "constants.h"
+
+  use Hydro_data, ONLY : hy_cfl
+  use Grid_interface, ONLY: Grid_getMinCellSize
+  use Driver_data, ONLY: dr_simTime
+  use Simulation_data, ONLY: sim_tRelax, sim_starRadius
+  use RuntimeParameters_interface, ONLY : RuntimeParameters_get
+  use Gravity_data, ONLY: grv_ptmass
+  use gr_mpoleData, ONLY: Xcm, Ycm, Zcm, Mtot
 
   implicit none
-  
-  integer, intent(IN)    ::  blockID
-  
-  integer, intent(INOUT) ::  dt_minloc(5)
-  real,intent(OUT)       ::  dt_grav
 
-  real :: mcs
+  real,INTENT(INOUT)    :: dtCheck
   
-  call Grid_getMinCellSize(mcs)
+  real    :: dt_temp, min_cell_size, vel, tinitial, r2, newx, newy, newz
+             
+  
+!==============================================================================
 
-  !dt_grav = min(huge(dt_grav), mcs/sqrt(sum((grv_obvec(4:6) - grv_ptvec(4:6))**2.d0)))
-  dt_grav = huge(dt_grav)
+  call RuntimeParameters_get('tinitial',tinitial)
+  if (dr_simTime .lt. tinitial + sim_tRelax) return
+
+  call parabolic_orbit(dr_simTime, newx, newy, newz)
+  call Grid_getMinCellSize(min_cell_size)
+  r2 = (newx - Xcm)**2. + (newy + Ycm)**2. + (newz + Zcm)**2.
+
+  dt_temp = hy_cfl*min_cell_size/vel*max(1.0,r2/(sim_starRadius*(2.*grv_ptmass/Mtot)**(1./3.))**2.)
+     
+  if (dt_temp < dtCheck) then
+     dtCheck = dt_temp
+  endif
   
   return
-
 end subroutine Gravity_computeDt
+
+

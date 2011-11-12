@@ -25,7 +25,7 @@
 !!  radius -       Radius of the region 
 !!  lref  -        If > 0, bring all qualifying blocks to this level of refinement.
 !!                 If <= 0, refine qualifying blocks once.
-!!  unmark - If /= 0, unmark blocks NOT contained within radius.
+!!  unmark - If /= 0, unmark blocks NOT contained within rectangle.
 !!  
 !! NOTES
 !! 
@@ -57,6 +57,7 @@ subroutine gr_markInRadius(ic, jc, kc, radius, lref, unmark)
   real                  :: bxl, bxr, byl, byr, bzl, bzr
   real                  :: dist2, xdist2, ydist2, zdist2
   integer               :: b
+
 
   if((gr_geometry == CARTESIAN).or.(gr_geometry == CYLINDRICAL)) then
      do b = 1, lnblocks
@@ -136,6 +137,7 @@ subroutine gr_markInRadius(ic, jc, kc, radius, lref, unmark)
                     refine(b)   = .true.
                     derefine(b) = .false.
                  else if (lrefine(b) == lref) then
+                    refine(b) = .false.
                     derefine(b) = .false.
                  else if (lref <= 0) then
                     refine(b) = .true.

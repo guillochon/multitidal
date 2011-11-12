@@ -11,7 +11,7 @@
 !!                      integer, intent(in) :: sweepDir, 
 !!                      integer, intent(in) :: blockID, 
 !!                      integer, intent(in) :: numCells, 
-!!                      double precision(numCells),intent(out) :: grav, 
+!!                      real(numCells),intent(out) :: grav, 
 !!                      integer, intent(in),optional :: potentialIndex)
 !!                      
 !!                      
@@ -48,15 +48,14 @@
 !!***
 
 
-subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentialIndex, t_in)
+subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentialIndex)
 
     use Driver_data, ONLY: dr_simTime
-    use Gravity_data, ONLY: grv_ptxpos, grv_ptypos, grv_ptzpos, grv_factor, grv_thresh
+    use Gravity_data, ONLY: grv_ptxpos, grv_ptypos, grv_ptzpos, grv_factor
     use Grid_interface, ONLY : Grid_getBlkPhysicalSize, Grid_getBlkPtr, &
     Grid_releaseBlkPtr, Grid_getCellCoords, Grid_getBlkIndexLimits
-    use Simulation_data, ONLY: sim_tRelax, sim_BHRadius
+    use Simulation_data, ONLY: sim_tRelax
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
-    use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     implicit none
 
 #include "Flash.h"
@@ -64,33 +63,31 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentia
 
     integer, dimension(2), intent(in) :: pos
     integer, intent(in)               :: sweepDir, blockID,  numCells
-    double precision, intent(inout)               :: grav(numCells)
-    integer, intent(IN),optional      :: potentialIndex
-    double precision, intent(IN), optional        :: t_in
-    double precision            :: blockSize(MDIM)
-    double precision, POINTER, DIMENSION(:,:,:,:) :: solnVec
+    real, intent(inout)               :: grav(numCells)
+    integer, intent(IN),optional        :: potentialIndex
+    real            :: blockSize(MDIM)
+    real, POINTER, DIMENSION(:,:,:,:) :: solnVec
 
     integer         :: ii, iimin, iimax, lb
-    double precision            :: gpot(numCells), delxinv, c
-    double precision            :: dens(numCells)
-    double precision, parameter :: onesixth = 1.e0/6.e0
+    real            :: gpot(numCells), delxinv
+    real, parameter :: onesixth = 1.e0/6.e0
     integer         :: potVar
 
 #ifdef FIXEDBLOCKSIZE
-    double precision,dimension(GRID_KHI_GC) :: zCenter
-    double precision,dimension(GRID_JHI_GC) :: yCenter
-    double precision,dimension(GRID_IHI_GC) :: xCenter
+    real,dimension(GRID_KHI_GC) :: zCenter
+    real,dimension(GRID_JHI_GC) :: yCenter
+    real,dimension(GRID_IHI_GC) :: xCenter
 #else
-    double precision,allocatable,dimension(:) ::xCenter,yCenter,zCenter
+    real,allocatable,dimension(:) ::xCenter,yCenter,zCenter
 #endif
-    double precision :: dr32, tmpdr32
+    real :: dr32, tmpdr32
 
     integer :: sizeX,sizeY,sizez
 
     integer :: j,k
     logical :: gcell = .true.
-    double precision :: newx, newy, newz, time
-    double precision :: accelx, accely, accelz, tinitial
+    real :: newx, newy, newz, t
+    real :: accelx, accely, accelz, tinitial
     !==================================================
 
 
@@ -103,16 +100,10 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentia
     !! IF a variable index is explicitly specified, assume that as the potential
     !! otherwise use the default current potential GPOT_VAR  
     if(present(potentialIndex)) then
-        potVar=potentialIndex
+     potVar=potentialIndex
     else
-        potVar=GPOT_VAR
-    endif
-
-    if(present(t_in)) then
-        time = t_in
-    else
-        time = dr_simTime
-    endif
+     potVar=GPOT_VAR
+    end if
 
     iimin   = 1
     iimax   = numCells
@@ -121,24 +112,21 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentia
     !Get row of potential values and compute inverse of zone spacing  
     if (sweepDir == SWEEP_X) then                     ! x-direction
 
-     delxinv = dble(NXB) / blockSize(IAXIS)
+     delxinv = real(NXB) / blockSize(IAXIS)
      
      gpot(:) = solnVec(potVar,:,pos(1),pos(2))
-     dens(:) = solnVec(DENS_VAR,:,pos(1),pos(2))
      
     elseif (sweepDir == SWEEP_Y) then                 ! y-direction
      
-     delxinv = dble(NYB) / blockSize(JAXIS)
+     delxinv = real(NYB) / blockSize(JAXIS)
      
      gpot(:) = solnVec(potVar,pos(1),:,pos(2))
-     dens(:) = solnVec(DENS_VAR,pos(1),:,pos(2))
      
     else                                            ! z-direction
      
-     delxinv = dble(NZB) / blockSize(KAXIS)
+     delxinv = real(NZB) / blockSize(KAXIS)
      
      gpot(:) = solnVec(potVar,pos(1),pos(2),:)
-     dens(:) = solnVec(DENS_VAR,pos(1),pos(2),:)
      
     endif
 
@@ -153,11 +141,14 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentia
     delxinv = 0.5e0 * delxinv
 
     do ii = iimin+1, iimax-1
-        grav(ii) = delxinv * (gpot(ii-1) - gpot(ii+1))
+     grav(ii) = delxinv * (gpot(ii-1) - gpot(ii+1))
     enddo
 
     grav(iimin) = grav(iimin+1)     ! this is invalid data - must not be used
     grav(iimax) = grav(iimax-1)
+
+
+    call Grid_releaseBlkPtr(blockID, solnVec)
 
     !Now include the point mass
     call RuntimeParameters_get('tinitial',tinitial)
@@ -177,8 +168,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentia
       sizeY=GRID_JHI_GC
       sizeZ=GRID_KHI_GC
 #endif
-      call PhysicalConstants_get('speed of light',c)
-      call parabolic_orbit(time, newx, newy, newz)
+      call parabolic_orbit(newx, newy, newz)
       newx = grv_ptxpos + newx
       newy = grv_ptypos + newy
       newz = grv_ptzpos + newz
@@ -205,7 +195,6 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentia
          do ii = 1, numCells
 
             dr32 = sqrt(xCenter(ii)*xCenter(ii) + tmpdr32)
-            if (dr32 .le. abs(sim_BHRadius*2.*grv_factor/c**2.)) cycle
             dr32 = dr32*dr32*dr32
 
             grav(ii) = grav(ii) + grv_factor*xCenter(ii)/dr32 - accelx
@@ -219,7 +208,6 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentia
          do ii = 1, numCells
             
             dr32 = sqrt(yCenter(ii)*yCenter(ii) + tmpdr32)
-            if (dr32 .le. abs(sim_BHRadius*2.*grv_factor/c**2.)) cycle
             dr32 = dr32*dr32*dr32
 
             grav(ii) = grav(ii) + grv_factor*yCenter(ii)/dr32 - accely
@@ -232,7 +220,6 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentia
          do ii = 1, numCells
             
             dr32 = sqrt(zCenter(ii)*zCenter(ii) + tmpdr32)           
-            if (dr32 .le. abs(sim_BHRadius*2.*grv_factor/c**2.)) cycle
             dr32 = dr32*dr32*dr32
             
             grav(ii) = grav(ii) + grv_factor*zCenter(ii)/dr32 - accelz
@@ -247,11 +234,6 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, potentia
     deallocate(yCenter)
     deallocate(zCenter)
 #endif
-
-    do ii = 1, numCells 
-        if (dens(ii) .le. grv_thresh) grav(ii) = 0.0
-    enddo
-    call Grid_releaseBlkPtr(blockID, solnVec)
     return
    
 end subroutine Gravity_accelOneRow

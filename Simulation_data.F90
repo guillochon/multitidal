@@ -1,4 +1,4 @@
-!!****if* source/Simulation/SimulationMain/MultiTidalPoly/Simulation_data
+!!****if* source/Simulation/SimulationMain/Sedov/Simulation_data
 !!
 !! NAME
 !!
@@ -10,12 +10,15 @@
 !!
 !!  DESCRIPTION
 !!
-!!  Stores the local data for Simulation setup: MultiTidalPoly
+!!  Stores the local data for Simulation setup: Sedov
 !!  
 !! PARAMETERS
 !!
 !!  sim_pAmbient       Initial ambient pressure
 !!  sim_rhoAmbient     Initial ambient density
+!!  sim_xctr           Explosion center coordinates
+!!  sim_yctr           Explosion center coordinates
+!!  sim_zctr           Explosion center coordinates
 !!  sim_nsubzones      Number of `sub-zones' in cells for applying 1d profile
 !!
 !!
@@ -29,31 +32,21 @@ module Simulation_data
 
   !! *** Runtime Parameters *** !!
 
-  double precision, save :: sim_pAmbient, sim_rhoAmbient, &
-                            sim_fluidGamma, &
-                            sim_smallX, sim_smallRho, sim_smallP, &
-                            sim_xMin, sim_xMax, sim_yMin, sim_yMax, sim_zMin, sim_zMax
-  integer, save          :: sim_nSubZones
-  integer, save          :: sim_tableRows, sim_tableCols
-  integer, save          :: sim_maxBlocks
-  double precision, save :: sim_tInitial, sim_tRelax, sim_relaxRate, sim_starRadius, &
-                            sim_softenRadius, sim_objMass, sim_objPolyN, sim_objCentDen, &
-                            sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &
-                            sim_periBeta, sim_startBeta, sim_periodFac, &
-                            sim_orbEcc
-
+  double precision, save                              :: sim_tAmbient, sim_rhoAmbient
+  double precision, save                              :: sim_gamma, sim_xCenter, sim_yCenter, sim_zCenter
+  double precision, save                              :: sim_smallX, sim_smallRho, sim_smallP, sim_pi
+  double precision, save                              :: sim_xMin, sim_xMax, sim_yMin, sim_yMax, sim_zMin, sim_zMax
+  integer, save                                       :: sim_nSubZones
+  integer, save                                       :: sim_tableRows, sim_tableCols
+  double precision, save                              :: sim_tInitial, sim_tRelax, sim_relaxRate, sim_starRadius
+  double precision, save                              :: sim_BHRadius
+  double precision, dimension(:,:), allocatable, save :: sim_table
+  character(len=MAX_STRING_LENGTH), save              :: sim_profFile
 
   !! *** Variables pertaining to this Simulation *** !!
 
-  integer, parameter        :: np = 1000
+  integer, parameter        :: np = 100000
   double precision, save    :: sim_inSubZones, sim_inSubzm1
   double precision, save    :: sim_inszd
-  double precision, save :: obj_mu
-  double precision, dimension(SPECIES_BEGIN:SPECIES_END) :: obj_xn
-  double precision, dimension(np), save :: obj_radius, obj_rhop, obj_prss
-  integer, save :: obj_ipos
-  logical, save :: sim_useInitialPeakDensity
-
-  double precision, parameter :: sim_msun = 1.9889225d33
 
 end module Simulation_data

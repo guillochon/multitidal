@@ -1,0 +1,68 @@
+lrefine_min             = 1
+lrefine_max             = 7
+
+basenm                  = "tidal_"
+#restart                 = .true.
+#checkpointFileNumber = 10
+checkpointFileIntervalTime = 100.0
+plotFileIntervalTime    = 10.0 
+
+xmax                    = 6.e11
+ymax                    = 6.e11
+zmax                    = 6.e11
+
+small =  1.e-30
+smalle = 1.e-30
+smallt = 1.e-30
+smallu = 1.e-30
+smallx = 1.e-30
+smally = 1.e-30
+smlrho = 1.e-30
+smallp = 1.e-30
+#
+#cfl = 0.8
+#cvisc = 0.e0
+#iplm = 1
+#nriem = 1000
+#eos_maxNewton = 1000
+#convertToConsvdForMeshCalls = .true.
+#dtinit = 1e-2
+#dtmin = 1e-1
+#dtmax = 1e-2
+#memory_stat_freq = 1
+
+nend                    = 1000000
+tmax                    = 10000.
+
+eintSwitch              = 1.e-4
+#if beta is < 0, the code uses periDist instead.
+sim_rhoAmbient          = 1.0e-15 #chosen to match corona dens
+sim_pAmbient            = 1.0e-2  #chosen to match corona temp
+sim_xctr                = 3.e11
+sim_yctr                = 3.e11
+sim_zctr                = 3.e11
+sim_nsubzones           = 10
+
+
+xl_boundary_type        = "outflow"
+xr_boundary_type        = "outflow"
+yl_boundary_type        = "outflow"
+yr_boundary_type        = "outflow"
+zl_boundary_type        = "outflow"
+zr_boundary_type        = "outflow"
+grav_boundary_type      = "isolated"
+mpole_lmax              = 8
+#useGravity              = .true.
+
+plot_var_1              = "dens"
+plot_var_2              = "temp"
+plot_var_3              = "velx"
+plot_var_4              = "vely"
+plot_var_5              = "velz"
+plot_var_6              = "gpot"
+
+refine_var_1            = "dens"
+#refine_var_2            = "pres"
+refine_filter_1         = 5.e-2
+#refine_filter_2         = 5.e-2
+refine_val_cutoff_1     = 1.e-7

@@ -6,15 +6,6 @@
 
 Module Gravity_interface
 
-#include "Flash.h"
-#include "constants.h"
-
-  interface
-     subroutine Gravity_sendOutputData()
-       implicit none
-     end subroutine Gravity_sendOutputData
-  end interface
-
   interface
      subroutine Gravity_accelAtCoords (numPoints, iCoords,jCoords,kCoords, accelDir,&
           accel, blockID, &
@@ -39,27 +30,21 @@ Module Gravity_interface
   end interface
 
   interface
-     subroutine Gravity_accelOneRow (pos,sweepDir,blockID, numCells, grav, ptgrav, &
-          varIndex)
+     subroutine Gravity_accelOneRow (pos,sweepDir,blockID, numCells, grav, &
+          varIndex, t_in)
        integer, intent(IN) :: sweepDir,blockID,numCells
        integer, dimension(2),INTENT(in) ::pos
        real, dimension(numCells),INTENT(inout) :: grav
-       real, dimension(numCells),INTENT(inout) :: ptgrav
        integer, intent(IN), optional :: varIndex 
+       real, intent(IN), optional :: t_in
      end subroutine Gravity_accelOneRow
   end interface
 
   interface Gravity_computeDt
-     subroutine Gravity_computeDt (block_no, &
-          blkLimits,blkLimitsGC,  &
-          solnData,   &
-          dt_check, dt_minloc )
-       
-       integer, intent(IN) :: block_no
-       integer, intent(IN),dimension(2,MDIM)::blkLimits,blkLimitsGC
-       real,INTENT(INOUT)    :: dt_check
-       integer,INTENT(INOUT)    :: dt_minloc(5)
-       real, pointer :: solnData(:,:,:,:) 
+     subroutine Gravity_computeDt (blockID, myPE, dt_grav, dt_minloc)
+       real,intent(OUT)       ::  dt_grav
+       integer, intent(IN)    ::  blockID, myPE
+       integer, intent(INOUT) :: dt_minloc(5)
      end subroutine Gravity_computeDt
   end interface
 
@@ -69,7 +54,8 @@ Module Gravity_interface
   end interface
 
   interface Gravity_init
-     subroutine Gravity_init()
+     subroutine Gravity_init(myPE)
+       integer, intent(IN) :: myPE
      end subroutine Gravity_init
   end interface
 
@@ -81,9 +67,9 @@ Module Gravity_interface
   end interface
 
   interface Gravity_unitTest
-     subroutine Gravity_unitTest( fileUnit, perfect)
+     subroutine Gravity_unitTest(myPE, fileUnit, perfect)
        implicit none
-       integer, intent(in) :: fileUnit
+       integer, intent(in) :: myPE, fileUnit
        logical, intent(out) :: perfect
      end subroutine Gravity_unitTest
   end interface

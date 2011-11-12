@@ -5,7 +5,8 @@
 !!
 !! SYNOPSIS
 !!
-!!  Grid_init()
+!!  Grid_init(integer(IN) :: myPE,
+!!            integer(IN) :: numProcs)
 !!           
 !!
 !! DESCRIPTION
@@ -13,6 +14,8 @@
 !!
 !! ARGUMENTS
 !!
+!!  myPE     -- current processor
+!!  numProcs -- total number of processors
 !!
 !! PARAMETERS 
 !!
@@ -99,120 +102,77 @@
 !!   by the IO unit when it read a checkpoint file will normally still be
 !!   in effect when time evolution begins after a restart.
 !!   This flag is ignored if not restarting from a checkpoint.
-!! 
-!! lrefine_del [INTEGER]
-!! gr_lrefineMaxRedDoByTime [BOOLEAN]
-!! gr_lrefineMaxRedTRef [REAL]
-!! gr_lrefineMaxRedTimeScale [REAL]
-!! gr_lrefineMaxRedLogBase [REAL]
 !!
-!! gr_lrefineMaxRedDoByLogR [BOOLEAN]
-!! gr_lrefineMaxRedRadiusFact [REAL]
-!! x_refine_center [REAL]
-!! y_refine_center [REAL]
-!! z_refine_center [REAL]
-!!
-!! gr_restrictAllMethod [INTEGER]
 !!***
 
-subroutine Grid_init()
+subroutine Grid_init(myPE, numProcs)
 
   use Grid_data
   use tree, ONLY : lrefine_min, lrefine_max, nfaces, nchild
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get, &
     RuntimeParameters_mapStrToInt
-  use Driver_interface, ONLY : Driver_abortFlash, Driver_getMype, &
-    Driver_getNumProcs, Driver_getComm
-  use Driver_interface, ONLY : Driver_getMype, Driver_getNumProcs, Driver_getComm
   use Logfile_interface, ONLY : Logfile_stampMessage
-  use Simulation_interface, ONLY : Simulation_mapStrToInt, Simulation_getVarnameType
-  use Grid_interface, only: Grid_getVarNonRep
-  use paramesh_comm_data, ONLY : amr_mpi_meshComm
+  use Simulation_interface, ONLY : Simulation_mapStrToInt, &
+    Simulation_getVarnameType
   implicit none
 
 #include "Flash.h"
 #include "constants.h"
-  include "Flash_mpi.h"
+
+  integer, intent(IN) :: myPE,numProcs
 
   integer :: i, j, k, localNumBlocks, ii, numLeafBlks
 
-  character(len=MAX_STRING_LENGTH),save :: refVarname,refVarString,paramString
-  character(len=MAX_STRING_LENGTH),save :: refCutoffName,refCutOffString
-  character(len=MAX_STRING_LENGTH),save :: derefCutoffName,derefCutOffString
-  character(len=MAX_STRING_LENGTH),save :: refValCutoffName,refValCutOffString
-  character(len=MAX_STRING_LENGTH),save :: refFiltername,refFilterString
+  character(len=MAX_STRING_LENGTH) :: refine_var_string_1, &
+       refine_var_string_2, refine_var_string_3, &
+       refine_var_string_4, basename
   character(len=MAX_STRING_LENGTH) :: xl_bcString,xr_bcString
   character(len=MAX_STRING_LENGTH) :: yl_bcString,yr_bcString
   character(len=MAX_STRING_LENGTH) :: zl_bcString,zr_bcString
   character(len=MAX_STRING_LENGTH) :: eosModeString, grav_boundary_type
   real :: dx, dy, dz
   real, dimension(NDIM) :: rnb
-  integer,save :: refVar
-  integer :: countInComm, color, key, ierr
-  integer :: nonrep
-  
+
+
 !----------------------------------------------------------------------------------
 ! mesh geometry - moved here so Paramesh_init can use gr_geometry for some checking
 !----------------------------------------------------------------------------------
   call RuntimeParameters_get("geometry",gr_str_geometry)
   call RuntimeParameters_mapStrToInt(gr_str_geometry, gr_geometry)
-  call RuntimeParameters_get("geometryOverride",gr_geometryOverride)
 
-  call Driver_getMype(GLOBAL_COMM, gr_globalMe)
-  call Driver_getNumProcs(GLOBAL_COMM, gr_globalNumProcs)
-  call Driver_getComm(GLOBAL_COMM, gr_globalComm)
-
-  call Driver_getMype(MESH_COMM, gr_meshMe)
-  call Driver_getNumProcs(MESH_COMM, gr_meshNumProcs)
-  call Driver_getComm(MESH_COMM, gr_meshComm)
-
-  call Driver_getMype(MESH_ACROSS_COMM, gr_meshAcrossMe)
-  call Driver_getNumProcs(MESH_ACROSS_COMM, gr_meshAcrossNumProcs)
-  call Driver_getComm(MESH_ACROSS_COMM, gr_meshAcrossComm)
-
-  amr_mpi_meshComm=gr_meshComm
-
-#ifdef GRID_WITH_MONOTONIC
-  if (NGUARD < 4) then
-     if (gr_meshMe==MASTER_PE) then
-        print*,'Grid_init: Monotonic grid interpolation requires at least 4 layers of guard cells.'
-        print*,' However, NGUARD is only ', NGUARD
-        print*," Maybe you want to setup with '-gridinterpolation=native',"
-        print*," or make sure that NGUARD is set correctly in Config file."
-        call Driver_abortFlash("Please setup with '-gridinterpolation=native', or change NGUARD.")
-     end if
-  endif
-#endif
+    !Store Grid copy of myPE and numProcs so accessor functions can use them.
+  gr_myPE = myPE
+  gr_numProcs = numProcs
 
   call Paramesh_init()
-!!  gr_meshComm = FLASH_COMM
+
 ! The following renaming was done: "conserved_var" -> "convertToConsvdForMeshCalls". - KW
   call RuntimeParameters_get("convertToConsvdForMeshCalls", gr_convertToConsvdForMeshCalls)
   call RuntimeParameters_get("convertToConsvdInMeshInterp", gr_convertToConsvdInMeshInterp)
   if (gr_convertToConsvdInMeshInterp) then
 #ifdef FLASH_GRID_PARAMESH2
-        ! For PARAMESH2, if the new way of conversion to conserved
+        ! For PARAMESH3, if the new way of conversion to conserved
         ! form is requested, use the old way instead and generate
         ! appropriate warnings. - KW
      if (gr_convertToConsvdForMeshCalls) then
-        if(gr_meshMe == MASTER_PE) print*,'WARNING : convertToConsvdInMeshInterp is ignored in PARAMESH2'
-        call Logfile_stampMessage("WARNING : convertToConsvdInMeshInterp is ignored in PARAMESH2")
+        if(myPE == MASTER_PE) print*,'WARNING : convertToConsvdInMeshInterp is ignored in PARAMESH2'
+        call Logfile_stampMessage(MyPE,"WARNING : convertToConsvdInMeshInterp is ignored in PARAMESH2")
      else
-        if(gr_meshMe == MASTER_PE) &
+        if(myPE == MASTER_PE) &
              print*,'WARNING : convertToConsvdInMeshInterp is not implemented in PARAMESH2'// &
                ', using convertToConsvdForMeshCalls logic instead.'
-        call Logfile_stampMessage( &
+        call Logfile_stampMessage(MyPE, &
              'WARNING : convertToConsvdInMeshInterp is not implemented in PARAMESH2'// &
              ', using convertToConsvdForMeshCalls logic instead.')
         gr_convertToConsvdForMeshCalls = .TRUE.
      end if
 #else
      if (gr_convertToConsvdForMeshCalls) then
-        ! For PARAMESH 4, if both ways of conversion to conserved form are requested,
+        ! For PARAMESH3, if both ways of conversion to conserved form are requested,
         ! Let the new mechanism win and try to make sure the old one is not used. - KW
-        if(gr_meshMe == MASTER_PE) &
+        if(myPE == MASTER_PE) &
              print*,'WARNING: convertToConsvdForMeshCalls ignored since convertToConsvdInMeshInterp is requested'
-        call Logfile_stampMessage( &
+        call Logfile_stampMessage(MyPE, &
              "WARNING: convertToConsvdForMeshCalls ignored since convertToConsvdInMeshInterp is requested")
         gr_convertToConsvdForMeshCalls = .FALSE.
      end if
@@ -226,6 +186,7 @@ subroutine Grid_init()
   call RuntimeParameters_get("nrefs", gr_nrefs)
   call RuntimeParameters_get('lrefine_min', lrefine_min)
   call RuntimeParameters_get('lrefine_max', lrefine_max)
+!  call RuntimeParameters_get('lrefine_limit', gr_lrefineLimit)
 
   call RuntimeParameters_get("smalle",gr_smalle)
   call RuntimeParameters_get("smlrho",gr_smallrho)
@@ -310,94 +271,84 @@ subroutine Grid_init()
   gr_justExchangedGC = .false.
 
 
-  !! This section of the code identifies the variables to used in
-  !! the refinement criterion. If a variable is a refinement variable
-  !! then the corresponding refinement/derefinement cutoff and filter
-  !! values also have to be fetched. The config file defines
-  !! refinement variables as strings, names as "refine_var_1",
-  !! "refine_var_2" etc, with the current maximum being 4. The
-  !! general utility routine takes the base "refine_var_" and appends
-  !! the index at the end of the string to generate the parameter
-  !! name and the routine Simulation_mapStrToInt finds its index into UNK.
+ 
+  !get the refinement variables (ie. dens, pres, etc) as a string
+  call RuntimeParameters_get( "refine_var_1", refine_var_string_1)
+  call RuntimeParameters_get( "refine_var_2", refine_var_string_2)
+  call RuntimeParameters_get( "refine_var_3", refine_var_string_3)
+  call RuntimeParameters_get( "refine_var_4", refine_var_string_4)
 
-  call RuntimeParameters_get("refine_var_count",gr_numRefineVarsMax)
   gr_refine_var = NONEXISTENT
   gr_numRefineVars=0
 
-  refVarName='refine_var_'
-  refCutoffName='refine_cutoff_'
-  derefCutoffName='derefine_cutoff_'
-  refValCutoffName='refine_val_cutoff_'
-  refFilterName='refine_filter_'
-
-  do i = 1,gr_numRefineVarsMax
-     call concatStringWithInt(refVarName,i,refVarString)
-     call RuntimeParameters_get( refVarString, paramString)
-     if(paramString /= "none") then
-        do ! not a real loop
-           call Simulation_mapStrToInt(paramString, refVar, MAPBLOCK_UNK)
-           if(refVar <= 0) exit
-           call Grid_getVarNonRep(MAPBLOCK_UNK, refVar, nonrep)
-           if(nonrep > 0) then; refVar = 0; exit; end if
-
-           gr_numRefineVars=gr_numRefineVars+1
-           gr_refine_var(gr_numRefineVars)=refVar
-           call concatStringWithInt(refCutoffName,gr_numRefineVars,refCutoffString)
-           call concatStringWithInt(derefCutoffName,gr_numRefineVars,derefCutOffString)
-           call concatStringWithInt(refValCutoffName,gr_numRefineVars,refValCutoffString)
-           call concatStringWithInt(refFilterName,gr_numRefineVars,refFilterString)
-           call RuntimeParameters_get( refCutoffString, gr_refine_cutoff(gr_numRefineVars)  )
-           call RuntimeParameters_get( derefCutoffString, gr_derefine_cutoff(gr_numRefineVars) )
-           call RuntimeParameters_get( refValCutoffString,  gr_refine_val_cutoff(gr_numRefineVars) )
-           call RuntimeParameters_get( refFilterString,  gr_refine_filter(gr_numRefineVars) )
-           exit ! told you it wasnt a real loop
-        end do
-        if(refVar <= 0) then
-           if(gr_globalMe == MASTER_PE) &
-              print*, 'WARNING: Unrecognized or non-replicated variable name in refine_var_',i,' treating it as "none"'
-           call Logfile_stampMessage( &
-              'WARNING: Unrecognized or non-replicatedvariable name in refine_var, treating it as "none"')
-        end if
+  !map the refinement vars to integer constants defined in Flash.h
+  if(refine_var_string_1 /= "none") then
+     call Simulation_mapStrToInt(refine_var_string_1, gr_refine_var(gr_numRefineVars+1),MAPBLOCK_UNK)
+     if (gr_refine_var(gr_numRefineVars+1) .LE. 0) then
+        if (MyPE==MASTER_PE) print*, 'WARNING: Unrecognized variable name in refine_var_1, treating it as "none"'
+        call Logfile_stampMessage(MyPE,'WARNING: Unrecognized variable name in refine_var_1, treating it as "none"')
+     else
+        gr_numRefineVars=gr_numRefineVars+1
+        call RuntimeParameters_get( "refine_cutoff_1", gr_refine_cutoff(gr_numRefineVars)  )
+        call RuntimeParameters_get( "derefine_cutoff_1", gr_derefine_cutoff(gr_numRefineVars) )
+        call RuntimeParameters_get( "refine_filter_1",  gr_refine_filter(gr_numRefineVars) )
+        call RuntimeParameters_get( "refine_val_cutoff_1",  gr_refine_val_cutoff(gr_numRefineVars) )
      end if
-  end do
-
-  gr_enforceMaxRefinement = .FALSE.
-
-  call RuntimeParameters_get("lrefine_del", gr_lrefineDel)
-  gr_maxRefine=lrefine_max
-
-  call RuntimeParameters_get("gr_lrefineMaxRedDoByLogR", gr_lrefineMaxRedDoByLogR)
-  call RuntimeParameters_get("gr_lrefineMaxRedRadiusFact", gr_lrefineMaxRedRadiusSq)
-  gr_lrefineMaxRedRadiusSq = gr_lrefineMaxRedRadiusSq * gr_lrefineMaxRedRadiusSq
-  call RuntimeParameters_get("x_refine_center", gr_lrefineCenterI)
-  call RuntimeParameters_get("y_refine_center", gr_lrefineCenterJ)
-  call RuntimeParameters_get("z_refine_center", gr_lrefineCenterK)
-
-  call RuntimeParameters_get("gr_lrefineMaxRedDoByTime", gr_lrefineMaxRedDoByTime)
-  if (gr_lrefineMaxRedDoByTime) gr_enforceMaxRefinement = .TRUE.
-  call RuntimeParameters_get("gr_lrefineMaxRedTimeScale", gr_lrefineMaxRedTimeScale)
-  call RuntimeParameters_get("gr_lrefineMaxRedLogBase", gr_lrefineMaxRedLogBase)
-  call RuntimeParameters_get("gr_lrefineMaxRedTRef", gr_lrefineMaxRedTRef)
-
-  if(gr_numRefineVars==0)then
-     if(gr_meshMe == MASTER_PE) print*,'WARNING : Adaptive Grid did not find any refinement variables'
-     call Logfile_stampMessage("WARNING : Adaptive Grid did not find any variable to refine")
   end if
 
-  call RuntimeParameters_get("gr_restrictAllMethod", gr_restrictAllMethod)
+  if(refine_var_string_2 /= "none") then
+     call Simulation_mapStrToInt(refine_var_string_2, gr_refine_var(gr_numRefineVars+1),MAPBLOCK_UNK)
+     if (gr_refine_var(gr_numRefineVars+1) .LE. 0) then
+        if (MyPE==MASTER_PE) print*, 'WARNING: Unrecognized variable name in refine_var_2, treating it as "none"'
+        call Logfile_stampMessage(MyPE,'WARNING: Unrecognized variable name in refine_var_2, treating it as "none"')
+     else
+        gr_numRefineVars=gr_numRefineVars+1
+        call RuntimeParameters_get( "refine_cutoff_2", gr_refine_cutoff(gr_numRefineVars)  )
+        call RuntimeParameters_get( "derefine_cutoff_2", gr_derefine_cutoff(gr_numRefineVars) )
+        call RuntimeParameters_get( "refine_filter_2",  gr_refine_filter(gr_numRefineVars) )
+        call RuntimeParameters_get( "refine_val_cutoff_2",  gr_refine_val_cutoff(gr_numRefineVars) )
+     end if
+  end if
+
+  if(refine_var_string_3 /= "none") then
+     call Simulation_mapStrToInt(refine_var_string_3, gr_refine_var(gr_numRefineVars+1),MAPBLOCK_UNK)
+     if (gr_refine_var(gr_numRefineVars+1) .LE. 0) then
+        if (MyPE==MASTER_PE) print*, 'WARNING: Unrecognized variable name in refine_var_3, treating it as "none"'
+        call Logfile_stampMessage(MyPE,'WARNING: Unrecognized variable name in refine_var_3, treating it as "none"')
+     else
+        gr_numRefineVars=gr_numRefineVars+1
+        call RuntimeParameters_get( "refine_cutoff_3", gr_refine_cutoff(gr_numRefineVars)  )
+        call RuntimeParameters_get( "derefine_cutoff_3", gr_derefine_cutoff(gr_numRefineVars) )
+        call RuntimeParameters_get( "refine_filter_3",  gr_refine_filter(gr_numRefineVars) )
+        call RuntimeParameters_get( "refine_val_cutoff_3",  gr_refine_val_cutoff(gr_numRefineVars) )
+     end if
+  end if
+
+  if(refine_var_string_4 /= "none") then
+     call Simulation_mapStrToInt(refine_var_string_4, gr_refine_var(gr_numRefineVars+1),MAPBLOCK_UNK)
+     if (gr_refine_var(gr_numRefineVars+1) .LE. 0) then
+        if (MyPE==MASTER_PE) print*, 'WARNING: Unrecognized variable name in refine_var_4, treating it as "none"'
+        call Logfile_stampMessage(MyPE,'WARNING: Unrecognized variable name in refine_var_4, treating it as "none"')
+     else
+        gr_numRefineVars=gr_numRefineVars+1
+        call RuntimeParameters_get( "refine_cutoff_4", gr_refine_cutoff(gr_numRefineVars)  )
+        call RuntimeParameters_get( "derefine_cutoff_4", gr_derefine_cutoff(gr_numRefineVars) )
+        call RuntimeParameters_get( "refine_filter_4",  gr_refine_filter(gr_numRefineVars) )
+        call RuntimeParameters_get( "refine_val_cutoff_4",  gr_refine_val_cutoff(gr_numRefineVars) )
+     end if
+  end if
+  call RuntimeParameters_get("lrefine_del", gr_lrefineDel)
+  gr_maxRefine=lrefine_max
+  if(gr_numRefineVars==0)then
+     if(myPE == MASTER_PE) print*,'WARNING : Adaptive Grid did not find any refinement variables'
+     call Logfile_stampMessage(MyPE,"WARNING : Adaptive Grid did not find any variable to refine")
+  end if
 
 #ifdef FLASH_PARTICLES
   call RuntimeParameters_get('useParticles',gr_useParticles)
   call RuntimeParameters_get('pt_maxPerProc',gr_maxParticlesPerProc)
 #else
   gr_useParticles=.false.
-#endif
-
-#ifdef FLASH_EDEP
-  call RuntimeParameters_get('useEnergyDeposition', gr_useEnergyDeposition)
-  gr_useParticles = gr_useEnergyDeposition
-#else
-  gr_useEnergyDeposition = .false.
 #endif
 
   gr_allPeriodic = .true.
@@ -436,36 +387,21 @@ subroutine Grid_init()
 #endif  
   do i = 1,lrefine_max
      gr_delta(1:NDIM,i) = rnb
-     gr_delta(NDIM+1:,i) = 0.0
      rnb = rnb/2.0
   end do
 
       
-
-
-  gr_minCellSizes(IAXIS) = (gr_imax - gr_imin) / &
-       (gr_nblockX*NXB*2**(lrefine_max-1))
-  gr_minCellSize = gr_minCellSizes(IAXIS)
-
-
-  if (NDIM >= 2) then
-     gr_minCellSizes(JAXIS) = (gr_jmax - gr_jmin) / &
-          (gr_nblockY*NYB*2**(lrefine_max-1))
-     if (.not.gr_dirIsAngular(JAXIS)) then
-        gr_minCellSize = min(gr_minCellSize,gr_minCellSizes(JAXIS))
-     end if
+  gr_minCellSize = ( gr_imax - gr_imin ) / ( gr_nblockX*NXB*2**(lrefine_max-1) ) 
+  
+  if (NDIM >= 2 .and. .not. gr_dirIsAngular(JAXIS) ) then
+     gr_minCellSize = min( gr_minCellSize, ( gr_jmax - gr_jmin ) / &
+          ( gr_nblockY*NYB*2**(lrefine_max-1) ) )
   end if
-
-  if (NDIM == 3) then
-     gr_minCellSizes(KAXIS) = (gr_kmax - gr_kmin) / &
-          (gr_nblockZ*NZB*2**(lrefine_max-1))
-     if (.not. gr_dirIsAngular(KAXIS)) then
-        gr_minCellSize = min(gr_minCellSize,gr_minCellSizes(KAXIS))
-     end if
+  if (NDIM == 3 .and. .not. gr_dirIsAngular(KAXIS) ) then
+     gr_minCellSize = min( gr_minCellSize, (gr_kmax - gr_kmin ) / &
+          ( gr_nblockZ*NZB*2**(lrefine_max-1) ) )
+     
   end if
-
-
-
 
 #ifdef FL_NON_PERMANENT_GUARDCELLS
   gr_blkPtrRefCount = 0 
@@ -474,52 +410,11 @@ subroutine Grid_init()
   gr_lastBlkPtrGotten_fc = 0
 #endif
   call gr_setDataStructInfo()
+  call gr_ptInit()
   call gr_bcInit()
 
   !Initialize grid arrays used by IO
-  allocate(gr_nToLeft(0:gr_meshNumProcs-1))
+  allocate(gr_nToLeft(0:numProcs-1))
   allocate(gr_gid(nfaces+nchild+1, MAXBLOCKS))
-
-
-  !Only call the particle initialization routines when
-  !we are using particles.
-  if (gr_useParticles .eqv. .true. ) then
-     call gr_ptInit()
-     call gr_ptMapInit()
-  endif
-
-  ! Get runtime parameters for customRegion
-  call RuntimeParameters_get("useQuietStart", gr_useQuietStart)
-  call RuntimeParameters_get("usePiston", gr_usePiston)
-  call RuntimeParameters_get("useHole", gr_useHole)
-
-  call RuntimeParameters_get("hole_radius", gr_holeRad)
-  call RuntimeParameters_get("hole_bnd", gr_holeBnd)
-  call RuntimeParameters_get("hole_time", gr_holeTime)
-  call RuntimeParameters_get("hole_vel", gr_holeVel)
-
-  call RuntimeParameters_get("quietStartXmin", gr_quietStartBnd(LOW,IAXIS))
-  call RuntimeParameters_get("quietStartXmax", gr_quietStartBnd(HIGH,IAXIS))
-  call RuntimeParameters_get("quietStartYmin", gr_quietStartBnd(LOW,JAXIS))
-  call RuntimeParameters_get("quietStartYmax", gr_quietStartBnd(HIGH,JAXIS))
-  call RuntimeParameters_get("quietStartZmin", gr_quietStartBnd(LOW,KAXIS))
-  call RuntimeParameters_get("quietStartZmax", gr_quietStartBnd(HIGH,KAXIS))
-
-  call RuntimeParameters_get("quietStartDens", gr_quietStartDens)
-  call RuntimeParameters_get("quietStartTemp", gr_quietStartTemp)
-
-  call RuntimeParameters_get("pistonXmin", gr_pistonBnd(LOW,IAXIS))
-  call RuntimeParameters_get("pistonXmax", gr_pistonBnd(HIGH,IAXIS))
-  call RuntimeParameters_get("pistonYmin", gr_pistonBnd(LOW,JAXIS))
-  call RuntimeParameters_get("pistonYmax", gr_pistonBnd(HIGH,JAXIS))
-  call RuntimeParameters_get("pistonZmin", gr_pistonBnd(LOW,KAXIS))
-  call RuntimeParameters_get("pistonZmax", gr_pistonBnd(HIGH,KAXIS))
-
-  call RuntimeParameters_get("pistonDens", gr_pistonDens)
-  call RuntimeParameters_get("pistonVelx", gr_pistonVelx)
-  call RuntimeParameters_get("pistonVely", gr_pistonVely)
-  call RuntimeParameters_get("pistonVelz", gr_pistonVelz)
-
-
 
 end subroutine Grid_init

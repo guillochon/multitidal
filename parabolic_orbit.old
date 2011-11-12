@@ -1,0 +1,21 @@
+subroutine parabolic_orbit (newx, newy, newz)
+    use Gravity_data, ONLY: grv_factor, peri_dist, peri_time
+    use Driver_interface, ONLY: Driver_getSimTime
+    implicit none
+
+    real, intent(OUT) :: newx, newy, newz
+    real :: t, gm, u, r, q, q3, tmt, term1
+    
+    call Driver_getSimTime(t)
+    gm = -grv_factor
+    q = peri_dist
+    q3 = q**3.
+    tmt = t - peri_time
+    term1 = (q3*sqrt(8.*q3+9.*gm*tmt**2.)+3.*sqrt(gm)*q3*tmt)
+    u = (term1**(2./3.)-2.*q3) / (sqrt(2.)*q**(3./2.)*term1**(1./3.))
+    u = 2*atan(u)
+    r = 2*q/(1+cos(u))
+    newx = -r*sin(u)
+    newy = r*cos(u)
+    newz = 0.
+end

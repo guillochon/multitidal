@@ -30,7 +30,7 @@
 !!
 !! PARAMETERS
 !!
-!!  sim_tAmbient       Initial ambient temperature
+!!  sim_pAmbient       Initial ambient pressure
 !!  sim_rhoAmbient     Initial ambient density
 !!  sim_expEnergy      Explosion energy (distributed over 2^dimen central zones)
 !!  sim_rInit          Radial position of inner edge of grid (for 1D )
@@ -45,20 +45,20 @@
 subroutine Simulation_initBlock (blockId, myPE)
 
   use Simulation_data, ONLY: sim_xMax, sim_xMin, sim_yMax, sim_yMin, sim_zMax, sim_zMin, &
-     &  sim_tInitial, sim_gamma, sim_tAmbient, sim_rhoAmbient, &
+     &  sim_nProfile, sim_drProf, sim_rProf, sim_vProf, sim_pProf, sim_rhoProf, &
+     &  sim_tInitial, sim_gamma, sim_pAmbient, sim_rhoAmbient, &
      &  sim_smallX, sim_smallRho, sim_smallP, &
-     &  sim_nSubZones, sim_xCenter, sim_yCenter, sim_zCenter, sim_inSubzm1, sim_inszd, &
-     &  sim_tableRows, sim_tableCols, sim_table
+     &  sim_nSubZones, sim_xCenter, sim_yCenter, sim_zCenter, sim_inSubzm1, sim_inszd
   use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
     Grid_getCellCoords, Grid_putPointData
   use PhysicalConstants_interface, ONLY: PhysicalConstants_get
   use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
   
   implicit none
+  integer, parameter :: np=1000
 #include "constants.h"
 #include "Flash.h"
 #include "Multispecies.h"
-#include "Starprof.h"
   
   integer,intent(IN) ::  blockId
   integer,intent(IN) ::  myPE
@@ -66,8 +66,10 @@ subroutine Simulation_initBlock (blockId, myPE)
   integer  ::  i, j, k, n, jLo, jHi
   integer  ::  ii, jj, kk, put
   real     ::  distInv, xDist, yDist, zDist
-  real     ::  xx, dxx, yy, dyy, zz, dzz, frac, theta, phi
-  real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb, G, vtot
+  real     ::  sumRho, sumP
+  real     ::  vel, diagonal
+  real     ::  xx, dxx, yy, dyy, zz, dzz, frac
+  real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb
   real     ::  dist, gam
   logical  ::  validGeom
   integer  ::  istat
@@ -76,13 +78,16 @@ subroutine Simulation_initBlock (blockId, myPE)
   integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
   integer :: sizeX,sizeY,sizeZ
   integer,dimension(MDIM) :: axis
-  real, dimension(SPECIES_BEGIN:SPECIES_END) :: xn = 0.0
-  real, dimension(sim_tableCols) :: sumVars
+  real, dimension(NSPECIES) :: xn
   real, dimension(:,:,:,:),pointer :: solnData
 
   logical :: gcell = .true.
 
-  double precision  mtot,mu
+  double precision  order,mtot,rhoc,polyk,mu, &
+                    x(np),y(np),yp(np),radius(np),rhop(np), &
+                    mass(np),prss(np),ebind(np),zopac(np), &
+                    rhom(np),zbeta(np),ztemp(np),exact(np), &
+                    xsurf,ypsurf,combo,iend,ipos
   integer mode
   !
   !  Construct the radial samples needed for the initialization.
@@ -90,7 +95,31 @@ subroutine Simulation_initBlock (blockId, myPE)
   
   call PhysicalConstants_get("proton mass", mp)
   call PhysicalConstants_get("Boltzmann", kb)
-  call PhysicalConstants_get("Newton", G)
+  
+  xn(1) = 1.0
+  !xn(2) = 0.5
+  !xn(3) = 0.5
+  !xn(4) = 0.5
+  call Multispecies_getSumInv(A, mu, xn)
+  mu = 1.e0 / mu
+  call Multispecies_getAvg(GAMMA, gam)
+
+  order = 1.5d0
+  mtot = 0.2d0
+  rhoc = 2.0d5
+  polyk = 0.0d0
+  !print *, 'Avg params:', mu, gam
+  mode = 1
+  call polytr(order,mtot,rhoc,polyk,mu,mode, &
+              x,y,yp,radius,rhop,mass,prss,ebind, &
+              rhom,ztemp,zbeta,exact,xsurf,ypsurf,np,iend,ipos)
+  do i = 1, np
+     sim_vProf(i) = 0.0d0
+  enddo
+
+  !do i = 1, np
+  !   print *, radius(i), rhop(i), eint(i) 
+  !enddo
   
   ! get the coordinate information for the current block from the database
 
@@ -150,8 +179,8 @@ subroutine Simulation_initBlock (blockId, myPE)
               dxx = xCoord(i) - xCoord(i-1) 
            endif
            
-           sumVars = 0.
-           xn = 0.
+           sumRho = 0.
+           sumP   = 0.
            
            !
            !       Break the cell into sim_nSubZones^NDIM sub-zones, and look up the
@@ -175,7 +204,7 @@ subroutine Simulation_initBlock (blockId, myPE)
                     
                     dist    = sqrt( xDist**2 + yDist**2 + zDist**2 )
                     distInv = 1. / max( dist, 1.E-10 )
-                    call sim_find (sim_table(:,R_PROF), sim_tableRows, dist, jLo)
+                    call sim_find (radius, ipos, dist, jLo)
                     !
                     !  a point at `dist' is frac-way between jLo and jHi.   We do a
                     !  linear interpolation of the quantities at jLo and jHi and sum those.
@@ -184,68 +213,72 @@ subroutine Simulation_initBlock (blockId, myPE)
                        jLo = 1
                        jHi = 1
                        frac = 0.
-                    else if (jLo .eq. sim_tableRows) then
-                       jLo = sim_tableRows
-                       jHi = sim_tableRows
+                    else if (jLo .eq. ipos) then
+                       jLo = ipos
+                       jHi = ipos
                        frac = 0.
                     else
                        jHi = jLo + 1
-                       frac = (dist - sim_table(jLo,R_PROF)) / & 
-                            (sim_table(jHi,R_PROF)-sim_table(jLo,R_PROF))
+                       frac = (dist - radius(jLo)) / & 
+                            (radius(jHi)-radius(jLo))
                     endif
-                    sumVars = sumVars + sim_table(jLo,:) + frac*(sim_table(jHi,:) - sim_table(jLo,:))
+                    ! 
+                    !   Now total these quantities.   Note that  v is a radial velocity; 
+                    !   we multiply by the tangents of the appropriate angles to get
+                    !   the projections in the x, y and z directions.
+                    !
+                    sumP = sumP +  & 
+                         prss(jLo) + frac*(prss(jHi) - prss(jLo))
+                    
+                    sumRho = sumRho + & 
+                         rhop(jLo) + frac*(rhop(jHi) - rhop(jLo))
                  enddo
               enddo
            enddo
-           sumVars = sumVars*sim_inszd
            
-           xx = xCoord(i) - sim_xCenter
-           yy = yCoord(j) - sim_yCenter
-           zz = zCoord(k) - sim_zCenter
-           dist = sqrt(xx**2 + yy**2 + zz**2)
-           if (dist .le. sim_table(sim_tableRows, R_PROF)) then
-              sumVars(RHO_PROF) = max (sumVars(RHO_PROF), sim_rhoAmbient)
-              xn(H1_SPEC) = sumVars(H1_PROF)
-              !xn(HE3_SPEC) = sumVars(HE3_PROF)
-              xn(HE4_SPEC) = sumVars(HE4_PROF)
-              !xn(C12_SPEC) = sumVars(C12_PROF)
-              !xn(N14_SPEC) = sumVars(N14_PROF)
-              !xn(O16_SPEC) = sumVars(O16_PROF)
-              !xn(NE20_SPEC) = sumVars(NE20_PROF)
-              !xn(MG24_SPEC) = sumVars(MG24_PROF)
-              !xn(SI28_SPEC) = sumVars(SI28_PROF)
-              xn = xn / sum(xn)
-           else
-              sumVars(RHO_PROF) = sim_rhoAmbient
-              sumVars(TEMP_PROF) = sim_tAmbient
-              xn(H1_SPEC) = 1.0
-           endif
-
+           rho = max (sumRho * sim_inszd, sim_rhoAmbient)
+           p   = max (sumP   * sim_inszd, sim_pAmbient)
+           vx  = 0.0d0
+           vy  = 0.0d0
+           vz  = 0.0d0
+           ek  = 0.5*(vx*vx + vy*vy + vz*vz)
+           !
+           !  assume gamma-law equation of state
+           !
+           t   = p/(rho/mp*kb)
+           e   = p/(gam-1.)
+           e   = e/rho + ek
+           e   = max (e, sim_smallP)
+           
            axis(IAXIS)=i
            axis(JAXIS)=j
            axis(KAXIS)=k
 
 
 #ifdef FL_NON_PERMANENT_GUARDCELLS
-           solnData(DENS_VAR,i,j,k)=sumVars(RHO_PROF)
-           solnData(TEMP_VAR,i,j,k)=sumVars(TEMP_PROF)
-           solnData(VELX_VAR,i,j,k)=0.0
-           solnData(VELY_VAR,i,j,k)=0.0
-           solnData(VELZ_VAR,i,j,k)=0.0
-           do put=1,NSPECIES
-              if (xn(SPECIES_BEGIN+put-1) == 0.0) xn(SPECIES_BEGIN+put-1) = sim_smallX
-              solnData(SPECIES_BEGIN+put-1,i,j,k)=xn(SPECIES_BEGIN+put-1)
-           enddo
+           solnData(DENS_VAR,i,j,k)=rho
+           solnData(PRES_VAR,i,j,k)=p
+           solnData(ENER_VAR,i,j,k)=e
+           solnData(TEMP_VAR,i,k,k)=t
+           !solnData(GAME_VAR,i,j,k)=gam
+           !solnData(GAMC_VAR,i,j,k)=gam
+           solnData(VELX_VAR,i,j,k)=vx
+           solnData(VELY_VAR,i,j,k)=vy
+           solnData(VELZ_VAR,i,j,k)=vz
 #else
-           call Grid_putPointData(blockId, CENTER, DENS_VAR, EXTERIOR, axis, sumVars(RHO_PROF))
-           call Grid_putPointData(blockId, CENTER, TEMP_VAR, EXTERIOR, axis, sumVars(TEMP_PROF))    
-           call Grid_putPointData(blockId, CENTER, VELX_VAR, EXTERIOR, axis, 0.0)
-           call Grid_putPointData(blockId, CENTER, VELY_VAR, EXTERIOR, axis, 0.0)
-           call Grid_putPointData(blockId, CENTER, VELZ_VAR, EXTERIOR, axis, 0.0)
+           call Grid_putPointData(blockId, CENTER, DENS_VAR, EXTERIOR, axis, rho)
+           call Grid_putPointData(blockId, CENTER, PRES_VAR, EXTERIOR, axis, p)
+           call Grid_putPointData(blockId, CENTER, ENER_VAR, EXTERIOR, axis, e)    
+           call Grid_putPointData(blockId, CENTER, TEMP_VAR, EXTERIOR, axis, t)    
+           !call Grid_putPointData(blockId, CENTER, GAME_VAR, EXTERIOR, axis, sim_gamma)
+           !call Grid_putPointData(blockId, CENTER, GAMC_VAR, EXTERIOR, axis, sim_gamma)
+           call Grid_putPointData(blockId, CENTER, VELX_VAR, EXTERIOR, axis, vx)
+           call Grid_putPointData(blockId, CENTER, VELY_VAR, EXTERIOR, axis, vy)
+           call Grid_putPointData(blockId, CENTER, VELZ_VAR, EXTERIOR, axis, vz)
            do put=1,NSPECIES
-              if (xn(SPECIES_BEGIN+put-1) == 0.0) xn(SPECIES_BEGIN+put-1) = sim_smallX
+              if (xn(put) == 0.0) xn(put) = sim_smallX
               call Grid_putPointData(blockID,CENTER,SPECIES_BEGIN+put-1,&
-                   EXTERIOR,axis,xn(SPECIES_BEGIN+put-1))
+                   EXTERIOR,axis,xn(put))
            enddo
 #endif
         enddo
@@ -287,7 +320,7 @@ subroutine sim_find (x, nn, x0, i)
 
   elseif (x0 .gt. x(nn)) then
 
-     i = nn
+     i = nn+1
 
   else
 

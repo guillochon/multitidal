@@ -1,0 +1,152 @@
+!!****if* source/Grid/GridSolvers/Multipole/gr_mpoleLocalSum
+!!
+!! NAME
+!!
+!!  gr_mpoleLocalSum()
+!!
+!! SYNOPSIS
+!!
+!!  gr_mpoleLocalSum(integer,intent(in) : blockID,
+!!                     integer,intent(in) : nsum,
+!!                     integer,intent(in) : idensvar,
+!!                     real,intent (out)  : lsum(nsum))
+!!
+!! DESCRIPTION
+!!
+!!   Accumulate values of the density and density-weighted position
+!!   from the interior of a given block.  The results are stored in
+!!   a given vector (lsum), which is assumed to have been
+!!   initialized by the calling routine.
+!!
+!!***
+
+
+subroutine gr_mpoleLocalSum (blockID,nsum,idensvar, lsum)
+  
+  !==================================================================
+  
+  use gr_mpoleData, ONLY : G_3DCARTESIAN,G_1DSPHERICAL,G_2DCYLINDRICAL,G_3DAXISYMMETRIC,&
+                         quadrant, twopi, fourpi, mpole_geometry,&
+                         octant
+  use Grid_interface, ONLY : Grid_getBlkPtr,Grid_releaseBlkPtr,&
+                             Grid_getBlkBoundBox,Grid_getDeltas,&
+                             Grid_getBlkIndexLimits
+  use RuntimeParameters_interface, ONLY : RuntimeParameters_get
+  use Gravity_data, ONLY : grv_densCut, grv_thresh, grv_comCutoff
+
+  implicit none
+  
+#include "constants.h"
+#include "Flash.h"
+
+  integer,intent(IN) :: blockID, idensvar, nsum
+  real,intent(INOUT)  :: lsum(nsum)
+  
+  real,dimension(MDIM) :: delta
+  real,dimension(LOW:HIGH,MDIM) :: bndBox
+  integer,dimension(LOW:HIGH,MDIM) :: blkLimits, blkLimitsGC
+
+  real               :: xx, yy, zz
+  real, pointer, dimension(:,:,:,:)      :: solnData
+  integer            :: i, j, k, imax, jmax, kmax, imin, jmin, kmin
+  real               :: dvol,  delm, tinitial
+  
+  !=====================================================================
+  
+  call Grid_getBlkBoundBox(blockID, bndBox)
+
+  ! Compute dimensions of each zone.
+  call Grid_getDeltas(blockID,delta)
+  call Grid_getBlkPtr(blockID, solnData)
+
+  
+  !               Sum contributions from this block.
+  
+  yy = 0.
+  zz = 0.
+  
+  call Grid_getBlkIndexLimits(blockID, blkLimits, blkLimitsGC)
+
+
+  kmax = blkLimits(HIGH,KAXIS)
+  kmin = blkLimits(LOW,KAXIS)  
+  jmax = blkLimits(HIGH,JAXIS)
+  jmin = blkLimits(LOW,JAXIS)
+  imax = blkLimits(HIGH,IAXIS)
+  imin = blkLimits(LOW,IAXIS)
+
+  call RuntimeParameters_get('tinitial',tinitial)
+
+
+  do k = kmin, kmax
+     if (NDIM == 3) zz = bndBox(LOW,KAXIS) + (k-kmin+0.5)*delta(KAXIS)
+     do j = jmin, jmax
+        if (NDIM >= 2) yy = bndBox(LOW,JAXIS) + (j-jmin+0.5)*delta(JAXIS)
+        do i = imin, imax
+           xx = bndBox(LOW,IAXIS) + (i-imin+0.5)*delta(IAXIS)
+           
+           select case (mpole_geometry)
+              
+           case (G_3DCARTESIAN)
+              dvol = delta(IAXIS) * delta(JAXIS) * delta(KAXIS)
+              
+              if (octant) then
+                 
+                 ! if we are doing an octant, force the center
+                 ! of mass to be at the origin (due to symmetry)
+                 xx = 0.0
+                 yy = 0.0
+                 zz = 0.0
+                 
+                 ! we want the mass computed to reflect the total
+                 ! mass of the star
+                 dvol = 8.0 * dvol
+              endif
+
+           case (G_3DAXISYMMETRIC)
+              dvol = delta(IAXIS) * delta(JAXIS) * delta(KAXIS)
+              xx = 0.            ! ctr of mass stays on z-axis in axisymmetry
+              yy = 0.
+              
+           case (G_2DCYLINDRICAL)
+              dvol = twopi * xx * delta(IAXIS) * delta(JAXIS)
+              xx = 0.            ! ctr of mass is on x-axis in 2D cylindrical
+              if (quadrant) then
+                 yy = 0.          ! ctr of mass is on y-axis if doing a quadrant
+                 dvol = 2. * dvol ! account for symmetry-suppressed quadrant
+              endif
+              
+           case (G_1DSPHERICAL)
+              dvol = fourpi * xx**2 * delta(IAXIS)
+              xx = 0.     ! center of mass is at origin in 1D spherical
+              
+           end select
+           
+           !if (solnData(idensvar,i,j,k) .lt. grv_thresh) cycle
+
+           delm = solnData(idensvar,i,j,k)*dvol
+           if (solnData(idensvar,i,j,k) .ge. grv_densCut*grv_comCutoff) then
+               lsum(1) = lsum(1) + delm
+               lsum(2) = lsum(2) + delm*xx
+               lsum(3) = lsum(3) + delm*yy
+               lsum(4) = lsum(4) + delm*zz
+               lsum(5) = lsum(5) + delm*solnData(VELX_VAR,i,j,k)
+               lsum(6) = lsum(6) + delm*solnData(VELY_VAR,i,j,k)
+               lsum(7) = lsum(7) + delm*solnData(VELZ_VAR,i,j,k)
+           endif
+           lsum(8) = lsum(8) + delm
+           lsum(9) = lsum(9) + delm*xx
+           lsum(10) = lsum(10) + delm*yy
+           lsum(11) = lsum(11) + delm*zz
+           lsum(12) = lsum(12) + delm*solnData(VELX_VAR,i,j,k)
+           lsum(13) = lsum(13) + delm*solnData(VELY_VAR,i,j,k)
+           lsum(14) = lsum(14) + delm*solnData(VELZ_VAR,i,j,k)
+        enddo
+     enddo
+  enddo
+  
+  !==========================================================================
+  call Grid_releaseBlkPtr(blockID, solnData)
+  
+  return
+end subroutine gr_mpoleLocalSum

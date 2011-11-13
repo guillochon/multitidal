@@ -1,8 +1,11 @@
-      subroutine polytr(order,mtot,rhoc,polyk,mu,mode,
+      subroutine polytr(nc,ne,mtot,mc,rhoc,polyk,rtot,muc,mue,mode,
      1                  x,y,yp,radius,rho,mass,prss,ebind,rhom,
-     2                  ztemp,zbeta,exact,xsurf,ypsurf,n,iend,ipos)
+     2                  ztemp,zbeta,exact,xsurf,ypsurf,n,iend,ipos,
+     3                  x1i,x2s,ipoi)
       implicit none
       include 'const.dek'
+
+c..this routine has been modified by Shangfei to calculate the composite polytropes.
 
 c..this routine computes the physical properties of a polytropic star.
 c..see chandrasekhars "stellar structure"
@@ -37,25 +40,30 @@ c..xsurf   = x value where y is zero, dimensionless surface of the star
 c..ypsurf  = dx/dy at the dimensionless suurface of the star
 c..iend    = total number of solution points
 c..ipos    = number of solution points with y > 0
+c..ipoi    = number of solution points within envelope
 
 
 c..declare the pass
-      integer          n,iend,ipos,mode
-      double precision order,mtot,rhoc,polyk,mu,
+      integer          n,iend,ipos,mode,ipoi
+      double precision nc,ne,mtot,mc,rhoc,rhoe,kc,ke,polyk,muc,mue,
      1                 x(n),y(n),yp(n),radius(n),rho(n),mass(n),prss(n),
      2                 ebind(n),rhom(n),ztemp(n),zbeta(n),exact(n),
-     3                 xsurf,ypsurf
+     3                 xsurf,ypsurf,x1i,x2i,x2s,q,order,rho0,rtot
+c     4                 xei,xci,rhoe,rhoce,muc,mue
 
 
 c..locals variables
       external          lanemd,rkqc,tlane,cross
       logical           succes
-      integer           i,k,mm,xdim,ydim,nok,nbad,iprint,iat
+      integer           i,k,ksav,mm,xdim,ydim,nok,nbad,iprint,iat
       parameter         (xdim=600, ydim=2)
 
       double precision  xrk(xdim),yrk(ydim,xdim),bc(ydim),stptry,
      1                  stpmin,stpmax,tol,odescal,lo,hi,zbrent,start,
-     2                  sstop,xx,rscale,secday,f1,f2,f3
+     2                  sstop,xx,rscale,secday,f1,f2,f3,
+     3                  u,v,ac,ae,rc
+c..                       pitfc
+c     4                  bcsave(ydim)
 
 
 c..communication with routine lanemd and routine tlane
@@ -82,8 +90,8 @@ c..various constants
 
 
 c..initialize
-       oord  = order
-       mmu   = mu
+       oord  = nc
+       mmu   = muc
        lo    = 1.0d2
        hi    = 1.0d9
 
@@ -93,7 +101,7 @@ c..nominally x = 0 bc(1) = 0.0d0 and bc(2) = 1.0d0
 c..start away from the x=0 singularity and move the boundary conditions as well
 
       start   = 1.0d-6
-      call le_series(order,start,bc(2),bc(1))
+      call le_series(oord,start,bc(2),bc(1))
 
 
 c..set the numerical control parameters
@@ -103,21 +111,68 @@ c..so enforce a maximum step size
       stptry  = 1.0d-8
       stpmin  = 1.0d-12
       stpmax  = 1.0e24
-      if (order .eq. 0.0) stpmax = 0.05
+      if (nc .eq. 0.0) stpmax = 0.05
       sstop   = 50.0d0
       tol     = 1.0d-8
       odescal = 1.0d0
-      iprint  = 0
+      iprint  = 0 
+      ksav    = 0
 
 
 c..integrate to get the dimensionless solution
 
-      call podeint(start,stptry,stpmin,sstop,bc,
-     1            tol,stpmax,xdim,
+      call podeint(start,stptry,stpmin,x1i,bc,
+     1            tol,stpmax,xdim,ksav,
      2            xrk,yrk,xdim,ydim,xdim,ydim,
      3            nok,nbad,k,odescal,iprint,
      4            lanemd,rkqc)
 
+c      open(38,file="interface.dat",position='append')
+c      write(38,*) k,xrk(k),yrk(1,k),yrk(2,k)
+      oord = ne
+      mmu  = mue
+      ksav = k-1
+c      do i=1,ydim
+c       bcsave(i)=bc(i)
+c      enddo
+c      u    = -xci*(bcsave(2)+2.0d0*bcsave(1)/xci)/bcsave(1)
+c      v    = -(-(nc+1.0d0)*xci*bcsave(2))**nc/
+c     1       (bcsave(1)+2.0d0*bcsave(1)/xci)
+c      bc(2)= ((u*mue/muc)*(v*mue/muc)**ne/
+c     1       ((ne+1.0d0)**ne*(-xei)**(ne+1.0d0)))**(ne-1.0d0)
+c      bc(1)= (u*mue/muc)*bc(2)-2.0d0*bc(2)/xei
+c      u = -xci*bcsave(2)**nc/bcsave(1)
+c      v = -(nc+1.0d0)*xci*bcsave(1)/bcsave(2)
+c      bc(2) = ((u*mue/muc)*(v*mue/muc)/((ne+1.0d0)*xei*xei))**
+c     2        (1.0d0/(ne-1.0d0))
+c      bc(1) = -xei*bc(2)**ne/(u*mue/muc)
+
+c      rhoce=muc/mue*bc(2)**ne/bcsave(2)**nc
+c      mcore=-fpi*xei*xei*bc(1)
+c      write(38,*) bcsave(1),bcsave(2),bc(1),bc(2)
+c      close(38)
+
+      rhoc = x1i/bc(1)
+      x2i = mue/muc*sqrt((nc+1.0d0)/(ne+1.0d0)*x1i**2*bc(2)**(nc-1.0d0))
+
+      bc(1) = (nc+1.0d0)/(ne+1.0d0)*(x1i*bc(1))/(x2i*bc(2))*mue/muc
+
+c..normal usage
+      bc(2) = 1.0d0
+c..for producing single polytrope
+c      bc(2) = bc(2)
+
+	  bc(1) = bc(1) * bc(2)
+      q = x2i/x2s
+      rhoe = x2i**2*bc(1)
+
+      call podeint(x2i,stptry,stpmin,sstop,bc,
+     1            tol,stpmax,xdim,ksav,
+     2            xrk,yrk,xdim,ydim,xdim,ydim,
+     3            nok,nbad,k,odescal,iprint,
+     4            lanemd,rkqc)
+
+      k = k+ksav
 
 c..set the total number of points in the solution
       iend = min(k,n)
@@ -169,28 +224,28 @@ c..cases of real physical interest always have order > 1.
 c..see chandra pg 106, last part of section 8 for an amusing commentary.
 c..in this case, only return the dimensionless solution x and y. 
 
-      if (order .le. 1.0) then
-       do i=1,ipos
-        if (order .eq. 0.0) then
-         exact(i)  = 1.0d0 - x(i)*x(i)/6.0d0
-        else if (order .eq. 1.0) then
-         exact(i)  = dsin(x(i))/x(i)
-        end if
-       enddo
-       !return
-      end if
+c      if (order .le. 1.0) then
+c       do i=1,ipos
+c        if (order .eq. 0.0) then
+c         exact(i)  = 1.0d0 - x(i)*x(i)/6.0d0
+c        else if (order .eq. 1.0) then
+c         exact(i)  = sin(x(i))/x(i)
+c        end if
+c       enddo
+c       return
+c      end if
 
 
 
 c..for order > 1
-      f1 = -fpi * xsurf * xsurf * ypsurf
-      f2 = (order + 1.0d0) /fpig
-      f3 = (3.0d0 - order)/(2.0d0 * order) 
+c      f1 = -fpi * xsurf * xsurf * ypsurf
+c      f2 = (order + 1.0d0) /fpig
+c      f3 = (3.0d0 - order)/(2.0d0 * order) 
 
 
 c..total mass and central density given. compute the polytropic k
       if (mode .eq. 1) then
-       polyk = 1.0d0/f2 * (mtot*msol/(f1*rhoc**f3))**twoth
+c       polyk = 1.0d0/f2 * (mtot*msol/(f1*rhoc**f3))**twoth
 
 
 c..total mass and polytropic k given. compute the central density
@@ -198,7 +253,7 @@ c..total mass and polytropic k given. compute the central density
        if (f3 .eq. 0.0) then 
         rhoc = 1.0d0
        else
-        rhoc = ( mtot*msol/(f1 * (f2*polyk)**1.5d0 ) )**(1.0d0/f3)
+c        rhoc = ( mtot*msol/(f1 * (f2*polyk)**1.5d0 ) )**(1.0d0/f3)
        endif
 
 
@@ -211,24 +266,74 @@ c..a bad mode
        stop 'unknown mode in routine polytr'
       end if
 
+c..for composite polytropes, ignore mode
+      rc = q*rtot*rsol
+      ac = rc/x1i
+      rhoc = -rhoc*mc*mearth/(fpi*rc**3)
+      kc = ac**2*rhoc**(1.0d0-1.0d0/nc)*fpig/(nc+1.0d0)
+      ae = rtot*rsol/x2s
+      rhoe = -mc*mearth/(fpi*ae**3*rhoe)
+      ke = ae**2*rhoe**(1.0d0-1.0d0/ne)*fpig/(ne+1.0d0)
+c      write(*,*) rc,ac,rhoc,kc,ae,rhoe,ke
+
+c      ke=fpi**(1.0d0/ne)*g/(ne+1.0d0)*(mtot*msol)**(1.0d0-1.0d0/ne)*
+c     1   (rtot*rsol)**(3.0d0/ne-1.0d0)*xsurf**(-1.0d0-1.0d0/ne)*
+c     2   (-ypsurf)**(1.0d0/ne-1.0d0)
+c      rscalee=rtot*rsol/xsurf
+c      rhoe=((ne+1.0d0)*ke/(fpig*rscalee*rscalee))**(ne/(ne-1.0d0))
+c      rcore=sqrt((ne+1.0d0)*ke/(fpig*rhoe**(1.0d0-1.0d0/ne)))*xei
+c      rscalec=rcore/xci
+c      rhoc=rhoe*rhoce
+c      mcore=mcore*rhoe*
+c     2    ((ne+1.0d0)*ke/(fpig*rhoe**(1.0d0-1.0d0/ne)))**(3.0d0/2.0d0)
+c      kc = (-mcore/(fpi*rhoc*xci*xci*bcsave(1)))**twoth*
+c     1     fpig*rhoc**(1.0d0-1.0d0/nc)/(nc+1.0d0)
+
+c      open(39,file="parameters.dat",position='append')
+c      write(39,*) 'nc=',nc,'ne=',ne,'mtot=',mtot,'rtot=',rtot
+c      write(39,*) 'muc=',muc,'mue=',mue,'xci=',xci,'xei=',xei
+c      write(39,*) fpi**(1.0d0/ne)*g/(ne+1.0d0),mtot*msol
+c      write(39,*) 1.0d0-1.0d0/ne,(rtot*rsol)**(3.0d0/ne-1.0d0)
+c      write(39,*) xsurf,ypsurf
+c      write(39,*) 'ke=',ke,'rscalee=',rscalee,'rhoe=',rhoe
+c      write(39,*) 'rscalec=',rscalec,'rhoc=',rhoc,'Rp=',rtot*rsol
+c      write(39,*) 'k=',k,'ksav',ksav,'kc=',kc,'rcore=',rcore
+c      close(39)
+      
+
 
 
 c..the constant radial scale factor
-      rscale = dsqrt( f2*polyk * rhoc**(1.0d0/order - 1.0d0) )
+c.      rscale = sqrt( f2*polyk * rhoc**(1.0d0/order - 1.0d0) )
 
+      open(41,file="polys.dat",position='append')
 
 c..start the output loop
       do i=1,ipos
+
+c..using different quantities for the core and envelope
+       if (i .le. ksav) then
+        rscale = ac
+        order  = nc
+        rho0   = rhoc
+        polyk  = kc
+       else
+        rscale = ae
+        order  = ne
+        rho0   = rhoe
+        polyk  = ke
+       end if
 
 c..radius
        radius(i) = rscale * x(i)
 
 c..density; copy the value to common block
-       rho(i) = rhoc * y(i)**order
+       
+       rho(i) = rho0 * y(i)**order
        den    = rho(i)
 
 c..the mass interior to the radius
-       mass(i) = fpi * rhoc * rscale**3 * (-x(i)*x(i)*yp(i))
+       mass(i) = fpi * rho0 * rscale**3 * (-x(i)*x(i)*yp(i))
 
 c..the total pressure
        prss(i)= polyk * rho(i)**(1.0d0 + 1.0d0/order)
@@ -242,7 +347,7 @@ c..the gravitational binding energy (take care of infinity at n=5)
 c..the central to mean density ratio;if n=5 output the exact solution
        rhom(i)   = 1.0d0
        if (yp(i) .ne. 0.0)  rhom(i) = -x(i) / (3.0d0 * yp(i))
-       if (order .eq. 5.0) exact(i) = 1.0d0/dsqrt(1.0d0+x(i)*x(i)/3.0d0)
+       if (order .eq. 5.0) exact(i) = 1.0d0/sqrt(1.0d0+x(i)*x(i)/3.0d0)
 
 c..the temperature is given by a root find on the gas + radiation pressures
 c..be sure the solution is bracketed
@@ -265,8 +370,14 @@ c..reset the search limits for the next trip
         zbeta(i) = beta
        end if
 
+       write(41,10) radius(i),rho(i),prss(i),mass(i),ztemp(i)
+10     format(e8.3,2x,e8.3,2x,e8.3,2x,e8.3,2x,e8.3)
 c..back for another point or bail
       enddo
+      close(41)
+c..      pitfc = prss(ksav)
+      ipoi = ksav
+	  mtot = mass(ipos) / msol
       return
       end
 
@@ -441,7 +552,7 @@ c..the series expansion and its derivative with respect to z
 
 
       subroutine podeint(start,stptry,stpmin,stopp,bc,
-     1                   eps,stpmax,kmax, 
+     1                   eps,stpmax,kmax,ksav,
      2                   xrk,yrk,xphys,yphys,xlogi,ylogi,
      3                   nok,nbad,kount,odescal,iprint,
      4                   derivs,steper)  
@@ -453,7 +564,7 @@ c..special hooks added for polytropes.
 
 c..declare  
       external         derivs,steper
-      integer          nok,nbad,nmax,nstpmax,kmax,kount,xphys,
+      integer          nok,nbad,nmax,nstpmax,kmax,kount,ksav,xphys,
      1                 yphys,xlogi,ylogi,iprint,i,j,nstp
       parameter        (nmax = 20, nstpmax=10000)  
       double precision bc(yphys),stptry,stpmin,eps,stopp,start, 
@@ -475,7 +586,9 @@ c..initialize
       h     = sign(stptry,stopp-start) 
       nok   = 0 
       nbad  = 0
-      kount = 0   
+      kount = ksav
+c      xtest = 1.0d0
+c      ytest = 1
 
 
 c..store the first step 
@@ -530,6 +643,10 @@ c..bail if the solution gets "too" negative, we only need a negative y values
 c..points to determine the zero crossing, the radius of the star
 
        if (y(2) .lt. -0.1) return
+c       if ((y(2) .lt. 0.0) .and. (ytest .gt. 0)) then
+c        xtest = x
+c        ytest = -1
+c       endif
 
 
 c..this is the normal exit point, save the final step   

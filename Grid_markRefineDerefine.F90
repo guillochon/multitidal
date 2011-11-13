@@ -41,7 +41,7 @@ subroutine Grid_markRefineDerefine()
   use Driver_interface, ONLY: Driver_getSimTime
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   use Simulation_data, ONLY: sim_objMass, sim_objPolyN, sim_objCentDen, np, obj_radius, &
-      obj_ipos, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity
+      obj_ipos, obj_ipoi, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity
   use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
   use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_factor, grv_dynRefineMax, &
       grv_exactvec, grv_mpolevec
@@ -77,7 +77,7 @@ subroutine Grid_markRefineDerefine()
           rhom(np),zbeta(np),ztemp(np),exact(np), &
           xsurf,ypsurf,combo,min_cell
   double precision, dimension(NSPECIES) :: xn
-  integer :: mode,iend,ipos,ref_level,max_blocks
+  integer :: mode,iend,ipos,ipoi,ref_level,max_blocks
 
 #ifdef FLASH_MPOLE
     xcom = X_centerofmass
@@ -134,7 +134,8 @@ subroutine Grid_markRefineDerefine()
 
   if (t .eq. 0.0) then
       !write(*,*) 'entered sphere refine'
-      call gr_markInRadius(xcenter,ycenter,zcenter,1.2*obj_radius(obj_ipos),lrefine_max,0)
+      call gr_markInRadius(xcenter,ycenter,zcenter,1.2*obj_radius(obj_ipos),lrefine_max-2,0)
+      call gr_markInRadius(xcenter,ycenter,zcenter,1.2*obj_radius(obj_ipoi),lrefine_max,0)
   else
       Call MPI_ALLREDUCE (lnblocks,max_blocks,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
       prev_refmax = grv_dynRefineMax

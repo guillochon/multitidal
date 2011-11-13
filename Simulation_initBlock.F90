@@ -1,4 +1,4 @@
-!!****if* source/Simulation/SimulationMain/MultiTidalPoly/Simulation_initBlock
+!!****if* source/Simulation/SimulationMain/MultiTidalBiPoly/Simulation_initBlock
 !!
 !! NAME
 !!
@@ -14,7 +14,7 @@
 !! DESCRIPTION
 !!
 !!  Initializes fluid data (density, pressure, velocity, etc.) for
-!!  a specified block.  This version sets up MultiTidalPoly.
+!!  a specified block.  This version sets up MultiTidalBiPoly.
 !!
 !! ARGUMENTS
 !!
@@ -43,11 +43,12 @@ subroutine Simulation_initBlock (blockId, myPE)
   integer  ::  i, j, k, n, jLo, jHi
   integer  ::  ii, jj, kk, put
   real     ::  distInv, xDist, yDist, zDist
-  real     ::  sumRho, sumP
+  real     ::  sumRho, sumP, sumMu, sumGam
+  double precision,dimension(SPECIES_BEGIN:SPECIES_END) ::	sumXn
   real     ::  vel, diagonal
-  real     ::  xx, dxx, yy, dyy, zz, dzz, frac
+  real     ::  xx, dxx, yy, dyy, zz, dzz, frac, efrac
   real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb
-  real     ::  dist, gam
+  real     ::  dist, gam, mu
   logical  ::  validGeom
   integer  ::  istat
 
@@ -62,7 +63,7 @@ subroutine Simulation_initBlock (blockId, myPE)
   call PhysicalConstants_get("proton mass", mp)
   call PhysicalConstants_get("Boltzmann", kb)
   
-  call Multispecies_getAvg(GAMMA, gam)
+!  call Multispecies_getAvg(GAMMA, gam)
 
 
   !do i = 1, np
@@ -129,7 +130,11 @@ subroutine Simulation_initBlock (blockId, myPE)
            
            sumRho = 0.
            sumP   = 0.
-           
+		   sumGam = 0.
+		   sumMu  = 0.
+		   sumXn(H1_SPEC)   = 0.
+		   sumXn(HE4_SPEC)  = 0.
+           sumXn(CORE_SPEC) = 0.
            !
            !       Break the cell into sim_nSubZones^NDIM sub-zones, and look up the
            !       appropriate quantities along the 1d profile for that subzone.  
@@ -165,10 +170,21 @@ subroutine Simulation_initBlock (blockId, myPE)
                        jLo = obj_ipos
                        jHi = obj_ipos
                        frac = 0.
+					   efrac = 1.
                     else
                        jHi = jLo + 1
                        frac = (dist - obj_radius(jLo)) / & 
                             (obj_radius(jHi)-obj_radius(jLo))
+						if (jHi .le. obj_ipoi) then
+							efrac = 0.
+						else if (jLo .gt. obj_ipoi) then
+							efrac = 1.
+						else if ((jLo .eq. obj_ipoi) .and. (dist .gt. obj_radius(obj_ipoi))) then
+							efrac = (obj_radius(jHi) - dist) / &
+								(obj_radius(jHi)-obj_radius(jLo))
+						else
+							efrac = 0.
+						endif
                     endif
                     ! 
                     !   Now total these quantities.   Note that  v is a radial velocity; 
@@ -180,6 +196,21 @@ subroutine Simulation_initBlock (blockId, myPE)
                     
                     sumRho = sumRho + & 
                          obj_rhop(jLo) + frac*(obj_rhop(jHi) - obj_rhop(jLo))
+
+					sumGam = sumGam + &
+						gammac + efrac*(gammae - gammac)
+
+					sumMu  = sumMu + &
+						obj_muc + efrac*(obj_mue -obj_muc)
+
+					sumXn(H1_SPEC) = sumXn(H1_SPEC) + &
+						0.0 + efrac*(0.7 - 0.0)
+
+					sumXn(HE4_SPEC) = sumXn(HE4_SPEC) + &
+						0.0 + efrac*(0.3 - 0.0)
+
+					sumXn(CORE_SPEC) = sumXn(CORE_SPEC) + &
+						1.0 + efrac*(0.0 - 1.0)
                  enddo
               enddo
            enddo
@@ -193,7 +224,13 @@ subroutine Simulation_initBlock (blockId, myPE)
            !
            !  assume gamma-law equation of state
            !
-           t   = p/(rho/mp/obj_mu*kb)
+		   gam = sumGam * sim_inszd
+		   mu  = sumMu  * sim_inszd
+		   obj_xn(H1_SPEC)   = sumXn(H1_SPEC)   * sim_inszd 
+		   obj_xn(HE4_SPEC)  = sumXn(HE4_SPEC)  * sim_inszd
+		   obj_xn(CORE_SPEC) = sumXn(CORE_SPEC) * sim_inszd
+!           t   = p/(rho/mp/obj_mu*kb)
+           t   = p/(rho/mp/mu*kb)
            e   = p/(gam-1.)
            e   = e/rho + ek
            e   = max (e, sim_smallP)

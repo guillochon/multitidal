@@ -121,8 +121,8 @@ subroutine Orbit_update()
             grv_hobvec(4:5) = ystart(5:6)
             grv_hptvec(4:5) = ystart(7:8)
         endif
-    !elseif (grv_mode .eq. 3) then
-    !    grv_obvec(1:3) = grv_obvec(1:3) - grv_oexactvec(1:3) + grv_exactvec(1:3)
+    elseif (grv_mode .eq. 3) then
+        grv_obvec(1:3) = grv_obvec(1:3) - grv_oexactvec(1:3) + grv_exactvec(1:3)
     endif
 
     deallocate(ystart)

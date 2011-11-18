@@ -183,13 +183,13 @@ subroutine derivs(x,y,dydx)
         dydx(4)=y(8)
         dist = (/ y(3) - y(1), y(4) - y(2), 0.d0 /)
     endif
-    if (grv_mode .eq. 3) then
-        fac = (x - orb_t)/orb_dt
-        dist(1:2) = dist(1:2) - (grv_exactvec(1:2) - grv_oexactvec(1:2))*fac
-        if (grv_orb3D) then
-            dist(3) = dist(3) - (grv_exactvec(3) - grv_oexactvec(3))*fac
-        endif
-    endif
+    !if (grv_mode .eq. 3) then
+    !    fac = (x - orb_t)/orb_dt
+    !    dist(1:2) = dist(1:2) - (grv_exactvec(1:2) - grv_oexactvec(1:2))*fac
+    !    if (grv_orb3D) then
+    !        dist(3) = dist(3) - (grv_exactvec(3) - grv_oexactvec(3))*fac
+    !    endif
+    !endif
     last_zone_fraction = zone_max_radius_fraction (max_radial_zones)
     if (sqrt(sum(dist**2.d0)) .gt. 0.99*max_R*last_zone_fraction) then
         print *, grv_mode, grv_exactvec, grv_oexactvec

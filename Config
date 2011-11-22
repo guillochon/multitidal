@@ -44,6 +44,8 @@ PARAMETER sim_tRelax                REAL    0.E0
 PARAMETER sim_relaxRate             REAL    0.99E0
 PARAMETER larget                    REAL    1.E10
 PARAMETER sim_softenRadius          REAL    1.E0
+PARAMETER sim_accRadius             REAL    1.E0
+PARAMETER sim_accCoeff              REAL    1.E0
 PARAMETER sim_objMass               REAL    0.E0
 PARAMETER sim_objPolyN              REAL    0.E0
 PARAMETER sim_objCentDen            REAL    0.E0

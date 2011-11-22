@@ -37,8 +37,8 @@ module Simulation_data
   integer, save          :: sim_tableRows, sim_tableCols
   integer, save          :: sim_maxBlocks
   double precision, save :: sim_tInitial, sim_tRelax, sim_relaxRate, sim_starRadius, &
-                            sim_softenRadius, sim_objMass, sim_objPolyN, sim_objCentDen, &
-                            sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &
+                            sim_softenRadius, sim_accRadius, sim_objMass, sim_objPolyN, sim_objCentDen, &
+                            sim_accCoeff, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &
                             sim_periBeta, sim_startBeta, sim_periodFac, &
                             sim_orbEcc
 

@@ -155,6 +155,27 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                     enddo
                 enddo
             enddo
+
+            if (sim_accRadius .ne. 0.d0) then
+                do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
+                    z2 = (zCoord(k) - (grv_exactvec(3) - grv_obvec(3) + grv_ptvec(3)))**2
+                    do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
+                        y2 = z2 + (yCoord(j) - (grv_exactvec(2) - grv_obvec(2) + grv_ptvec(2)))**2
+                        do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                            dist = dsqrt(y2 + (xCoord(i) - (grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1)))**2)
+                            if (dist .le. sim_accRadius) then
+                                solnData(DENS_VAR,i,j,k) = max(sim_accCoeff*solnData(DENS_VAR,i,j,k), sim_rhoAmbient)
+                                solnData(EINT_VAR,i,j,k) = max(sim_accCoeff**(sim_fluidGamma - 1.d0)*&
+                                    solnData(EINT_VAR,i,j,k), sim_pAmbient)
+                                solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
+                                    0.5*(solnData(VELX_VAR,i,j,k)**2. + &
+                                         solnData(VELY_VAR,i,j,k)**2. + &
+                                         solnData(VELZ_VAR,i,j,k)**2.)
+                            endif
+                        enddo
+                    enddo
+                enddo
+            endif
   
             call Grid_releaseBlkPtr(blockList(lb), solnData)
             deallocate(xCoord)

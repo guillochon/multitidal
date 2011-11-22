@@ -67,6 +67,8 @@ subroutine Simulation_init()
     call RuntimeParameters_get('sim_tRelax',sim_tRelax)
     call RuntimeParameters_get('sim_relaxRate',sim_relaxRate)
     call RuntimeParameters_get('sim_softenRadius',sim_softenRadius)
+    call RuntimeParameters_get('sim_accRadius',sim_accRadius)
+    call RuntimeParameters_get('sim_accCoeff',sim_accCoeff)
     call RuntimeParameters_get('sim_objMass',sim_objMass)
     call RuntimeParameters_get('sim_objPolyN',sim_objPolyN)
     call RuntimeParameters_get('sim_objCentDen',sim_objCentDen)
@@ -101,6 +103,7 @@ subroutine Simulation_init()
     !Sink radius is scaled relative to the original pericenter distance
     
     sim_softenRadius = sim_softenRadius*obj_radius(obj_ipos)/sim_periBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
+    sim_accRadius = sim_accRadius*obj_radius(obj_ipos)/sim_periBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
 
     write(logstr, fmt='(A30, ES15.8)') 'Sink radius:', sim_softenRadius
     call Logfile_stampMessage(logstr)

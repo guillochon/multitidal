@@ -54,6 +54,8 @@ dtinit        = 1e-2
 
 # Parameters determining behavior of fluid during simulation.
 sim_softenRadius    = 0.8     # Soften gravity next to pt. mass within this fraction of pericenter distance.
+sim_accRadius       = 0.8     # Remove mass/energy interior to this distance (in pericenter distances) from pt. mass.
+sim_accCoeff        = 0.95    # Factor to reduce mass/energy within accretion region per time-step.
 sim_fluidGamma      = 1.666666666667
 sim_fluffDampCoeff  = 0.95
 sim_fluffDampCutoff = 1.e-18   # Should be slightly larger than sim_rhoAmbient

@@ -39,13 +39,14 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use Deleptonize_interface, ONLY : Deleptonize
     use Simulation_data, ONLY: sim_smallX, &
         sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_accRadius, sim_accCoeff, &
-        sim_pAmbient, sim_rhoAmbient, sim_fluidGamma
+        sim_rhoAmbient, sim_fluidGamma
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
     use Eos_interface, ONLY : Eos_wrapped, Eos
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
     use Gravity_data, ONLY: grv_factor, grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec
+    use Grid_data, ONLY: gr_smalle
     implicit none
 
 #include "Eos.h"
@@ -167,7 +168,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                             if (dist .le. sim_accRadius) then
                                 solnData(DENS_VAR,i,j,k) = max(sim_accCoeff*solnData(DENS_VAR,i,j,k), sim_rhoAmbient)
                                 solnData(EINT_VAR,i,j,k) = max(sim_accCoeff**(sim_fluidGamma - 1.d0)*&
-                                    solnData(EINT_VAR,i,j,k), sim_pAmbient)
+                                    solnData(EINT_VAR,i,j,k), grid_smalle)
                                 solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
                                     0.5*(solnData(VELX_VAR,i,j,k)**2. + &
                                          solnData(VELY_VAR,i,j,k)**2. + &

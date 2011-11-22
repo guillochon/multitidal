@@ -168,7 +168,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                             if (dist .le. sim_accRadius) then
                                 solnData(DENS_VAR,i,j,k) = max(sim_accCoeff*solnData(DENS_VAR,i,j,k), sim_rhoAmbient)
                                 solnData(EINT_VAR,i,j,k) = max(sim_accCoeff**(sim_fluidGamma - 1.d0)*&
-                                    solnData(EINT_VAR,i,j,k), grid_smalle)
+                                    solnData(EINT_VAR,i,j,k), gr_smalle)
                                 solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
                                     0.5*(solnData(VELX_VAR,i,j,k)**2. + &
                                          solnData(VELY_VAR,i,j,k)**2. + &

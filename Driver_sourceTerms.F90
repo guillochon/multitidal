@@ -143,7 +143,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
                         ! Ensure total center of mass has no motion
-                        solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - grv_exactvec(4:6)
+                        !solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - grv_exactvec(4:6)
 
                         if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) then
                             !reduce by constant factor
@@ -169,6 +169,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                                 solnData(DENS_VAR,i,j,k) = max(sim_accCoeff*solnData(DENS_VAR,i,j,k), sim_rhoAmbient)
                                 solnData(EINT_VAR,i,j,k) = max(sim_accCoeff**(sim_fluidGamma - 1.d0)*&
                                     solnData(EINT_VAR,i,j,k), gr_smalle)
+                                solnData(VELX_VAR:VELZ_VAR,i,j,k) = sim_accCoeff*solnData(VELX_VAR:VELZ_VAR,i,j,k)
                                 solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
                                     0.5*(solnData(VELX_VAR,i,j,k)**2. + &
                                          solnData(VELY_VAR,i,j,k)**2. + &

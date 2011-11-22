@@ -38,7 +38,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use EnergyDeposition_interface, ONLY : EnergyDeposition
     use Deleptonize_interface, ONLY : Deleptonize
     use Simulation_data, ONLY: sim_smallX, &
-        sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff
+        sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_accRadius, sim_accCoeff, &
+        sim_pAmbient, sim_rhoAmbient, sim_fluidGamma
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
     use Eos_interface, ONLY : Eos_wrapped, Eos
@@ -59,7 +60,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     
     integer  ::  i, j, k, l, put, lb, ierr
     real     ::  xx, yy, zz, xcenter, ycenter, zcenter, period
-    real     ::  c, avg_dens, avg_temp, avg_pres, dist, vel_sc, mass
+    real     ::  c, avg_dens, avg_temp, avg_pres, dist, vel_sc, mass, y2, z2
     real     ::  tot_avg_dens, tot_avg_temp, tot_avg_pres, tot_mass
     integer  ::  istat, myPE
   

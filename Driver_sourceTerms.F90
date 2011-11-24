@@ -166,10 +166,10 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                         do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
                             dist = dsqrt(y2 + (xCoord(i) - (grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1)))**2)
                             if (dist .le. sim_accRadius) then
-                                solnData(DENS_VAR,i,j,k) = max(sim_accCoeff*solnData(DENS_VAR,i,j,k), sim_rhoAmbient)
-                                solnData(EINT_VAR,i,j,k) = max(sim_accCoeff**(sim_fluidGamma - 1.d0)*&
+                                solnData(DENS_VAR,i,j,k) = max((1.d0-dexp(-(dist/sim_accRadius)**2.d0))*solnData(DENS_VAR,i,j,k), sim_rhoAmbient)
+                                solnData(EINT_VAR,i,j,k) = max((1.d0-dexp(-(dist/sim_accRadius)**2.d0))**(sim_fluidGamma - 1.d0)*&
                                     solnData(EINT_VAR,i,j,k), gr_smalle)
-                                solnData(VELX_VAR:VELZ_VAR,i,j,k) = sim_accCoeff*solnData(VELX_VAR:VELZ_VAR,i,j,k)
+                                solnData(VELX_VAR:VELZ_VAR,i,j,k) = (1.d0-dexp(-(dist/sim_accRadius))**2.d0)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
                                 solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
                                     0.5*(solnData(VELX_VAR,i,j,k)**2. + &
                                          solnData(VELY_VAR,i,j,k)**2. + &

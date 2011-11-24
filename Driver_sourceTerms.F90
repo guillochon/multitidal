@@ -42,7 +42,6 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         sim_rhoAmbient, sim_fluidGamma
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
-    use Eos_interface, ONLY : Eos_wrapped, Eos
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
     use Gravity_data, ONLY: grv_factor, grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec

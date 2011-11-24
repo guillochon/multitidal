@@ -30,9 +30,10 @@ subroutine Simulation_init()
 
     use Simulation_data 
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
-    use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
+    use Multispecies_interface, ONLY : Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
     use Grid_data, ONLY : gr_globalMe
-    use Logfile_interface, ONLY: Logfile_stampMessage
+    use Logfile_interface, ONLY : Logfile_stampMessage
+    use tree, ONLY : lrefine_max
 
     implicit none
 
@@ -40,6 +41,7 @@ subroutine Simulation_init()
 #include "Flash.h"
 #include "Flash_mpi.h"
 #include "Multispecies.h"
+#include "Eos.h"
 
     integer             :: i, ierr
     double precision    :: start_t
@@ -47,9 +49,10 @@ subroutine Simulation_init()
                     x(np),y(np),yp(np), &
                     mass(np),ebind(np),zopac(np), &
                     rhom(np),zbeta(np),ztemp(np),exact(np), &
-                    xsurf,ypsurf,combo
+                    xsurf,ypsurf,combo,cfl
     integer mode,iend,ipos
     character(len=100) :: logstr
+    real, dimension(EOS_NUM) :: eosData
 
     call RuntimeParameters_get('sim_pAmbient', sim_pAmbient)
     call RuntimeParameters_get('sim_rhoAmbient', sim_rhoAmbient)
@@ -91,6 +94,13 @@ subroutine Simulation_init()
         call polytr(sim_objPolyN,sim_objMass,sim_objCentDen,polyk,obj_mu,mode, &
             x,y,yp,obj_radius,obj_rhop,mass,obj_prss,ebind, &
             rhom,ztemp,zbeta,exact,xsurf,ypsurf,np,iend,obj_ipos)
+
+        call RuntimeParameters_get("cfl", cfl)
+
+        write(logstr, fmt='(A30, 2ES15.8)') 'Ambient CFL timestep:', cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGamma*sim_pAmbient/sim_rhoAmbient)
+        call Logfile_stampMessage(logstr)
+        write(logstr, fmt='(A30, 2ES15.8)') 'Fluff CFL timestep:', cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGamma*sim_smallP/sim_smallRho)
+        call Logfile_stampMessage(logstr)
     endif
 
     call MPI_BCAST(obj_xn, NSPECIES, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              

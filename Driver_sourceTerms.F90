@@ -201,12 +201,14 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         call MPI_ALLREDUCE(tot_mass_acc, gtot_mass_acc, 1, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
         call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
         call MPI_ALLREDUCE(tot_mom_acc, gtot_mom_acc, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
-        gtot_com_acc = gtot_com_acc / gtot_mass_acc
-        gtot_mom_acc = gtot_mom_acc / gtot_mass_acc
 
+        grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + &
+            (gtot_com_acc/gtot_mass_acc - grv_exactvec(1:3) + grv_obvec(1:3) - grv_ptvec(1:3))*gtot_mass_acc) / &
+            (grv_ptmass + gtot_mass_acc)
+        grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + &
+            (gtot_mom_acc/gtot_mass_acc - grv_exactvec(4:6) + grv_obvec(4:6) - grv_ptvec(4:6))*gtot_mass_acc) / &
+            (grv_ptmass + gtot_mass_acc)
         grv_ptmass = grv_ptmass + gtot_mass_acc
-        grv_ptvec(1:3) = grv_ptvec(1:3) + gtot_com_acc
-        grv_ptvec(4:6) = grv_ptvec(4:6) + gtot_mom_acc
 
         call Stir(blockCount, blockList, dt) 
         call Burn(blockCount, blockList, dt) 

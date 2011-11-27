@@ -146,7 +146,7 @@ subroutine IO_writeOrbitInfo (isFirst, simTime)
                   'Orb. energy, bound     ', &
                   'Mass of point mass     '
 
-10         format (2x,57(a25, :, 1X))
+10         format (2x,52(a25, :, 1X))
 
           else
              open (funit, file=trim(filename), position='APPEND')
@@ -183,7 +183,7 @@ subroutine IO_writeOrbitInfo (isFirst, simTime)
 
        write (funit, 12) simTime, grv_ptvec, grv_obvec, grv_boundvec, grv_exactvec, grv_peakvec, grv_mpolevec, r, vel, &
            arglat, semimaj, ecc, radvel, truanom, arguperi, raasc, longperi, inclin, grv_bound, grv_tot_ener, grv_ener, grv_ptmass
-12     format (1x, 51(es25.15, :, 1x))
+12     format (1x, 52(es25.15, :, 1x))
    
        close (funit)          ! Close the file.
        

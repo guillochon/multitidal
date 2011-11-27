@@ -15,7 +15,7 @@ subroutine calc_orbit (t, m1, m2, ob1vec, ob2vec)
 end subroutine calc_orbit
 
 subroutine parabolic_orbit (t, m1, m2, ob1vec, ob2vec)
-    use Gravity_data, ONLY: grv_factor, grv_periDist, grv_periTime
+    use Gravity_data, ONLY: grv_periDist, grv_periTime
     implicit none
 
     double precision, intent(IN)  :: t, m1, m2

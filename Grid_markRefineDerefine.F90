@@ -43,7 +43,7 @@ subroutine Grid_markRefineDerefine()
   use Simulation_data, ONLY: sim_objMass, sim_objPolyN, sim_objCentDen, np, obj_radius, &
       obj_ipos, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity
   use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
-  use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_factor, grv_dynRefineMax, &
+  use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_dynRefineMax, &
       grv_exactvec, grv_mpolevec
   use PhysicalConstants_interface, ONLY: PhysicalConstants_get
   use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass

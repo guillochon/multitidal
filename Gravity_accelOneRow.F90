@@ -51,7 +51,7 @@
 subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, potentialIndex)
 
     use Driver_data, ONLY: dr_simTime
-    use Gravity_data, ONLY: grv_factor, grv_thresh, grv_ptvec, grv_obvec, grv_optvec, grv_oobvec, grv_mode, &
+    use Gravity_data, ONLY: grv_ptmass, grv_thresh, grv_ptvec, grv_obvec, grv_optvec, grv_oobvec, grv_mode, &
         grv_hptvec, grv_hobvec, grv_exactvec, grv_oexactvec, grv_obaccel, &
         grv_ptaccel, grv_hptaccel, grv_optaccel, grv_oobaccel
     use Grid_interface, ONLY : Grid_getBlkPhysicalSize, Grid_getBlkPtr, &
@@ -88,7 +88,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
 #else
     double precision,allocatable,dimension(:) ::xCenter,yCenter,zCenter
 #endif
-    double precision :: dr32, tmpdr32, min_cell
+    double precision :: dr32, tmpdr32, min_cell, newton
 
     integer :: sizeX,sizeY,sizez
 
@@ -100,7 +100,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     !==================================================
 
     call Grid_getBlkPhysicalSize(blockID, blockSize)
-
+    call PhysicalConstants_get("Newton", newton)
     call Grid_getBlkPtr(blockID, solnVec)
 
     !! IF a variable index is explicitly specified, assume that as the potential
@@ -242,7 +242,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
             else
                 dr32 = dr32*dr32*dr32
             endif
-            ptgrav(ii) = ptgrav(ii) + grv_factor*xCenter(ii)/dr32
+            ptgrav(ii) = ptgrav(ii) - newton*grv_ptmass*xCenter(ii)/dr32
          enddo
 
 
@@ -259,7 +259,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
             else
                 dr32 = dr32*dr32*dr32
             endif
-            ptgrav(ii) = ptgrav(ii) + grv_factor*yCenter(ii)/dr32
+            ptgrav(ii) = ptgrav(ii) - newton*grv_ptmass*yCenter(ii)/dr32
          enddo
 
       else if (sweepDir .eq. SWEEP_Z) then          ! z-component
@@ -275,7 +275,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
             else
                 dr32 = dr32*dr32*dr32
             endif
-            ptgrav(ii) = ptgrav(ii) + grv_factor*zCenter(ii)/dr32
+            ptgrav(ii) = ptgrav(ii) - newton*grv_ptmass*zCenter(ii)/dr32
          enddo
 
       endif

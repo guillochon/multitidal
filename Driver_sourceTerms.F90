@@ -44,7 +44,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
-    use Gravity_data, ONLY: grv_factor, grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec
+    use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec
     use Grid_data, ONLY: gr_smalle
     implicit none
 
@@ -70,19 +70,25 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     integer :: sizeX,sizeY,sizeZ
     real, dimension(:,:,:,:),pointer :: solnData
     real, dimension(EOS_NUM) :: eosData
-    real, dimension(MDIM) :: avg_vel, tot_avg_vel
+    real, dimension(MDIM) :: avg_vel, tot_avg_vel, mom_acc, tot_mom_acc, gtot_mom_acc, com_acc, tot_com_acc, gtot_com_acc
     integer,dimension(MDIM) :: axis
   
     logical :: gcell = .true.
   
     integer :: cnt, tot_cnt
-    real :: min_cell_size, relax_rate
+    real :: min_cell_size, relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc
     
-    real :: tinitial, adj_cfactor
+    real :: tinitial, adj_cfactor, vol
 
     call RuntimeParameters_get('tinitial',tinitial)
     if (dr_simTime .lt. tinitial + sim_tRelax) then
         relax_rate = (dr_simTime - tinitial)/sim_tRelax*(1.0 - sim_relaxRate) + sim_relaxRate
+        tot_mass_acc = 0.d0
+        tot_com_acc = 0.d0
+        tot_mom_acc = 0.d0
+        gtot_mass_acc = 0.d0
+        gtot_com_acc = 0.d0
+        gtot_mom_acc = 0.d0
         do lb = 1, blockCount
             call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
             sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
@@ -142,7 +148,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
                         ! Ensure total center of mass has no motion
-                        solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - grv_exactvec(4:6)
+                        !solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - grv_exactvec(4:6)
 
                         if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) then
                             !reduce by constant factor
@@ -165,10 +171,17 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                         do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
                             dist = dsqrt(y2 + (xCoord(i) - (grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1)))**2)
                             if (dist .le. sim_accRadius) then
-                                solnData(DENS_VAR,i,j,k) = max(dexp(1.d0-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_rhoAmbient)
+                                vol = (xCoord(2) - xCoord(1))**3.d0
+                                mass_acc = vol*solnData(DENS_VAR,i,j,k) - max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_rhoAmbient)
+                                com_acc = mass_acc*(/ xCoord(i), yCoord(j), zCoord(k) /)
+                                mom_acc = mass_acc*solnData(VELX_VAR:VELZ_VAR,i,j,k)
+                                tot_mass_acc = tot_mass_acc + mass_acc
+                                tot_com_acc = tot_com_acc + com_acc
+                                tot_mom_acc = tot_mom_acc + mom_acc
+                                solnData(DENS_VAR,i,j,k) = max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_rhoAmbient)
                                 solnData(EINT_VAR,i,j,k) = max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)**(sim_fluidGamma - 1.d0)*&
                                     solnData(EINT_VAR,i,j,k), gr_smalle)
-                                solnData(VELX_VAR:VELZ_VAR,i,j,k) = (1.d0-dexp(-(dist/sim_accRadius))**2.d0)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
+                                !solnData(VELX_VAR:VELZ_VAR,i,j,k) = dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
                                 solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
                                     0.5*(solnData(VELX_VAR,i,j,k)**2. + &
                                          solnData(VELY_VAR,i,j,k)**2. + &
@@ -184,6 +197,16 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             deallocate(yCoord)
             deallocate(zCoord)
         enddo
+
+        call MPI_ALLREDUCE(tot_mass_acc, gtot_mass_acc, 1, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+        call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+        call MPI_ALLREDUCE(tot_mom_acc, gtot_mom_acc, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+        gtot_com_acc = gtot_com_acc / gtot_mass_acc
+        gtot_mom_acc = gtot_mom_acc / gtot_mass_acc
+
+        grv_ptmass = grv_ptmass + gtot_mass_acc
+        grv_ptvec(1:3) = grv_ptvec(1:3) + gtot_com_acc
+        grv_ptvec(4:6) = grv_ptvec(4:6) + gtot_mom_acc
 
         call Stir(blockCount, blockList, dt) 
         call Burn(blockCount, blockList, dt) 

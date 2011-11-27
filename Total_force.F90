@@ -3,10 +3,11 @@ subroutine Total_force(blockCount, blockList)
         Grid_getCellCoords
     use Gravity_data, ONLY: grv_obvec, grv_ptvec, grv_obaccel, grv_ptaccel, grv_hptaccel, &
         grv_optaccel, grv_oobaccel, grv_oexactvec, grv_exactvec, grv_hobvec, grv_hptvec, &
-        grv_oobvec, grv_optvec, grv_factor, grv_orb3D
+        grv_oobvec, grv_optvec, grv_orb3D, grv_ptmass
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
     use Simulation_data, ONLY: sim_fluffDampCutoff, sim_softenRadius
     use gr_mpoleData, ONLY: twelfth
+    use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     implicit none 
 #include "constants.h"
 #include "Flash.h"
@@ -20,10 +21,11 @@ subroutine Total_force(blockCount, blockList)
     double precision, dimension(:,:,:,:),pointer :: solnData
     double precision, dimension(4) :: lsum, gsum
     double precision, dimension(3) :: deld, offset, ptpos
-    double precision :: dvol, delm, dr32
+    double precision :: dvol, delm, dr32, newton
     double precision :: tinitial, dx, delxinv, cell_mass
 
     call RuntimeParameters_get('tinitial',tinitial)
+    call PhysicalConstants_get("Newton", newton)
 
     do it = 1, 3
         lsum = 0.d0
@@ -74,7 +76,7 @@ subroutine Total_force(blockCount, blockList)
                         else
                             dr32 = dr32*dr32*dr32
                         endif
-                        lsum(2:4) = lsum(2:4) + cell_mass * grv_factor/dr32*ptpos
+                        lsum(2:4) = lsum(2:4) - cell_mass * newton*grv_ptmass/dr32*ptpos
 
                         !if (it .eq. 2) cycle
 

@@ -4,7 +4,7 @@ subroutine Orbit_energy(blockCount, blockList)
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_getDeltas,&
         Grid_getBlkBoundBox
     use Gravity_data, ONLY: grv_thresh, grv_ener, grv_ptvec, grv_obvec, grv_ptmass, grv_tot_ener, &
-        grv_totmass, grv_exactvec, grv_factor
+        grv_totmass, grv_exactvec
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass
     use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm

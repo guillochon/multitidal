@@ -50,7 +50,7 @@ subroutine Simulation_initSpecies()
   use Multispecies_interface, ONLY : Multispecies_setProperty
   use Simulation_interface, ONLY : Simulation_mapStrToInt
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
-  use Simulation_data, ONLY : sim_fluidGammac,sim_fluidGammae
+  use Simulation_data, ONLY : sim_fluidGammac,sim_fluidGammae, sim_objAbarCore
   implicit none
 
 #include "constants.h"
@@ -65,6 +65,7 @@ subroutine Simulation_initSpecies()
   
   call RuntimeParameters_get('sim_fluidGammac',sim_fluidGammac)
   call RuntimeParameters_get('sim_fluidGammae',sim_fluidGammae)
+  call RuntimeParameters_get('sim_objAbarCore',sim_objAbarCore)
 
 !  open(unit=SPEC_UNIT,file="SpeciesList.txt")
 !  count=0
@@ -91,7 +92,7 @@ subroutine Simulation_initSpecies()
       call Multispecies_setProperty(HE4_SPEC, A, 4.)
       call Multispecies_setProperty(H1_SPEC, GAMMA, sim_fluidGammae)
       call Multispecies_setProperty(HE4_SPEC, GAMMA, sim_fluidGammae)
-      call Multispecies_setProperty(CORE_SPEC, A, 5.16d0)
+      call Multispecies_setProperty(CORE_SPEC, A, sim_objAbarCore)
       call Multispecies_setProperty(CORE_SPEC, GAMMA, sim_fluidGammac)
 #endif
 end subroutine Simulation_initSpecies

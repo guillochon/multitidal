@@ -269,10 +269,10 @@ c..a bad mode
 c..for composite polytropes, ignore mode
       rc = q*rtot*rsol
       ac = rc/x1i
-      rhoc = -rhoc*mc*mearth/(fpi*rc**3)
+      rhoc = -rhoc*mc*msol/(fpi*rc**3)
       kc = ac**2*rhoc**(1.0d0-1.0d0/nc)*fpig/(nc+1.0d0)
       ae = rtot*rsol/x2s
-      rhoe = -mc*mearth/(fpi*ae**3*rhoe)
+      rhoe = -mc*msol/(fpi*ae**3*rhoe)
       ke = ae**2*rhoe**(1.0d0-1.0d0/ne)*fpig/(ne+1.0d0)
 c      write(*,*) rc,ac,rhoc,kc,ae,rhoe,ke
 

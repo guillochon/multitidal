@@ -79,5 +79,8 @@ subroutine Gravity_sendOutputData()
     call IO_setScalar("bndyvel", grv_boundvec(5))
     call IO_setScalar("bndzvel", grv_boundvec(6))
     call IO_setScalar("dynrefinemax", grv_dynRefineMax)
+    call IO_setScalar("ptmass", grv_ptmass)
+    call IO_setScalar("optmass", grv_optmass)
+    call IO_setScalar("ototmass", grv_ototmass)
 end subroutine Gravity_sendOutputData
 

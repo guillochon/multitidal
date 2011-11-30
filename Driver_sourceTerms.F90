@@ -44,8 +44,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
-    use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec
-    use Grid_data, ONLY: gr_smalle
+    use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec, grv_optmass
+    use Grid_data, ONLY: gr_smalle, gr_meshMe
     implicit none
 
 #include "Eos.h"
@@ -62,7 +62,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     real     ::  xx, yy, zz, xcenter, ycenter, zcenter, period
     real     ::  c, avg_dens, avg_temp, avg_pres, dist, vel_sc, mass, y2, z2
     real     ::  tot_avg_dens, tot_avg_temp, tot_avg_pres, tot_mass
-    integer  ::  istat, myPE
+    integer  ::  istat
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     real, dimension(SPECIES_BEGIN:SPECIES_END) :: xn
@@ -148,7 +148,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
                         ! Ensure total center of mass has no motion
-                        !solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - grv_exactvec(4:6)
+                        solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - grv_exactvec(4:6)
 
                         if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) then
                             !reduce by constant factor
@@ -172,7 +172,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                             dist = dsqrt(y2 + (xCoord(i) - (grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1)))**2)
                             if (dist .le. sim_accRadius) then
                                 vol = (xCoord(2) - xCoord(1))**3.d0
-                                mass_acc = vol*solnData(DENS_VAR,i,j,k) - max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_rhoAmbient)
+                                mass_acc = vol*(solnData(DENS_VAR,i,j,k) - max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_rhoAmbient))
                                 com_acc = mass_acc*(/ xCoord(i), yCoord(j), zCoord(k) /)
                                 mom_acc = mass_acc*solnData(VELX_VAR:VELZ_VAR,i,j,k)
                                 tot_mass_acc = tot_mass_acc + mass_acc
@@ -202,12 +202,22 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
         call MPI_ALLREDUCE(tot_mom_acc, gtot_mom_acc, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
 
+        if (gr_meshMe .eq. MASTER_PE) then
+            print *, 'Mass accreted this step: ', gtot_mass_acc
+            print *, 'COM accreted mass: ', gtot_com_acc/gtot_mass_acc
+            print *, 'Mom accreted mass: ', gtot_mom_acc/gtot_mass_acc
+            print *, 'Net shift: ', grv_ptvec(1:3) - (grv_ptmass*grv_ptvec(1:3) + &
+                (gtot_com_acc/gtot_mass_acc - grv_exactvec(1:3) + grv_obvec(1:3) - grv_ptvec(1:3))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
+            print *, 'Net vel: ', grv_ptvec(4:6) - (grv_ptmass*grv_ptvec(4:6) + &
+                (gtot_mom_acc/gtot_mass_acc - grv_exactvec(4:6) + grv_obvec(4:6) - grv_ptvec(4:6))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
+        endif
         grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + &
             (gtot_com_acc/gtot_mass_acc - grv_exactvec(1:3) + grv_obvec(1:3) - grv_ptvec(1:3))*gtot_mass_acc) / &
             (grv_ptmass + gtot_mass_acc)
         grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + &
             (gtot_mom_acc/gtot_mass_acc - grv_exactvec(4:6) + grv_obvec(4:6) - grv_ptvec(4:6))*gtot_mass_acc) / &
             (grv_ptmass + gtot_mass_acc)
+        grv_optmass = grv_ptmass
         grv_ptmass = grv_ptmass + gtot_mass_acc
 
         call Stir(blockCount, blockList, dt) 

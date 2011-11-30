@@ -35,7 +35,7 @@ module Simulation_data
                             sim_xMin, sim_xMax, sim_yMin, sim_yMax, sim_zMin, sim_zMax
   integer, save          :: sim_nSubZones
   integer, save          :: sim_tableRows, sim_tableCols
-  integer, save          :: sim_maxBlocks
+  integer, save          :: sim_maxBlocks, sim_ptMassRefine
   double precision, save :: sim_tInitial, sim_tRelax, sim_relaxRate, sim_starRadius, &
                             sim_softenRadius, sim_accRadius, sim_objMass, sim_objPolyN, sim_objCentDen, &
                             sim_accCoeff, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &

@@ -84,6 +84,7 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_orbEcc", sim_orbEcc)
     call RuntimeParameters_get("sim_useInitialPeakDensity", sim_useInitialPeakDensity)
     call RuntimeParameters_get("sim_coolingDensity", sim_coolingDensity)
+    call RuntimeParameters_get("sim_ptMassRefine", sim_ptMassRefine)
     call RuntimeParameters_get("ptmass", sim_ptMass)
 
     if (gr_globalMe .eq. MASTER_PE) then

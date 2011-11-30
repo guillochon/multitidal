@@ -108,12 +108,17 @@ subroutine Gravity_init()
       call IO_getScalar("bndyvel", grv_boundvec(5))
       call IO_getScalar("bndzvel", grv_boundvec(6))
       call IO_getScalar("dynrefinemax", grv_dynRefineMax)
+      call IO_getScalar("ptmass", grv_ptmass)
+      call IO_getScalar("optmass", grv_optmass)
+      call IO_getScalar("ototmass", grv_ototmass)
+  else
+      call RuntimeParameters_get("ptmass", grv_ptmass)
+      grv_optmass = grv_ptmass
   endif
 
   call RuntimeParameters_get("geometry", strGeometry)
   call RuntimeParameters_mapStrToInt(strGeometry, grav_geometry)
   call RuntimeParameters_get("grav_boundary_type", grav_boundary_type)
-  call RuntimeParameters_get("ptmass", grv_ptmass)
   call RuntimeParameters_get("grv_comCutoff",grv_comCutoff)
   call RuntimeParameters_get("grv_comPeakCut",grv_comPeakCut)
   call RuntimeParameters_get("grv_finiteDiffLen", grv_finiteDiffLen)

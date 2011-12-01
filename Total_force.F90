@@ -3,11 +3,12 @@ subroutine Total_force(blockCount, blockList)
         Grid_getCellCoords
     use Gravity_data, ONLY: grv_obvec, grv_ptvec, grv_obaccel, grv_ptaccel, grv_hptaccel, &
         grv_optaccel, grv_oobaccel, grv_oexactvec, grv_exactvec, grv_hobvec, grv_hptvec, &
-        grv_oobvec, grv_optvec, grv_orb3D, grv_ptmass
+        grv_oobvec, grv_optvec, grv_orb3D, grv_ptmass, grv_optmass
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
     use Simulation_data, ONLY: sim_fluffDampCutoff, sim_softenRadius
     use gr_mpoleData, ONLY: twelfth
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
+    use Grid_data, ONLY: gr_meshMe
     implicit none 
 #include "constants.h"
 #include "Flash.h"
@@ -22,7 +23,7 @@ subroutine Total_force(blockCount, blockList)
     double precision, dimension(4) :: lsum, gsum
     double precision, dimension(3) :: deld, offset, ptpos
     double precision :: dvol, delm, dr32, newton
-    double precision :: tinitial, dx, delxinv, cell_mass
+    double precision :: tinitial, dx, delxinv, cell_mass, ptmass
 
     call RuntimeParameters_get('tinitial',tinitial)
     call PhysicalConstants_get("Newton", newton)
@@ -35,12 +36,15 @@ subroutine Total_force(blockCount, blockList)
             potVar = GPOL_VAR
             denVar = ODEN_VAR
             offset = grv_oexactvec(1:3) + grv_optvec(1:3) - grv_oobvec(1:3)
+            ptmass = grv_optmass
         elseif (it .eq. 2) then
             offset = (grv_oexactvec(1:3) + grv_exactvec(1:3))/2.d0 + grv_hptvec(1:3) - grv_hobvec(1:3)
+            ptmass = (grv_optmass + grv_ptmass) / 2.d0
         else
             potVar = GPOT_VAR
             denVar = DENS_VAR
             offset = grv_exactvec(1:3) + grv_ptvec(1:3) - grv_obvec(1:3)
+            ptmass = grv_ptmass
         endif
 
         do lb = 1, blockCount
@@ -76,7 +80,7 @@ subroutine Total_force(blockCount, blockList)
                         else
                             dr32 = dr32*dr32*dr32
                         endif
-                        lsum(2:4) = lsum(2:4) - cell_mass * newton*grv_ptmass/dr32*ptpos
+                        lsum(2:4) = lsum(2:4) - cell_mass * newton*ptmass/dr32*ptpos
 
                         !if (it .eq. 2) cycle
 
@@ -136,10 +140,19 @@ subroutine Total_force(blockCount, blockList)
             if (.not. grv_orb3D) grv_hptaccel(3) = 0.d0
         else
             grv_ptaccel = gsum(2:4) / gsum(1)
+            if (.not. grv_orb3D) grv_ptaccel(3) = 0.d0
             !grv_obaccel = gsum(5:7) / gsum(1)
             grv_obaccel = 0.d0
-            if (.not. grv_orb3D) grv_ptaccel(3) = 0.d0
         endif
     enddo
+
+    !if (gr_meshMe .eq. MASTER_PE) then
+    !    print *, 'grv_optaccel', grv_optaccel
+    !    print *, 'grv_oobaccel', grv_oobaccel
+    !    print *, 'grv_hptaccel', grv_hptaccel
+    !    print *, 'grv_ptaccel', grv_ptaccel
+    !    print *, 'grv_obaccel', grv_obaccel
+    !    call Driver_abortFlash('done')
+    !endif
 
 end subroutine Total_force

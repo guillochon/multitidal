@@ -163,6 +163,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 enddo
             enddo
 
+            ! Add velocity subtracted from grid to object tracking point
+            grv_obvec(4:6) = grv_obvec(4:6) + grv_exactvec(4:6)
+
             if (sim_accRadius .ne. 0.d0) then
                 do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
                     z2 = (zCoord(k) - (grv_exactvec(3) - grv_obvec(3) + grv_ptvec(3)))**2

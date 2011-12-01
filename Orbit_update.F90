@@ -122,8 +122,8 @@ subroutine Orbit_update()
             grv_hobvec(4:5) = ystart(5:6)
             grv_hptvec(4:5) = ystart(7:8)
         endif
-    !elseif (grv_mode .eq. 3) then
-        !grv_obvec(1:3) = grv_obvec(1:3) - grv_oexactvec(1:3) + grv_exactvec(1:3)
+    elseif (grv_mode .eq. 3) then
+        grv_obvec(1:3) = grv_obvec(1:3) - grv_oexactvec(1:3) + grv_exactvec(1:3)
         !print *, grv_ototmass, grv_totmass, grv_optmass, grv_ptmass
         !print *, (grv_exactvec(1:3)*grv_totmass + (grv_exactvec(1:3) - grv_obvec(1:3) + grv_ptvec(1:3))*grv_ptmass) / (grv_ptmass + grv_totmass)
         !print *, (grv_oexactvec(1:3)*grv_ototmass + (grv_oexactvec(1:3) - grv_oobvec(1:3) + grv_optvec(1:3))*grv_optmass) / (grv_optmass + grv_ototmass)
@@ -145,7 +145,8 @@ end subroutine Orbit_update
 
 subroutine derivs(x,y,dydx)
     use Gravity_data, ONLY: grv_ptmass, grv_mode, orb_t, orb_dt, grv_exactvec, &
-        grv_orbMinForce, grv_oexactvec, grv_totmass, grv_orb3D, grv_optmass, grv_ototmass
+        grv_orbMinForce, grv_oexactvec, grv_totmass, grv_orb3D, grv_optmass, &
+        grv_obaccel, grv_oobaccel, grv_ototmass
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     use Grid_interface, ONLY: Grid_getMinCellSize
     use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass, &
@@ -241,16 +242,20 @@ subroutine derivs(x,y,dydx)
         if (grv_orb3D) then
             ptt0 = matmul(rot,ptt0)
             dydx(10:12) = ptt0 + (dydx(10:12) - ptt0)*fac
-            dydx(7:9) = -(ptt0*grv_optmass/grv_ototmass + (dydx(10:12)*grv_ptmass/grv_totmass - ptt0*grv_optmass/grv_ototmass)*fac)
+            dydx(7:9) = -(ptt0*grv_optmass/grv_ototmass + &
+                (dydx(10:12)*grv_ptmass/grv_totmass - ptt0*grv_optmass/grv_ototmass)*fac) + &
+                grv_oobaccel + (grv_obaccel - grv_oobaccel)*fac
         else
             dydx(7:8) = ptt0(1:2) + (dydx(7:8) - ptt0(1:2))*fac
-            dydx(5:6) = -(ptt0(1:2)*grv_optmass/grv_ototmass + (dydx(7:8)*grv_ptmass/grv_totmass - ptt0(1:2)*grv_optmass/grv_ototmass)*fac)
+            dydx(5:6) = -(ptt0(1:2)*grv_optmass/grv_ototmass + &
+                (dydx(7:8)*grv_ptmass/grv_totmass - ptt0(1:2)*grv_optmass/grv_ototmass)*fac) + &
+                grv_oobaccel(1:2) + (grv_obaccel(1:2) - grv_oobaccel(1:2))*fac
         endif
     else
         if (grv_orb3D) then
-            dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass
+            dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass + grv_obaccel
         else
-            dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass
+            dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass + grv_obaccel(1:2)
         endif
     endif
 

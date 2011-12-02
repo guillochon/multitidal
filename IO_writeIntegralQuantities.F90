@@ -42,7 +42,8 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
     use Grid_interface, ONLY : Grid_getListOfBlocks, &
       Grid_getBlkIndexLimits, Grid_getBlkPtr, &
       Grid_releaseBlkPtr, Grid_getDeltas, Grid_getBlkBoundBox
-    use Gravity_data, ONLY : grv_ptvec, grv_obvec, grv_ptmass, grv_boundvec, grv_exactvec, grv_totmass, grv_thresh
+    use Gravity_data, ONLY : grv_ptvec, grv_obvec, grv_ptmass, grv_boundvec, &
+        grv_exactvec, grv_totmass, grv_thresh, grv_momacc, grv_angmomacc, grv_eneracc
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
 
     implicit none
@@ -255,9 +256,16 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
                   'Mass bound to pt. mass ', &
                   'Ang. mom. bnd. pt., x  ', &
                   'y comp.                ', &
-                  'z comp.                '
+                  'z comp.                ', &
+                  'Mom. acc. pt., x       ', &
+                  'y comp.                ', &
+                  'z comp.                ', &
+                  'Ang. mom. acc. pt., x  ', &
+                  'y comp.                ', &
+                  'z comp.                ', &
+                  'Ener. acc. pt.         '
 
-10        format (2x,50(a25, :, 1X))
+10        format (2x,57(a25, :, 1X))
 
           else
              open (funit, file=trim(io_statsFileName), position='APPEND')
@@ -266,8 +274,8 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
           endif
        endif
        
-       write (funit, 12) simtime, gsum     ! Write the global sums to the file.
-12     format (1x, 50(es25.15, :, 1x))
+       write (funit, 12) simtime, gsum, grv_momacc, grv_angmomacc, grv_eneracc ! Write the global sums to the file.
+12     format (1x, 57(es25.15, :, 1x))
    
        close (funit)          ! Close the file.
        

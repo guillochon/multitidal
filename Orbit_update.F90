@@ -243,19 +243,19 @@ subroutine derivs(x,y,dydx)
             ptt0 = matmul(rot,ptt0)
             dydx(10:12) = ptt0 + (dydx(10:12) - ptt0)*fac
             dydx(7:9) = -(ptt0*grv_optmass/grv_ototmass + &
-                (dydx(10:12)*grv_ptmass/grv_totmass - ptt0*grv_optmass/grv_ototmass)*fac) + &
-                grv_oobaccel + (grv_obaccel - grv_oobaccel)*fac
+                (dydx(10:12)*grv_ptmass/grv_totmass - ptt0*grv_optmass/grv_ototmass)*fac)! + &
+                !grv_oobaccel + (grv_obaccel - grv_oobaccel)*fac
         else
             dydx(7:8) = ptt0(1:2) + (dydx(7:8) - ptt0(1:2))*fac
             dydx(5:6) = -(ptt0(1:2)*grv_optmass/grv_ototmass + &
-                (dydx(7:8)*grv_ptmass/grv_totmass - ptt0(1:2)*grv_optmass/grv_ototmass)*fac) + &
-                grv_oobaccel(1:2) + (grv_obaccel(1:2) - grv_oobaccel(1:2))*fac
+                (dydx(7:8)*grv_ptmass/grv_totmass - ptt0(1:2)*grv_optmass/grv_ototmass)*fac)! + &
+                !grv_oobaccel(1:2) + (grv_obaccel(1:2) - grv_oobaccel(1:2))*fac
         endif
     else
         if (grv_orb3D) then
-            dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass + grv_obaccel
+            dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass! + grv_obaccel
         else
-            dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass + grv_obaccel(1:2)
+            dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass! + grv_obaccel(1:2)
         endif
     endif
 

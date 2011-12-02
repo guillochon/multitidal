@@ -82,5 +82,12 @@ subroutine Gravity_sendOutputData()
     call IO_setScalar("ptmass", grv_ptmass)
     call IO_setScalar("optmass", grv_optmass)
     call IO_setScalar("ototmass", grv_ototmass)
+    call IO_setScalar("momacc_x", grv_momacc(1))
+    call IO_setScalar("momacc_y", grv_momacc(2))
+    call IO_setScalar("momacc_z", grv_momacc(3))
+    call IO_setScalar("angmomacc_x", grv_angmomacc(1))
+    call IO_setScalar("angmomacc_y", grv_angmomacc(2))
+    call IO_setScalar("angmomacc_z", grv_angmomacc(3))
+    call IO_setScalar("eneracc", grv_eneracc)
 end subroutine Gravity_sendOutputData
 

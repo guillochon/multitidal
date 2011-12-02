@@ -118,9 +118,14 @@ subroutine Gravity_init()
       call IO_getScalar("angmomacc_y", grv_angmomacc(2))
       call IO_getScalar("angmomacc_z", grv_angmomacc(3))
       call IO_getScalar("eneracc", grv_eneracc)
+      call IO_getScalar("massacc", grv_massacc)
   else
       call RuntimeParameters_get("ptmass", grv_ptmass)
       grv_optmass = grv_ptmass
+      grv_momacc = 0.d0
+      grv_angmomacc = 0.d0
+      grv_eneracc = 0.d0
+      grv_massacc = 0.d0
   endif
 
   call RuntimeParameters_get("geometry", strGeometry)

@@ -45,7 +45,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
     use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec, grv_optmass, grv_momacc, &
-        grv_angmomacc, grv_eneracc
+        grv_angmomacc, grv_eneracc, grv_massacc
     use Grid_data, ONLY: gr_smalle, gr_meshMe
     implicit none
 
@@ -59,29 +59,21 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     integer, dimension(blockCount), intent(IN):: blockList
     integer, OPTIONAL, intent(IN) :: pass
     
-    integer  ::  i, j, k, l, put, lb, ierr
-    real     ::  xx, yy, zz, xcenter, ycenter, zcenter, period
-    real     ::  c, avg_dens, avg_temp, avg_pres, dist, vel_sc, mass, y2, z2
-    real     ::  tot_avg_dens, tot_avg_temp, tot_avg_pres, tot_mass
-    integer  ::  istat
+    integer :: i, j, k, l, lb, ierr, istat
+    integer :: cnt, tot_cnt, sizeX, sizeY, sizeZ
+    real    :: xx, yy, zz, dist, y2, z2, tot_mass, gtot_mass
+    real    :: min_cell_size, relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
+    real    :: tinitial, vol
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
-    real, dimension(SPECIES_BEGIN:SPECIES_END) :: xn
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
-    integer :: sizeX,sizeY,sizeZ
     real, dimension(:,:,:,:),pointer :: solnData
-    real, dimension(EOS_NUM) :: eosData
-    real, dimension(MDIM) :: avg_vel, tot_avg_vel, tot_mom_acc, gtot_mom_acc, tot_com_acc, gtot_com_acc, &
-        tot_angmom_acc, gtot_angmom_acc
-    integer,dimension(MDIM) :: axis
+    real, dimension(MDIM) :: avg_vel, tot_mom_acc, gtot_mom_acc, tot_com_acc, gtot_com_acc, &
+        tot_angmom_acc, gtot_angmom_acc, tot_mom, gtot_mom
     real, dimension(2*MDIM) :: pt_pos
   
     logical :: gcell = .true.
   
-    integer :: cnt, tot_cnt
-    real :: min_cell_size, relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
-    
-    real :: tinitial, adj_cfactor, vol
 
     call RuntimeParameters_get('tinitial',tinitial)
     if (dr_simTime .lt. tinitial + sim_tRelax) then
@@ -136,6 +128,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     else
         pt_pos = grv_exactvec - grv_obvec + grv_ptvec !Used for calculating properties of mass accreted onto point mass
         relax_rate = sim_fluffDampCoeff
+
+        ! Calculate the average velocity to subtract it from the grid (as grv_exactvec hasn't been updated yet)
         do lb = 1, blockCount
             call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
             sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
@@ -155,14 +149,52 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                        ! Ensure total center of mass has no motion
-                        solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - grv_exactvec(4:6)
+                        if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) cycle
+                        vol = (xCoord(2) - xCoord(1))**3.d0
+                        tot_mass = tot_mass + vol*solnData(DENS_VAR,i,j,k)
+                        tot_mom = tot_mom + vol*solnData(DENS_VAR,i,j,k)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
+                    enddo
+                enddo
+            enddo
 
+            call Grid_releaseBlkPtr(blockList(lb), solnData)
+            deallocate(xCoord)
+            deallocate(yCoord)
+            deallocate(zCoord)
+        enddo
+
+        call MPI_ALLREDUCE(tot_mass, gtot_mass, 1, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+        call MPI_ALLREDUCE(tot_mom, gtot_mom, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+        
+        avg_vel = gtot_mom/gtot_mass
+
+        do lb = 1, blockCount
+            call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
+            sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
+            allocate(xCoord(sizeX),stat=istat)
+            sizeY = blkLimitsGC(HIGH,JAXIS) - blkLimitsGC(LOW,JAXIS) + 1
+            allocate(yCoord(sizeY),stat=istat)
+            sizeZ = blkLimitsGC(HIGH,KAXIS) - blkLimitsGC(LOW,KAXIS) + 1
+            allocate(zCoord(sizeZ),stat=istat)
+  
+            if (NDIM == 3) call Grid_getCellCoords&
+                                (KAXIS, blockList(lb), CENTER, gcell, zCoord, sizeZ)
+            if (NDIM >= 2) call Grid_getCellCoords&
+                                (JAXIS, blockList(lb), CENTER,gcell, yCoord, sizeY)
+            call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
+            call Grid_getBlkPtr(blockList(lb),solnData)
+
+            do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
+                do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
+                    do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
                         if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) then
                             !reduce by constant factor
                             solnData(VELX_VAR,i,j,k) = solnData(VELX_VAR,i,j,k)*relax_rate
                             solnData(VELY_VAR,i,j,k) = solnData(VELY_VAR,i,j,k)*relax_rate
                             solnData(VELZ_VAR,i,j,k) = solnData(VELZ_VAR,i,j,k)*relax_rate
+                        else
+                            ! Ensure total center of mass has no motion
+                            solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - avg_vel
                         endif
 
                         solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
@@ -239,6 +271,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + gtot_mom_acc) / (grv_ptmass + gtot_mass_acc)
         grv_optmass = grv_ptmass
         grv_ptmass = grv_ptmass + gtot_mass_acc
+        grv_massacc = grv_massacc + gtot_mass_acc
         grv_momacc = grv_momacc + gtot_mom_acc
         grv_angmomacc = grv_angmomacc + gtot_angmom_acc
         grv_eneracc = grv_eneracc + gtot_ener_acc

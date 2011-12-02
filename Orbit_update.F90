@@ -234,10 +234,6 @@ subroutine derivs(x,y,dydx)
     endif
     if (grv_mode .eq. 3) then
         call gr_mpoleGradTotOldPot(dist, grad_pot)
-        !if (maxval(abs(grad_pot)) .gt. 1.d20) then
-        !    print *, dist, grad_pot
-        !    call Driver_abortFlash('Force too large, something bad happened in gr_mpoleGradTotOldPot!')
-        !endif
         ptt0 = grad_pot
         if (grv_orb3D) then
             ptt0 = matmul(rot,ptt0)

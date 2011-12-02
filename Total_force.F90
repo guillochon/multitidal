@@ -20,7 +20,7 @@ subroutine Total_force(blockCount, blockList)
     double precision,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     logical :: gcell = .true.
     double precision, dimension(:,:,:,:),pointer :: solnData
-    double precision, dimension(4) :: lsum, gsum
+    double precision, dimension(7) :: lsum, gsum
     double precision, dimension(3) :: deld, offset, ptpos
     double precision :: dvol, delm, dr32, newton
     double precision :: tinitial, dx, delxinv, cell_mass, ptmass
@@ -144,6 +144,14 @@ subroutine Total_force(blockCount, blockList)
             grv_obaccel = gsum(5:7) / gsum(1)
             !grv_obaccel = 0.d0
         endif
+        !if (gr_meshMe .eq. MASTER_PE) then
+        !    print *, 'Total_force iteration: ', it
+        !    print *, 'ptacc: ', gsum(2:4) / gsum(1)
+        !    if (it .ne. 2) print *, 'obacc: ', gsum(5:7) / gsum(1)
+        !    print *, 'offset: ', offset
+        !    print *, 'ptmass: ', ptmass
+        !    print *, 'gsum(1): ', gsum(1)
+        !endif
     enddo
 
     !if (gr_meshMe .eq. MASTER_PE) then

@@ -40,7 +40,7 @@ module Gravity_data
   double precision, dimension(3), save :: grv_obaccel, grv_ptaccel, grv_hptaccel, grv_optaccel, grv_oobaccel, &
       grv_momacc, grv_angmomacc
   double precision, save :: grv_orbTol, grv_orbMinForce, grv_finiteDiffLen, grv_ototmass, grv_optmass, &
-      grv_eneracc
+      grv_eneracc, grv_massacc
   logical, save :: grv_orb3D
 
 end module Gravity_data

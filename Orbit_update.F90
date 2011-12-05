@@ -27,7 +27,7 @@ subroutine Orbit_update()
     integer :: i
     double precision :: h1,hmin,x1,x2
     double precision, dimension(:), allocatable :: ystart
-    double precision, dimension(3,3) :: roty, rotx, rot
+    double precision, dimension(3,3) :: roty, rotx
     integer, dimension(2) :: ashape = (/ 3, 3 /)
     double precision, parameter :: rangle = PI/180.d0 * 45.d0
     INTERFACE
@@ -72,7 +72,7 @@ subroutine Orbit_update()
         rotx = reshape((/ 1.d0,         0.d0,          0.d0,          & 
                           0.d0,         dcos(rangle),  dsin(rangle),  &
                           0.d0,         -dsin(rangle), dcos(rangle)   /), ashape)
-        rot = matmul(roty, rotx)
+        grv_rotMat = matmul(roty, rotx)
     else
         allocate(ystart(8))
     endif
@@ -94,10 +94,10 @@ subroutine Orbit_update()
         ystart(7:9) = grv_obvec(4:6)
         ystart(10:12) = grv_ptvec(4:6)
 
-        ystart(1:3)   = matmul(rot,ystart(1:3))
-        ystart(4:6)   = matmul(rot,ystart(4:6))
-        ystart(7:9)   = matmul(rot,ystart(7:9))
-        ystart(10:12) = matmul(rot,ystart(10:12))
+        ystart(1:3)   = matmul(grv_rotMat,ystart(1:3))
+        ystart(4:6)   = matmul(grv_rotMat,ystart(4:6))
+        ystart(7:9)   = matmul(grv_rotMat,ystart(7:9))
+        ystart(10:12) = matmul(grv_rotMat,ystart(10:12))
     else
         ystart(1:2) = grv_obvec(1:2)
         ystart(3:4) = grv_ptvec(1:2)
@@ -114,12 +114,12 @@ subroutine Orbit_update()
         rotx = reshape((/ 1.d0,          0.d0,         0.d0,          & 
                           0.d0,          dcos(rangle), -dsin(rangle), &
                           0.d0,          dsin(rangle), dcos(rangle)   /), ashape)
-        rot = matmul(rotx, roty)
+        grv_invRotMat = matmul(rotx, roty)
 
-        ystart(1:3)   = matmul(rot,ystart(1:3))
-        ystart(4:6)   = matmul(rot,ystart(4:6))
-        ystart(7:9)   = matmul(rot,ystart(7:9))
-        ystart(10:12) = matmul(rot,ystart(10:12))
+        ystart(1:3)   = matmul(grv_invRotMat,ystart(1:3))
+        ystart(4:6)   = matmul(grv_invRotMat,ystart(4:6))
+        ystart(7:9)   = matmul(grv_invRotMat,ystart(7:9))
+        ystart(10:12) = matmul(grv_invRotMat,ystart(10:12))
 
         grv_obvec(1:3) = ystart(1:3)
         grv_ptvec(1:3) = ystart(4:6)
@@ -146,19 +146,6 @@ subroutine Orbit_update()
         endif
     elseif (grv_mode .eq. 3) then
         grv_obvec(1:3) = grv_obvec(1:3) - grv_oexactvec(1:3) + grv_exactvec(1:3)
-        !print *, grv_ototmass, grv_totmass, grv_optmass, grv_ptmass
-        !print *, (grv_exactvec(1:3)*grv_totmass + (grv_exactvec(1:3) - grv_obvec(1:3) + grv_ptvec(1:3))*grv_ptmass) / (grv_ptmass + grv_totmass)
-        !print *, (grv_oexactvec(1:3)*grv_ototmass + (grv_oexactvec(1:3) - grv_oobvec(1:3) + grv_optvec(1:3))*grv_optmass) / (grv_optmass + grv_ototmass)
-        !grv_ptvec(1:3) = &
-        !    ((grv_oexactvec(1:3)*grv_ototmass + &
-        !    (grv_oexactvec(1:3) - grv_oobvec(1:3) + grv_optvec(1:3))*grv_optmass) / &
-        !    (grv_optmass + grv_ototmass) * (grv_ptmass + grv_totmass) - grv_totmass * grv_exactvec(1:3)) / grv_ptmass - &
-        !    grv_exactvec(1:3) + grv_obvec(1:3)
-            
-        !grv_obvec(1:3) = grv_obvec(1:3) + &
-        !    (grv_exactvec(1:3)*grv_totmass + (grv_exactvec(1:3) - grv_obvec(1:3) + grv_ptvec(1:3))*grv_ptmass) / (grv_ptmass + grv_totmass) - &
-        !    (grv_oexactvec(1:3)*grv_ototmass + (grv_oexactvec(1:3) - grv_oobvec(1:3) + grv_optvec(1:3))*grv_optmass) / (grv_optmass + grv_ototmass)
-        !grv_ptvec = grv_ptvec - grv_oexactvec + grv_exactvec
     endif
 
 
@@ -237,11 +224,6 @@ subroutine derivs(x,y,dydx)
         print *, dist, sqrt(sum(dist**2.d0)), max_R*last_zone_fraction
         call Driver_abortFlash('ERROR: Point mass is beyond outermost radial zone!')
     endif
-    !call gr_mpoleGradPot(dist, grad_pot)
-    !if (maxval(abs(grad_pot)) .gt. 1.d20) then
-    !    print *, dist, grad_pot
-    !    call Driver_abortFlash('Force too large, something bad happened in gr_mpoleGradTotPot!')
-    !endif
     if (grv_orb3D) then
         roty = reshape((/ dcos(rangle), 0.d0,          -dsin(rangle), &
                           0.d0,         1.d0,          0.d0,          &
@@ -250,17 +232,9 @@ subroutine derivs(x,y,dydx)
                           0.d0,         dcos(rangle),  dsin(rangle),  &
                           0.d0,         -dsin(rangle), dcos(rangle)   /), ashape)
         rot = matmul(roty, rotx)
-
-    !    dydx(10:12) = matmul(rot,grad_pot)
-    !else
-    !    dydx(7:8) = grad_pot(1:2)
     endif
 
-    !rad = dsqrt(sum(dist**2.d0))
-
     if (grv_mode .eq. 3) then
-        !call gr_mpoleGradOldPot(dist, grad_pot)
-        !ptt0 = grad_pot
         if (grv_orb3D) then
             dydx(7:9) = matmul(rot, &
                 grv_optaccel + grv_oobaccel + (grv_ptaccel + grv_obaccel - &
@@ -268,54 +242,21 @@ subroutine derivs(x,y,dydx)
             dydx(10:12) = matmul(rot, &
                 -grv_ototmass/grv_optmass*grv_optaccel + (-grv_totmass/grv_ptmass*grv_ptaccel + &
                 grv_ototmass/grv_optmass*grv_optaccel)*fac)
-            !ptt0 = matmul(rot,ptt0)
-            !obaccel = matmul(rot,grv_oobaccel + (grv_obaccel - grv_oobaccel)*fac)
-            !dydx(7:9) = newton*(grv_optmass + (grv_ptmass - grv_optmass)*fac)/rad**3.d0*dist! + &
-            !    grv_oobaccel + (grv_obaccel - grv_oobaccel)*fac
-            !dydx(10:12) = -newton*(grv_ototmass + (grv_totmass - grv_ototmass)*fac)/rad**3.d0*dist
-            !dydx(7:9) = -(ptt0*grv_optmass/grv_ototmass + &
-            !    (dydx(10:12)*grv_ptmass/grv_totmass - ptt0*grv_optmass/grv_ototmass)*fac)! - obaccel
-            !dydx(10:12) = ptt0 + (dydx(10:12) - ptt0)*fac
         else
             dydx(5:6) = grv_optaccel(1:2) + grv_oobaccel(1:2) + (grv_ptaccel(1:2) + grv_obaccel(1:2) - &
                 grv_optaccel(1:2) - grv_oobaccel(1:2))*fac
             dydx(7:8) = -grv_ototmass/grv_optmass*grv_optaccel(1:2) + &
                 (-grv_totmass/grv_ptmass*grv_ptaccel(1:2) + grv_ototmass/grv_optmass*grv_optaccel(1:2))*fac
-            !dydx(5:6) = newton*(grv_optmass + (grv_ptmass - grv_optmass)*fac)/rad**3.d0*dist(1:2)! + &
-            !    grv_oobaccel(1:2) + (grv_obaccel(1:2) - grv_oobaccel)*fac
-            !dydx(7:8) = -newton*(grv_ototmass + (grv_totmass - grv_ototmass)*fac)/rad**3.d0*dist(1:2)
-            !obaccel(1:2) = grv_oobaccel(1:2) + (grv_obaccel(1:2) - grv_oobaccel(1:2))*fac
-            !dydx(5:6) = -(ptt0(1:2)*grv_optmass/grv_ototmass + &
-            !    (dydx(7:8)*grv_ptmass/grv_totmass - ptt0(1:2)*grv_optmass/grv_ototmass)*fac)! - obaccel(1:2)
-            !dydx(7:8) = ptt0(1:2) + (dydx(7:8) - ptt0(1:2))*fac
         endif
     else
         if (grv_orb3D) then
             dydx(7:9) = matmul(rot, grv_ptaccel + grv_obaccel)
             dydx(10:12) = grv_totmass/grv_ptmass*matmul(rot, -grv_ptaccel)
-            !dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass! - matmul(rot,grv_obaccel)
-            !dydx(7:9) = newton*grv_ptmass/rad**3.d0*dist
-            !dydx(10:12) = -newton*grv_totmass/rad**3.d0*dist
         else
             dydx(5:6) = grv_ptaccel(1:2) + grv_obaccel(1:2)
             dydx(7:8) = -grv_totmass/grv_ptmass*grv_ptaccel(1:2)
-            !dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass! - grv_obaccel(1:2)
-            !dydx(5:6) = newton*grv_ptmass/rad**3.d0*dist(1:2)
-            !dydx(7:8) = -newton*grv_totmass/rad**3.d0*dist(1:2)
         endif
     endif
-
-    !if (grv_orb3D) then
-    !    dydx(7:9) = matmul(rot,dydx(7:9))
-    !    !dydx(10:12) = matmul(rot,dydx(10:12))
-    !endif
-
-    !if (dydx(10) .ne. dydx(10) .or. dydx(11) .ne. dydx(11) .or. dydx(12) .ne. dydx(12)) then
-    !    print *, 'dydx', dydx(10:12)
-    !    print *, 'fac', fac
-    !    print *, 'x, orb_t, orb_dt', x, orb_t, orb_dt
-    !    call Driver_abortFlash('Force is NaN!')
-    !endif
 
     ! Make sure none of the forces are much smaller than the maximum force
     if (grv_orb3D) then

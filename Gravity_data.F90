@@ -41,6 +41,7 @@ module Gravity_data
       grv_momacc, grv_angmomacc
   double precision, save :: grv_orbTol, grv_orbMinForce, grv_finiteDiffLen, grv_ototmass, grv_optmass, &
       grv_eneracc, grv_massacc
+  double precision, dimension(3,3), save :: grv_rotMat, grv_invRotMat
   logical, save :: grv_orb3D
 
 end module Gravity_data

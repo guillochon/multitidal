@@ -44,6 +44,28 @@ subroutine Orbit_update()
     if (grv_orb3D) then
         allocate(ystart(12))
 
+        ! Very long expression to rotate the system into one in which vector connecting the two objects
+        ! is in the direction (1, 1, 1). This is to get rid of situations where the force is almost 0. in
+        ! one of the three cartesian directions.
+        !v1 = grv_ptvec(1) - grv_obvec(1)
+        !v2 = grv_ptvec(2) - grv_obvec(2)
+        !v3 = grv_ptvec(3) - grv_obvec(3)
+        !r = dsqrt(sum((/ v1, v2, v3 /)**2.d0))
+        !v11 = v1*v1
+        !v12 = v1*v2
+        !v13 = v1*v3
+        !v22 = v2*v2
+        !v23 = v2*v3
+        !v33 = v3*v3
+        !v111 = v11*v1
+        !v222 = v22*v2
+        !v333 = v33*v3
+
+        !rot = 1.d0/(6.d0*r*(v11+v22-v23+v33-v1*(v2 + v3)))*(/ (/ &
+        !    2.d0*sqrt3*v111 + sqrt3*v222 - sqrt3*v1*(v22+4.d0*v2*v3+v33) + v23*(sqrt3*v3-6.d0*r) + v22*(sqrt3*v3+3.d0*r) + v33*(sqrt3*v3+3.d0*r),
+        !    -2.d0*sqrt3*v111 + 2.d0*sqrt3*v222 - 3.d0*sqrt3*v22*v3 + sqrt3*v11*(5.d0*v2+v3) + v33*(sqrt3*v3-3.d0*r) + v2*v3*(2.d0*sqrt3*v3+3.d0*r) &
+        !        - v1*(3.d0*sqrt3*v22 + sqrt3*v2*v3 + 2.d0*sqrt3*v33 + 3.d0*v2*r - 3.d0*v3*r)
+
         roty = reshape((/ dcos(rangle), 0.d0,          -dsin(rangle), &
                           0.d0,         1.d0,          0.d0,          &
                           dsin(rangle), 0.d0,          dcos(rangle)   /), ashape)
@@ -82,7 +104,7 @@ subroutine Orbit_update()
         ystart(5:6) = grv_obvec(4:5)
         ystart(7:8) = grv_ptvec(4:5)
     endif
-    h1=(x2 - x1) / 1.d4
+    h1=(x2 - x1) / 1.d2
     hmin=0.d0
     call odeint(ystart,x1,x2,grv_orbTol,h1,hmin,derivs,bsstep)
     if (grv_orb3D) then
@@ -146,14 +168,15 @@ end subroutine Orbit_update
 subroutine derivs(x,y,dydx)
     use Gravity_data, ONLY: grv_ptmass, grv_mode, orb_t, orb_dt, grv_exactvec, &
         grv_orbMinForce, grv_oexactvec, grv_totmass, grv_orb3D, grv_optmass, &
-        grv_obaccel, grv_oobaccel, grv_ototmass
+        grv_obaccel, grv_oobaccel, grv_ototmass, grv_mpolevec, grv_ompolevec, &
+        grv_optaccel, grv_ptaccel
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     use Grid_interface, ONLY: Grid_getMinCellSize
     use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass, &
         max_R, &
         zone_max_radius_fraction, max_radial_zones
     use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
-    use gr_mpoleInterface, ONLY: gr_mpoleGradTotPot, gr_mpoleGradTotOldPot
+    use gr_mpoleInterface, ONLY: gr_mpoleGradTotPot, gr_mpoleGradTotOldPot, gr_mpoleGradPot, gr_mpoleGradOldPot
     use Driver_data, ONLY: dr_simTime
     use Grid_data, ONLY: gr_meshMe
 
@@ -165,9 +188,9 @@ subroutine derivs(x,y,dydx)
     double precision, DIMENSION(:), INTENT(IN) :: y
     double precision, DIMENSION(:), INTENT(OUT) :: dydx
     double precision :: xcmt, ycmt
-    double precision :: newton, fac
+    double precision :: newton, fac, rad
     double precision :: xcm_accel, ycm_accel, nxcm_accel, nycm_accel
-    double precision, dimension(3) :: grad_pot, ptt0, dist
+    double precision, dimension(3) :: grad_pot, ptt0, dist, obaccel
     double precision :: last_zone_fraction
     double precision :: max_dydx
     double precision, dimension(3,3) :: rotx, roty, rot
@@ -214,7 +237,7 @@ subroutine derivs(x,y,dydx)
         print *, dist, sqrt(sum(dist**2.d0)), max_R*last_zone_fraction
         call Driver_abortFlash('ERROR: Point mass is beyond outermost radial zone!')
     endif
-    call gr_mpoleGradTotPot(dist, grad_pot)
+    !call gr_mpoleGradPot(dist, grad_pot)
     !if (maxval(abs(grad_pot)) .gt. 1.d20) then
     !    print *, dist, grad_pot
     !    call Driver_abortFlash('Force too large, something bad happened in gr_mpoleGradTotPot!')
@@ -228,32 +251,64 @@ subroutine derivs(x,y,dydx)
                           0.d0,         -dsin(rangle), dcos(rangle)   /), ashape)
         rot = matmul(roty, rotx)
 
-        dydx(10:12) = matmul(rot,grad_pot)
-    else
-        dydx(7:8) = grad_pot(1:2)
+    !    dydx(10:12) = matmul(rot,grad_pot)
+    !else
+    !    dydx(7:8) = grad_pot(1:2)
     endif
+
+    !rad = dsqrt(sum(dist**2.d0))
+
     if (grv_mode .eq. 3) then
-        call gr_mpoleGradTotOldPot(dist, grad_pot)
-        ptt0 = grad_pot
+        !call gr_mpoleGradOldPot(dist, grad_pot)
+        !ptt0 = grad_pot
         if (grv_orb3D) then
-            ptt0 = matmul(rot,ptt0)
-            dydx(10:12) = ptt0 + (dydx(10:12) - ptt0)*fac
-            dydx(7:9) = -(ptt0*grv_optmass/grv_ototmass + &
-                (dydx(10:12)*grv_ptmass/grv_totmass - ptt0*grv_optmass/grv_ototmass)*fac)! + &
-                !grv_oobaccel + (grv_obaccel - grv_oobaccel)*fac
+            dydx(7:9) = matmul(rot, &
+                grv_optaccel + grv_oobaccel + (grv_ptaccel + grv_obaccel - &
+                grv_optaccel - grv_oobaccel)*fac)
+            dydx(10:12) = matmul(rot, &
+                -grv_ototmass/grv_optmass*grv_optaccel + (-grv_totmass/grv_ptmass*grv_ptaccel + &
+                grv_ototmass/grv_optmass*grv_optaccel)*fac)
+            !ptt0 = matmul(rot,ptt0)
+            !obaccel = matmul(rot,grv_oobaccel + (grv_obaccel - grv_oobaccel)*fac)
+            !dydx(7:9) = newton*(grv_optmass + (grv_ptmass - grv_optmass)*fac)/rad**3.d0*dist! + &
+            !    grv_oobaccel + (grv_obaccel - grv_oobaccel)*fac
+            !dydx(10:12) = -newton*(grv_ototmass + (grv_totmass - grv_ototmass)*fac)/rad**3.d0*dist
+            !dydx(7:9) = -(ptt0*grv_optmass/grv_ototmass + &
+            !    (dydx(10:12)*grv_ptmass/grv_totmass - ptt0*grv_optmass/grv_ototmass)*fac)! - obaccel
+            !dydx(10:12) = ptt0 + (dydx(10:12) - ptt0)*fac
         else
-            dydx(7:8) = ptt0(1:2) + (dydx(7:8) - ptt0(1:2))*fac
-            dydx(5:6) = -(ptt0(1:2)*grv_optmass/grv_ototmass + &
-                (dydx(7:8)*grv_ptmass/grv_totmass - ptt0(1:2)*grv_optmass/grv_ototmass)*fac)! + &
-                !grv_oobaccel(1:2) + (grv_obaccel(1:2) - grv_oobaccel(1:2))*fac
+            dydx(5:6) = grv_optaccel(1:2) + grv_oobaccel(1:2) + (grv_ptaccel(1:2) + grv_obaccel(1:2) - &
+                grv_optaccel(1:2) - grv_oobaccel(1:2))*fac
+            dydx(7:8) = -grv_ototmass/grv_optmass*grv_optaccel(1:2) + &
+                (-grv_totmass/grv_ptmass*grv_ptaccel(1:2) + grv_ototmass/grv_optmass*grv_optaccel(1:2))*fac
+            !dydx(5:6) = newton*(grv_optmass + (grv_ptmass - grv_optmass)*fac)/rad**3.d0*dist(1:2)! + &
+            !    grv_oobaccel(1:2) + (grv_obaccel(1:2) - grv_oobaccel)*fac
+            !dydx(7:8) = -newton*(grv_ototmass + (grv_totmass - grv_ototmass)*fac)/rad**3.d0*dist(1:2)
+            !obaccel(1:2) = grv_oobaccel(1:2) + (grv_obaccel(1:2) - grv_oobaccel(1:2))*fac
+            !dydx(5:6) = -(ptt0(1:2)*grv_optmass/grv_ototmass + &
+            !    (dydx(7:8)*grv_ptmass/grv_totmass - ptt0(1:2)*grv_optmass/grv_ototmass)*fac)! - obaccel(1:2)
+            !dydx(7:8) = ptt0(1:2) + (dydx(7:8) - ptt0(1:2))*fac
         endif
     else
         if (grv_orb3D) then
-            dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass! + grv_obaccel
+            dydx(7:9) = matmul(rot, grv_ptaccel + grv_obaccel)
+            dydx(10:12) = grv_totmass/grv_ptmass*matmul(rot, -grv_ptaccel)
+            !dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass! - matmul(rot,grv_obaccel)
+            !dydx(7:9) = newton*grv_ptmass/rad**3.d0*dist
+            !dydx(10:12) = -newton*grv_totmass/rad**3.d0*dist
         else
-            dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass! + grv_obaccel(1:2)
+            dydx(5:6) = grv_ptaccel(1:2) + grv_obaccel(1:2)
+            dydx(7:8) = -grv_totmass/grv_ptmass*grv_ptaccel(1:2)
+            !dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass! - grv_obaccel(1:2)
+            !dydx(5:6) = newton*grv_ptmass/rad**3.d0*dist(1:2)
+            !dydx(7:8) = -newton*grv_totmass/rad**3.d0*dist(1:2)
         endif
     endif
+
+    !if (grv_orb3D) then
+    !    dydx(7:9) = matmul(rot,dydx(7:9))
+    !    !dydx(10:12) = matmul(rot,dydx(10:12))
+    !endif
 
     !if (dydx(10) .ne. dydx(10) .or. dydx(11) .ne. dydx(11) .or. dydx(12) .ne. dydx(12)) then
     !    print *, 'dydx', dydx(10:12)

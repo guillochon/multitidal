@@ -133,16 +133,16 @@ subroutine Total_force(blockCount, blockList)
         if (it .eq. 1) then
             grv_optaccel = gsum(2:4) / gsum(1)
             if (.not. grv_orb3D) grv_optaccel(3) = 0.d0
-            grv_oobaccel = gsum(5:7) / gsum(1)
-            !grv_oobaccel = 0.d0
+            !grv_oobaccel = gsum(5:7) / gsum(1)
+            grv_oobaccel = 0.d0
         elseif (it .eq. 2) then
             grv_hptaccel = gsum(2:4) / gsum(1)
             if (.not. grv_orb3D) grv_hptaccel(3) = 0.d0
         else
             grv_ptaccel = gsum(2:4) / gsum(1)
             if (.not. grv_orb3D) grv_ptaccel(3) = 0.d0
-            grv_obaccel = gsum(5:7) / gsum(1)
-            !grv_obaccel = 0.d0
+            !grv_obaccel = gsum(5:7) / gsum(1)
+            grv_obaccel = 0.d0
         endif
         !if (gr_meshMe .eq. MASTER_PE) then
         !    print *, 'Total_force iteration: ', it

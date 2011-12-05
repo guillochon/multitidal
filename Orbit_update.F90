@@ -12,14 +12,13 @@
 ! directions at all times.
 
 subroutine Orbit_update()
-
     use nrtype
     use nr
     use ode_path
     use Gravity_data, ONLY: grv_ptmass, grv_mode, orb_t, orb_dt, &
         grv_ptvec, grv_obvec, grv_optvec, grv_oobvec, grv_hptvec, &
         grv_hobvec, grv_exactvec, grv_oexactvec, grv_orbTol, grv_orb3D, &
-        grv_ototmass, grv_optmass, grv_totmass
+        grv_ototmass, grv_optmass, grv_totmass, grv_rotMat, grv_invRotMat
     use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass
     use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
 
@@ -73,6 +72,14 @@ subroutine Orbit_update()
                           0.d0,         dcos(rangle),  dsin(rangle),  &
                           0.d0,         -dsin(rangle), dcos(rangle)   /), ashape)
         grv_rotMat = matmul(roty, rotx)
+
+        roty = reshape((/ dcos(rangle),  0.d0,         dsin(rangle),  &
+                          0.d0,          1.d0,         0.d0,          &
+                          -dsin(rangle), 0.d0,         dcos(rangle)  /), ashape)
+        rotx = reshape((/ 1.d0,          0.d0,         0.d0,          & 
+                          0.d0,          dcos(rangle), -dsin(rangle), &
+                          0.d0,          dsin(rangle), dcos(rangle)   /), ashape)
+        grv_invRotMat = matmul(rotx, roty)
     else
         allocate(ystart(8))
     endif
@@ -108,14 +115,6 @@ subroutine Orbit_update()
     hmin=0.d0
     call odeint(ystart,x1,x2,grv_orbTol,h1,hmin,derivs,bsstep)
     if (grv_orb3D) then
-        roty = reshape((/ dcos(rangle),  0.d0,         dsin(rangle),  &
-                          0.d0,          1.d0,         0.d0,          &
-                          -dsin(rangle), 0.d0,         dcos(rangle)  /), ashape)
-        rotx = reshape((/ 1.d0,          0.d0,         0.d0,          & 
-                          0.d0,          dcos(rangle), -dsin(rangle), &
-                          0.d0,          dsin(rangle), dcos(rangle)   /), ashape)
-        grv_invRotMat = matmul(rotx, roty)
-
         ystart(1:3)   = matmul(grv_invRotMat,ystart(1:3))
         ystart(4:6)   = matmul(grv_invRotMat,ystart(4:6))
         ystart(7:9)   = matmul(grv_invRotMat,ystart(7:9))
@@ -156,7 +155,7 @@ subroutine derivs(x,y,dydx)
     use Gravity_data, ONLY: grv_ptmass, grv_mode, orb_t, orb_dt, grv_exactvec, &
         grv_orbMinForce, grv_oexactvec, grv_totmass, grv_orb3D, grv_optmass, &
         grv_obaccel, grv_oobaccel, grv_ototmass, grv_mpolevec, grv_ompolevec, &
-        grv_optaccel, grv_ptaccel
+        grv_optaccel, grv_ptaccel, grv_rotMat, grv_invRotMat
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     use Grid_interface, ONLY: Grid_getMinCellSize
     use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass, &
@@ -180,28 +179,19 @@ subroutine derivs(x,y,dydx)
     double precision, dimension(3) :: grad_pot, ptt0, dist, obaccel
     double precision :: last_zone_fraction
     double precision :: max_dydx
-    double precision, dimension(3,3) :: rotx, roty, rot
     integer, dimension(2) :: ashape = (/ 3, 3 /)
     double precision, parameter :: rangle = PI/180.d0 * 45.d0
 
     call PhysicalConstants_get("Newton", newton)
 
     if (grv_orb3D) then
-        roty = reshape((/ dcos(rangle),  0.d0, dsin(rangle), &
-                          0.d0,          1.d0, 0.d0,         &
-                          -dsin(rangle), 0.d0, dcos(rangle)  /), ashape)
-        rotx = reshape((/ 1.d0,          0.d0,         0.d0,          & 
-                          0.d0,          dcos(rangle), -dsin(rangle), &
-                          0.d0,          dsin(rangle), dcos(rangle)   /), ashape)
-        rot = matmul(rotx, roty)
-
         dydx(1)=y(7) ! Obj. vel.
         dydx(2)=y(8)
         dydx(3)=y(9)
         dydx(4)=y(10) ! Pt. vel.
         dydx(5)=y(11)
         dydx(6)=y(12)
-        dist = matmul(rot,y(4:6) - y(1:3))
+        dist = matmul(grv_invRotMat,y(4:6) - y(1:3))
     else
         dydx(1)=y(5) ! Obj. vel.
         dydx(2)=y(6)
@@ -224,22 +214,13 @@ subroutine derivs(x,y,dydx)
         print *, dist, sqrt(sum(dist**2.d0)), max_R*last_zone_fraction
         call Driver_abortFlash('ERROR: Point mass is beyond outermost radial zone!')
     endif
-    if (grv_orb3D) then
-        roty = reshape((/ dcos(rangle), 0.d0,          -dsin(rangle), &
-                          0.d0,         1.d0,          0.d0,          &
-                          dsin(rangle), 0.d0,          dcos(rangle)   /), ashape)
-        rotx = reshape((/ 1.d0,         0.d0,          0.d0,          & 
-                          0.d0,         dcos(rangle),  dsin(rangle),  &
-                          0.d0,         -dsin(rangle), dcos(rangle)   /), ashape)
-        rot = matmul(roty, rotx)
-    endif
 
     if (grv_mode .eq. 3) then
         if (grv_orb3D) then
-            dydx(7:9) = matmul(rot, &
+            dydx(7:9) = matmul(grv_rotMat, &
                 grv_optaccel + grv_oobaccel + (grv_ptaccel + grv_obaccel - &
                 grv_optaccel - grv_oobaccel)*fac)
-            dydx(10:12) = matmul(rot, &
+            dydx(10:12) = matmul(grv_rotMat, &
                 -grv_ototmass/grv_optmass*grv_optaccel + (-grv_totmass/grv_ptmass*grv_ptaccel + &
                 grv_ototmass/grv_optmass*grv_optaccel)*fac)
         else
@@ -250,8 +231,8 @@ subroutine derivs(x,y,dydx)
         endif
     else
         if (grv_orb3D) then
-            dydx(7:9) = matmul(rot, grv_ptaccel + grv_obaccel)
-            dydx(10:12) = grv_totmass/grv_ptmass*matmul(rot, -grv_ptaccel)
+            dydx(7:9) = matmul(grv_rotMat, grv_ptaccel + grv_obaccel)
+            dydx(10:12) = grv_totmass/grv_ptmass*matmul(grv_rotMat, -grv_ptaccel)
         else
             dydx(5:6) = grv_ptaccel(1:2) + grv_obaccel(1:2)
             dydx(7:8) = -grv_totmass/grv_ptmass*grv_ptaccel(1:2)

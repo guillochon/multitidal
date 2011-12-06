@@ -6,7 +6,7 @@
 # Are we restarting a run? Uncomment the following lines and select the
 # last written checkpoint file number.
 #restart                    = .true.
-#checkpointFileNumber       = 189
+#checkpointFileNumber       = 113
 #plotFileNumber             = 0
 
 # Output options (plot files and checkpoint files).
@@ -39,8 +39,8 @@ sim_objCentDen = 73.5
 ptmass = 1.9889225e39
 
 # Initial orbit.
-sim_periBeta  = 1.5
-sim_startBeta = 0.1
+sim_periBeta  = 1.2
+sim_startBeta = 0.05
 sim_orbEcc    = 0.99999
 
 # Background fluff parameters.
@@ -54,8 +54,7 @@ dtinit        = 1e-2
 
 # Parameters determining behavior of fluid during simulation.
 sim_softenRadius    = 0.8     # Soften gravity next to pt. mass within this fraction of pericenter distance.
-sim_accRadius       = 0.8     # Remove mass/energy interior to this distance (in pericenter distances) from pt. mass.
-sim_accCoeff        = 0.95    # Factor to reduce mass/energy within accretion region per time-step.
+sim_accRadius       = 0.0
 sim_fluidGamma      = 1.666666666667
 sim_fluffDampCoeff  = 0.95
 sim_fluffDampCutoff = 1.e-18   # Should be slightly larger than sim_rhoAmbient
@@ -63,9 +62,8 @@ sim_fluffDampCutoff = 1.e-18   # Should be slightly larger than sim_rhoAmbient
 # Parameters affecting the multipole gravity solver. Please read FLASH4 documentation before modifying.
 grv_comCutoff                = 1.0e-1
 grv_comPeakCut               = 1.0e-1
-grv_finiteDiffLen            = 1.0e0
-grv_orbTol                   = 1.0e-14
-grv_orbMinForce              = 1.0e-14
+grv_orbTol                   = 1.0e-13
+grv_orbMinForce              = 1.0e-13
 grv_orb3D                    = .true.
 mpole_lmax                   = 20
 mpole_max_radial_zones       = 2
@@ -78,6 +76,7 @@ mpole_inner_zone_size        = 16
 # Refinement parameters. Highest refinement levels should be specified first.
 lrefine_min         = 1
 lrefine_max         = 16
+sim_ptmassrefine    = 1
 sim_maxBlocks       = 40000   # Maximum total number of blocks in simulation. Derefines by 1 level if number is exceeded.
 refine_var_1        = "dens"
 refine_val_cutoff_1 = 1.00e-3

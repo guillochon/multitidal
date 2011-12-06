@@ -37,33 +37,31 @@ PARAMETER sim_periDist              REAL    0.E0
 PARAMETER sim_periBeta              REAL    0.E0
 PARAMETER sim_periodFac             REAL    0.E0
 PARAMETER sim_orbEcc                REAL    0.E0
-PARAMETER sim_startBeta             REAL    0.E0
-PARAMETER ptmass                    REAL    0.E0
-PARAMETER sim_pAmbient              REAL    1.E4
-PARAMETER sim_tRelax                REAL    0.E0
+PARAMETER sim_startBeta             REAL    0.1E0
+PARAMETER ptmass                    REAL    2.E33
+PARAMETER sim_rhoAmbient            REAL    1.E-15
+PARAMETER sim_pAmbient              REAL    1.E-4
+PARAMETER sim_tRelax                REAL    1.E3
 PARAMETER sim_relaxRate             REAL    0.99E0
 PARAMETER larget                    REAL    1.E10
-PARAMETER sim_softenRadius          REAL    1.E0
-PARAMETER sim_accRadius             REAL    1.E0
-PARAMETER sim_accCoeff              REAL    1.E0
-PARAMETER sim_objMass               REAL    0.E0
-PARAMETER sim_objPolyN              REAL    0.E0
-PARAMETER sim_objCentDen            REAL    0.E0
-PARAMETER sim_fluidGamma            REAL    2.E0
-PARAMETER sim_fluffDampCoeff        REAL    1.E0
+PARAMETER sim_softenRadius          REAL    0.E0
+PARAMETER sim_accRadius             REAL    0.E0
+PARAMETER sim_accCoeff              REAL    0.95E0
+PARAMETER sim_objMass               REAL    2.E30
+PARAMETER sim_objPolyN              REAL    3.E0
+PARAMETER sim_objCentDen            REAL    1.E2
+PARAMETER sim_fluidGamma            REAL    1.666666667E0
+PARAMETER sim_fluffDampCoeff        REAL    0.95E0
 PARAMETER sim_fluffDampCutoff       REAL    1.E-20
 PARAMETER sim_maxBlocks             INTEGER 40000
 PARAMETER sim_useInitialPeakDensity BOOLEAN TRUE
-PARAMETER sim_ptMassRefine          INTEGER 0
+PARAMETER sim_ptMassRefine          INTEGER 1
 
-PARAMETER grv_orbTol          REAL    1.E-10
-PARAMETER grv_orbMinForce     REAL    1.E-10
+PARAMETER grv_orbTol          REAL    1.E-12
+PARAMETER grv_orbMinForce     REAL    1.E-12
 PARAMETER grv_comCutoff       REAL    0.E0
 PARAMETER grv_comPeakCut      REAL    0.E0
 PARAMETER grv_orb3D           BOOLEAN TRUE
-
-D sim_rhoAmbient     Initial ambient density
-PARAMETER sim_rhoAmbient   REAL    1.
 
 D sim_nsubzones       Number of `sub-zones' in cells for applying 1d profile
 PARAMETER sim_nsubzones     INTEGER 7

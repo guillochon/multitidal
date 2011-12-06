@@ -58,11 +58,10 @@ subroutine Grid_markRefineDerefine()
 
   double precision :: xcom, ycom, zcom
   double precision, dimension(:,:,:,:), pointer :: solnData
-  double precision :: ref_cut,deref_cut,ref_filter,ref_val_cut,t
+  double precision :: ref_val_cut,t
   double precision :: xcenter,ycenter,zcenter
-  double precision :: maxptime,shrinkdur,box,zbox,dens_cut
+  double precision :: dens_cut
   integer       :: l,iref,blkCount,lb,i,j
-  logical :: doEos=.true.
   integer,parameter :: maskSize = NUNK_VARS+NDIM*NFACE_VARS
   logical,dimension(maskSize) :: gcMask
   double precision :: maxvals(MAXBLOCKS),maxvals_parent(MAXBLOCKS)
@@ -71,13 +70,8 @@ subroutine Grid_markRefineDerefine()
   integer :: statr(MPI_STATUS_SIZE,MAXBLOCKS)
   integer :: stats(MPI_STATUS_SIZE,MAXBLOCKS)
 
-  double precision :: polyk,mu, &
-          x(np),y(np),yp(np),radius(np),rhop(np), &
-          mass(np),prss(np),ebind(np),zopac(np), &
-          rhom(np),zbeta(np),ztemp(np),exact(np), &
-          xsurf,ypsurf,combo,min_cell
-  double precision, dimension(NSPECIES) :: xn
-  integer :: mode,iend,ipos,ref_level,max_blocks
+  double precision :: min_cell
+  integer :: ref_level,max_blocks
 
 #ifdef FLASH_MPOLE
     xcom = X_centerofmass
@@ -147,9 +141,6 @@ subroutine Grid_markRefineDerefine()
           ref_level = min(gr_refine_level(l), grv_dynRefineMax)
           call gr_markVarThreshold(iref,ref_val_cut,0,ref_level)
       enddo
-
-      !call gr_markInRectangle(xcenter-box,xcenter+box,ycenter-box,ycenter+box,&
-      !   zcenter-zbox,zcenter+zbox,8,1,1)
 
       do l = 1,gr_numRefineVars
           iref = gr_refine_var(l)

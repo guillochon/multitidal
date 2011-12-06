@@ -40,22 +40,22 @@ subroutine Simulation_initBlock (blockId, myPE)
   integer,intent(IN) ::  blockId
   integer,intent(IN) ::  myPE
   
-  integer  ::  i, j, k, n, jLo, jHi
+  integer  ::  i, j, k, jLo, jHi
   integer  ::  ii, jj, kk, put
   real     ::  distInv, xDist, yDist, zDist
   real     ::  sumRho, sumP
-  real     ::  vel, diagonal
   real     ::  xx, dxx, yy, dyy, zz, dzz, frac
   real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb
   real     ::  dist, gam
-  logical  ::  validGeom
   integer  ::  istat
 
   real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
   integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
   integer :: sizeX,sizeY,sizeZ
   integer,dimension(MDIM) :: axis
+#ifdef FL_NON_PERMANENT_GUARDCELLS
   real, dimension(:,:,:,:),pointer :: solnData
+#endif
 
   logical :: gcell = .true.
 

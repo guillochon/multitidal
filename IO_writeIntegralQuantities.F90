@@ -61,8 +61,6 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
     integer :: funit = 99
     integer :: error
     
-    character (len=MAX_STRING_LENGTH), save :: fname 
-    
     integer :: blockList(MAXBLOCKS)
 
     integer :: blkLimits(HIGH, MDIM), blkLimitsGC(HIGH, MDIM)
@@ -80,8 +78,6 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
     real,dimension(LOW:HIGH,MDIM) :: bndBox
     logical :: gcell = .true.
 
-    double precision :: bvx, bvy, bvz
-
     ! Sum quantities over all locally held leaf-node blocks.
     gsum = 0.
     lsum = 0.
@@ -89,13 +85,6 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
     call Grid_getListOfBlocks(LEAF, blockList, count)
     call PhysicalConstants_get("Newton", newton)
     
-    !bvx = (grv_ptmass*grv_ptvec(4) + &
-    !    grv_totmass*(grv_obvec(4) + grv_exactvec(4)))/(grv_ptmass + grv_totmass)
-    !bvy = (grv_ptmass*grv_ptvec(5) + &
-    !    grv_totmass*(grv_obvec(5) + grv_exactvec(5)))/(grv_ptmass + grv_totmass)
-    !bvz = (grv_ptmass*grv_ptvec(6) + &
-    !    grv_totmass*(grv_obvec(6) + grv_exactvec(6)))/(grv_ptmass + grv_totmass)
-
     do lb = 1, count
        call Grid_getDeltas(blockList(lb),delta)
        call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)

@@ -18,7 +18,7 @@ subroutine Orbit_energy(blockCount, blockList)
 
     integer, intent(IN) :: blockCount
     integer, dimension(blockCount), intent(IN):: blockList
-    double precision :: ener, dvol, newton, r, vel2, xx, yy, zz, tot_ener
+    double precision :: ener, dvol, newton, r, xx, yy, zz, tot_ener
     double precision :: x, y, z, min_cell
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
     integer :: sizeX,sizeY,sizeZ, lb, istat, i, j, k, ierr, imin, imax, jmin, jmax, kmin, kmax
@@ -27,7 +27,7 @@ subroutine Orbit_energy(blockCount, blockList)
     real, dimension(:,:,:,:),pointer :: solnData
     real,dimension(MDIM) :: delta
     real,dimension(LOW:HIGH,MDIM) :: bndBox
-    double precision :: bvx, bvy, bvz, inner_rad
+    double precision :: inner_rad
 
     call PhysicalConstants_get("Newton", newton)
     call Grid_getMinCellSize(min_cell)

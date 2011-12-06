@@ -1,14 +1,15 @@
 subroutine Total_force(blockCount, blockList)
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
-        Grid_getCellCoords
+        Grid_getCellCoords, Grid_findExtrema
     use Gravity_data, ONLY: grv_obvec, grv_ptvec, grv_obaccel, grv_ptaccel, grv_hptaccel, &
         grv_optaccel, grv_oobaccel, grv_oexactvec, grv_exactvec, grv_hobvec, grv_hptvec, &
-        grv_oobvec, grv_optvec, grv_orb3D, grv_ptmass, grv_optmass, grv_densCut, grv_comCutoff
+        grv_oobvec, grv_optvec, grv_orb3D, grv_ptmass, grv_optmass, grv_densCut, &
+        grv_comCutoff, grv_comPeakCut
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
     use Simulation_data, ONLY: sim_fluffDampCutoff, sim_softenRadius
     use gr_mpoleData, ONLY: twelfth
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
-    use Grid_data, ONLY: gr_meshMe
+    use Grid_data, ONLY: gr_meshMe, gr_meshComm
     implicit none 
 #include "constants.h"
 #include "Flash.h"
@@ -22,11 +23,21 @@ subroutine Total_force(blockCount, blockList)
     double precision, dimension(:,:,:,:),pointer :: solnData
     double precision, dimension(7) :: lsum, gsum
     double precision, dimension(3) :: deld, offset, ptpos
-    double precision :: dvol, delm, dr32, newton
-    double precision :: tinitial, dx, delxinv, cell_mass, ptmass
+    double precision :: dvol, dr32, newton
+    double precision :: tinitial, dx, delxinv, cell_mass, ptmass, denscut, ldenscut, extrema
 
     call RuntimeParameters_get('tinitial',tinitial)
     call PhysicalConstants_get("Newton", newton)
+
+    ldenscut = -huge(0.d0)
+    do lb = 1,blockCount
+       call Grid_findExtrema (blockList(lb), DENS_VAR, 1, extrema)
+       if (extrema .gt. ldenscut) ldenscut = extrema
+    enddo
+
+    call MPI_ALLREDUCE(ldenscut, denscut, 1, FLASH_REAL, MPI_MAX, gr_meshComm, ierr)
+
+    denscut = denscut*grv_comPeakCut
 
     do it = 1, 3
         lsum = 0.d0
@@ -83,8 +94,7 @@ subroutine Total_force(blockCount, blockList)
                         lsum(2:4) = lsum(2:4) - cell_mass * newton*ptmass/dr32*ptpos
 
                         if (it .eq. 2) cycle
-
-                        if (solnData(denVar,i,j,k) .lt. grv_densCut*grv_comCutoff) cycle
+                        if (solnData(denVar,i,j,k) .lt. denscut) cycle
 
                         if ((solnData(denVar,i+1,j,k) - solnData(denVar,i,j,k))*&
                             (solnData(denVar,i,j,k) - solnData(denVar,i-1,j,k)) .lt. 0.d0) then
@@ -130,7 +140,7 @@ subroutine Total_force(blockCount, blockList)
             deallocate(zCoord)
         enddo
 
-        call MPI_ALLREDUCE(lsum, gsum, 7, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+        call MPI_ALLREDUCE(lsum, gsum, 7, FLASH_REAL, MPI_SUM, gr_meshComm, ierr)
 
         if (it .eq. 1) then
             grv_optaccel = gsum(2:4) / gsum(1)

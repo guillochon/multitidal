@@ -76,9 +76,9 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     double precision            :: blockSize(MDIM)
     double precision, POINTER, DIMENSION(:,:,:,:) :: solnVec
 
-    integer         :: ii, iimin, iimax, lb
+    integer         :: ii, iimin, iimax
     double precision            :: gpot(numCells), delxinv
-    double precision            :: dens(numCells), xgrid(numCells)
+    double precision            :: dens(numCells)
     double precision, parameter :: onesixth = 1.e0/6.e0
     integer         :: potVar, denVar
 
@@ -95,7 +95,6 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
 
     integer :: j,k
     logical :: gcell = .true.
-    double precision :: period
     double precision :: tinitial, ptx, pty, ptz, deld
     double precision, dimension(3) :: obaccel, ptaccel
     !==================================================

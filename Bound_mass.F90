@@ -20,7 +20,7 @@ subroutine Bound_mass(blockCount, blockList)
     logical :: gcell = .true.
     double precision, dimension(:,:,:,:),pointer :: solnData
     double precision, dimension(7) :: lsum, gsum
-    double precision, dimension(3) :: bndvel, ptvel, bndpos, relvel
+    double precision, dimension(3) :: bndvel, bndpos, relvel
     double precision :: dvol, delm, xx, yy, zz, bndv2, ptv2, ptrad
     double precision :: G, tinitial, dx, delxinv
 

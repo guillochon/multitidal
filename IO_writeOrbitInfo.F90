@@ -33,8 +33,6 @@
 !!
 !!***
 
-!!REORDER(4):solnData
-
 subroutine IO_writeOrbitInfo (isFirst, simTime)
 
     use IO_data, ONLY : io_restart, io_statsFileName
@@ -58,20 +56,14 @@ subroutine IO_writeOrbitInfo (isFirst, simTime)
 
     integer, intent(in) :: isFirst
 
-    integer :: lb, error, blockCount
+    integer :: error, blockCount
     
     integer :: funit = 95
     
-    character (len=MAX_STRING_LENGTH), save :: fname 
-    
-    integer :: blockList(MAXBLOCKS), blkLimits(HIGH, MDIM), blkLimitsGC(HIGH, MDIM)
+    integer :: blockList(MAXBLOCKS)
 
-    integer :: i, j, k
-    real, DIMENSION(:,:,:,:), POINTER :: solnData
-
-    integer :: point(MDIM)
     double precision :: r, vel, arglat, semimaj, hsq, ecc, radvel, cose, sine, &
-      truanom, longperi, arguperi, newton, tinitial, raasc, inclin, &
+      truanom, longperi, arguperi, newton, raasc, inclin, &
       h1, h2, h3, p1, p2, x, y, z, vx, vy, vz
     character(len=50) :: filename
 

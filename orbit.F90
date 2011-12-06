@@ -106,7 +106,7 @@ subroutine keplereq(m, ecc, eccanom)
 #include "constants.h"
     double precision, parameter :: c1_6 = 1.d0/6.d0
     double precision, parameter :: c1_24 = 1.d0/24.d0
-    double precision, parameter :: thresh = 1.d-10
+    double precision, parameter :: thresh = 1.d-14
     double precision, intent(IN) :: m, ecc
     double precision, intent(OUT) :: eccanom
     double precision :: mx, aux, alpha, beta, z, test, s0, s1, e0, se0, ce0

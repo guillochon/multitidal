@@ -43,16 +43,14 @@ subroutine Simulation_init()
 #include "Multispecies.h"
 #include "Eos.h"
 
-    integer             :: i, ierr
-    double precision    :: start_t
-    double precision  order,mtot,rhoc,polyk,mu, &
+    integer             :: ierr
+    double precision  polyk, &
                     x(np),y(np),yp(np), &
-                    mass(np),ebind(np),zopac(np), &
+                    mass(np),ebind(np), &
                     rhom(np),zbeta(np),ztemp(np),exact(np), &
-                    xsurf,ypsurf,combo,cfl
-    integer mode,iend,ipos
+                    xsurf,ypsurf,cfl
+    integer mode,iend
     character(len=100) :: logstr
-    real, dimension(EOS_NUM) :: eosData
 
     call RuntimeParameters_get('sim_pAmbient', sim_pAmbient)
     call RuntimeParameters_get('sim_rhoAmbient', sim_rhoAmbient)
@@ -83,7 +81,6 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_periodFac", sim_periodFac)
     call RuntimeParameters_get("sim_orbEcc", sim_orbEcc)
     call RuntimeParameters_get("sim_useInitialPeakDensity", sim_useInitialPeakDensity)
-    call RuntimeParameters_get("sim_coolingDensity", sim_coolingDensity)
     call RuntimeParameters_get("sim_ptMassRefine", sim_ptMassRefine)
     call RuntimeParameters_get("ptmass", sim_ptMass)
 

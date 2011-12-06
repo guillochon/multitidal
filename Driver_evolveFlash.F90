@@ -98,10 +98,7 @@ subroutine Driver_evolveFlash()
   real    :: dt_diffuse_temp
   logical :: useSTS_local
   integer :: nstepTotalSTS_local 
-  character(len=200) :: logstr
   double precision :: tinitial
-  real, pointer, dimension(:,:,:,:) :: solnData
-  integer :: lb
 
   endRun = .false.
 

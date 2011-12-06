@@ -54,14 +54,12 @@ PARAMETER sim_fluffDampCoeff        REAL    1.E0
 PARAMETER sim_fluffDampCutoff       REAL    1.E-20
 PARAMETER sim_maxBlocks             INTEGER 40000
 PARAMETER sim_useInitialPeakDensity BOOLEAN TRUE
-PARAMETER sim_coolingDensity        REAL    0.E0
 PARAMETER sim_ptMassRefine          INTEGER 0
 
 PARAMETER grv_orbTol          REAL    1.E-10
 PARAMETER grv_orbMinForce     REAL    1.E-10
 PARAMETER grv_comCutoff       REAL    0.E0
 PARAMETER grv_comPeakCut      REAL    0.E0
-PARAMETER grv_finiteDiffLen   REAL    1.E-3
 PARAMETER grv_orb3D           BOOLEAN TRUE
 
 D sim_rhoAmbient     Initial ambient density

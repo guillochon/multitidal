@@ -29,7 +29,7 @@
 
 
 subroutine Driver_sourceTerms(blockCount, blockList, dt, pass) 
-    use Driver_data, ONLY: dr_simTime
+    use Driver_data, ONLY: dr_simTime, dr_meshComm
     use Stir_interface, ONLY : Stir
     use Heat_interface, ONLY : Heat
     use Burn_interface, ONLY : Burn
@@ -41,11 +41,11 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_accRadius, sim_accCoeff, &
         sim_rhoAmbient, sim_fluidGamma
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
-        Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
+        Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_findExtrema
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
     use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec, grv_optmass, grv_momacc, &
-        grv_angmomacc, grv_eneracc, grv_massacc
+        grv_angmomacc, grv_eneracc, grv_massacc, grv_comPeakCut
     use Grid_data, ONLY: gr_smalle, gr_meshMe
     implicit none
 
@@ -59,11 +59,11 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     integer, dimension(blockCount), intent(IN):: blockList
     integer, OPTIONAL, intent(IN) :: pass
     
-    integer :: i, j, k, l, lb, ierr, istat
-    integer :: cnt, tot_cnt, sizeX, sizeY, sizeZ
+    integer :: i, j, k, lb, ierr, istat
+    integer :: sizeX, sizeY, sizeZ
     real    :: xx, yy, zz, dist, y2, z2, tot_mass, gtot_mass
-    real    :: min_cell_size, relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
-    real    :: tinitial, vol
+    real    :: relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
+    real    :: tinitial, vol, ldenscut, denscut, extrema
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
@@ -133,44 +133,55 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         pt_pos = grv_exactvec - grv_obvec + grv_ptvec !Used for calculating properties of mass accreted onto point mass
         relax_rate = sim_fluffDampCoeff
 
-        ! Calculate the average velocity to subtract it from the grid (as grv_exactvec hasn't been updated yet)
-        !do lb = 1, blockCount
-        !    call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
-        !    sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
-        !    allocate(xCoord(sizeX),stat=istat)
-        !    sizeY = blkLimitsGC(HIGH,JAXIS) - blkLimitsGC(LOW,JAXIS) + 1
-        !    allocate(yCoord(sizeY),stat=istat)
-        !    sizeZ = blkLimitsGC(HIGH,KAXIS) - blkLimitsGC(LOW,KAXIS) + 1
-        !    allocate(zCoord(sizeZ),stat=istat)
+        ldenscut = -huge(0.d0)
+        do lb = 1,blockCount
+           call Grid_findExtrema (blockList(lb), DENS_VAR, 1, extrema)
+           if (extrema .gt. ldenscut) ldenscut = extrema
+        enddo
+
+        call MPI_ALLREDUCE(ldenscut, denscut, 1, FLASH_REAL, & 
+                           MPI_MAX, dr_meshComm, ierr)
+
+        denscut = denscut*grv_comPeakCut
+
+        ! Calculate the average velocity of the peak to subtract it
+        do lb = 1, blockCount
+            call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
+            sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
+            allocate(xCoord(sizeX),stat=istat)
+            sizeY = blkLimitsGC(HIGH,JAXIS) - blkLimitsGC(LOW,JAXIS) + 1
+            allocate(yCoord(sizeY),stat=istat)
+            sizeZ = blkLimitsGC(HIGH,KAXIS) - blkLimitsGC(LOW,KAXIS) + 1
+            allocate(zCoord(sizeZ),stat=istat)
   
-        !    if (NDIM == 3) call Grid_getCellCoords&
-        !                        (KAXIS, blockList(lb), CENTER, gcell, zCoord, sizeZ)
-        !    if (NDIM >= 2) call Grid_getCellCoords&
-        !                        (JAXIS, blockList(lb), CENTER,gcell, yCoord, sizeY)
-        !    call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
-        !    call Grid_getBlkPtr(blockList(lb),solnData)
+            if (NDIM == 3) call Grid_getCellCoords&
+                                (KAXIS, blockList(lb), CENTER, gcell, zCoord, sizeZ)
+            if (NDIM >= 2) call Grid_getCellCoords&
+                                (JAXIS, blockList(lb), CENTER,gcell, yCoord, sizeY)
+            call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
+            call Grid_getBlkPtr(blockList(lb),solnData)
 
-        !    vol = (xCoord(2) - xCoord(1))**3.d0
-        !    do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
-        !        do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
-        !            do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-        !                if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) cycle
-        !                tot_mass = tot_mass + vol*solnData(DENS_VAR,i,j,k)
-        !                tot_mom = tot_mom + vol*solnData(DENS_VAR,i,j,k)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
-        !            enddo
-        !        enddo
-        !    enddo
+            vol = (xCoord(2) - xCoord(1))**3.d0
+            do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
+                do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
+                    do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                        if (solnData(DENS_VAR,i,j,k) .lt. denscut) cycle
+                        tot_mass = tot_mass + vol*solnData(DENS_VAR,i,j,k)
+                        tot_mom = tot_mom + vol*solnData(DENS_VAR,i,j,k)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
+                    enddo
+                enddo
+            enddo
 
-        !    call Grid_releaseBlkPtr(blockList(lb), solnData)
-        !    deallocate(xCoord)
-        !    deallocate(yCoord)
-        !    deallocate(zCoord)
-        !enddo
+            call Grid_releaseBlkPtr(blockList(lb), solnData)
+            deallocate(xCoord)
+            deallocate(yCoord)
+            deallocate(zCoord)
+        enddo
 
-        !call MPI_ALLREDUCE(tot_mass, gtot_mass, 1, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
-        !call MPI_ALLREDUCE(tot_mom, gtot_mom, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
-        !
-        !avg_vel = gtot_mom/gtot_mass
+        call MPI_ALLREDUCE(tot_mass, gtot_mass, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+        call MPI_ALLREDUCE(tot_mom, gtot_mom, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+        
+        avg_vel = gtot_mom/gtot_mass
 
         do lb = 1, blockCount
             call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
@@ -196,9 +207,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                             solnData(VELX_VAR,i,j,k) = solnData(VELX_VAR,i,j,k)*relax_rate
                             solnData(VELY_VAR,i,j,k) = solnData(VELY_VAR,i,j,k)*relax_rate
                             solnData(VELZ_VAR,i,j,k) = solnData(VELZ_VAR,i,j,k)*relax_rate
-                        !else
-                        !    ! Ensure total center of mass has no motion
-                        !    solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - avg_vel
+                        else
+                            ! Ensure total center of mass has no motion
+                            solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - avg_vel
                         endif
 
                         solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
@@ -208,8 +219,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             enddo
 
             ! Add velocity subtracted from grid to object tracking points
-            !grv_obvec(4:6) = grv_obvec(4:6) + grv_exactvec(4:6)
-            !grv_ptvec(4:6) = grv_ptvec(4:6) + grv_exactvec(4:6)
+            grv_obvec(4:6) = grv_obvec(4:6) + avg_vel
+            grv_ptvec(4:6) = grv_ptvec(4:6) + avg_vel
 
             if (sim_accRadius .ne. 0.d0) then
                 do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
@@ -256,11 +267,11 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             deallocate(zCoord)
         enddo
 
-        call MPI_ALLREDUCE(tot_mass_acc, gtot_mass_acc, 1, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
-        call MPI_ALLREDUCE(tot_ener_acc, gtot_ener_acc, 1, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
-        call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
-        call MPI_ALLREDUCE(tot_mom_acc, gtot_mom_acc, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
-        call MPI_ALLREDUCE(tot_angmom_acc, gtot_angmom_acc, 3, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
+        call MPI_ALLREDUCE(tot_mass_acc, gtot_mass_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+        call MPI_ALLREDUCE(tot_ener_acc, gtot_ener_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+        call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+        call MPI_ALLREDUCE(tot_mom_acc, gtot_mom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+        call MPI_ALLREDUCE(tot_angmom_acc, gtot_angmom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
 
         !if (gr_meshMe .eq. MASTER_PE) then
         !    print *, 'Mass accreted this step: ', gtot_mass_acc

@@ -41,8 +41,7 @@ subroutine Gravity_init()
   use gr_mpoleInterface, ONLY : gr_mpoleCopyMoments
 
   implicit none
-  double precision :: newton, newx, newy, newz, period, a, ecc_anom, start_dist
-  integer :: i
+  double precision :: newton, period, a, ecc_anom, start_dist
   integer :: blockCount
   integer :: blockList(MAXBLOCKS)
 
@@ -133,7 +132,6 @@ subroutine Gravity_init()
   call RuntimeParameters_get("grav_boundary_type", grav_boundary_type)
   call RuntimeParameters_get("grv_comCutoff",grv_comCutoff)
   call RuntimeParameters_get("grv_comPeakCut",grv_comPeakCut)
-  call RuntimeParameters_get("grv_finiteDiffLen", grv_finiteDiffLen)
   call RuntimeParameters_get("grv_orbTol", grv_orbTol)
   call RuntimeParameters_get("grv_orbMinForce", grv_orbMinForce)
   call RuntimeParameters_get("grv_orb3D", grv_orb3D)
@@ -189,11 +187,6 @@ subroutine Gravity_init()
       call Logfile_stampMessage(logstr)
       write(logstr, fmt='(A30, 2ES15.8)') 'Obj. radius, pericenter dist:', obj_radius(obj_ipos), grv_periDist
       call Logfile_stampMessage(logstr)
-      !do i = 1, 30
-      !    call calc_orbit(1000.d0*i, newx, newy, newz, period)
-      !    write(logstr, fmt='(2ES11.4)'), newx, newy
-      !    call Logfile_stampMessage(logstr)
-      !enddo
   endif
 
   if (dr_simTime .eq. sim_tInitial) then

@@ -47,7 +47,7 @@ module Simulation_data
 
   integer, parameter        :: np = 1000
   double precision, save    :: sim_inSubZones, sim_inSubzm1
-  double precision, save    :: sim_inszd, sim_coolingDensity
+  double precision, save    :: sim_inszd
   double precision, save :: obj_mu
   double precision, dimension(SPECIES_BEGIN:SPECIES_END) :: obj_xn
   double precision, dimension(np), save :: obj_radius, obj_rhop, obj_prss

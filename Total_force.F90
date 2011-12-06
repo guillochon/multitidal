@@ -146,7 +146,6 @@ subroutine Total_force(blockCount, blockList)
             grv_optaccel = gsum(2:4) / gsum(1)
             if (.not. grv_orb3D) grv_optaccel(3) = 0.d0
             grv_oobaccel = gsum(5:7) / gsum(1)
-            !grv_oobaccel = 0.d0
         elseif (it .eq. 2) then
             grv_hptaccel = gsum(2:4) / gsum(1)
             if (.not. grv_orb3D) grv_hptaccel(3) = 0.d0
@@ -154,25 +153,6 @@ subroutine Total_force(blockCount, blockList)
             grv_ptaccel = gsum(2:4) / gsum(1)
             if (.not. grv_orb3D) grv_ptaccel(3) = 0.d0
             grv_obaccel = gsum(5:7) / gsum(1)
-            !grv_obaccel = 0.d0
         endif
-        !if (gr_meshMe .eq. MASTER_PE) then
-        !    print *, 'Total_force iteration: ', it
-        !    print *, 'ptacc: ', gsum(2:4) / gsum(1)
-        !    if (it .ne. 2) print *, 'obacc: ', gsum(5:7) / gsum(1)
-        !    print *, 'offset: ', offset
-        !    print *, 'ptmass: ', ptmass
-        !    print *, 'gsum(1): ', gsum(1)
-        !endif
     enddo
-
-    !if (gr_meshMe .eq. MASTER_PE) then
-    !    print *, 'grv_optaccel', grv_optaccel
-    !    print *, 'grv_oobaccel', grv_oobaccel
-    !    print *, 'grv_hptaccel', grv_hptaccel
-    !    print *, 'grv_ptaccel', grv_ptaccel
-    !    print *, 'grv_obaccel', grv_obaccel
-    !    call Driver_abortFlash('done')
-    !endif
-
 end subroutine Total_force

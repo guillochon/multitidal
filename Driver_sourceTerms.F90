@@ -285,9 +285,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + gtot_com_acc) / (grv_ptmass + gtot_mass_acc)
         grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + gtot_mom_acc) / (grv_ptmass + gtot_mass_acc)
         grv_obvec(1:3) = (grv_totmass*grv_obvec(1:3) - gtot_com_acc + &
-            gtot_mass_acc*(grv_exactvec(1:3) - pt_pos(1:3)) / (grv_ptmass - gtot_mass_acc)
+            gtot_mass_acc*(grv_exactvec(1:3) - pt_pos(1:3))) / (grv_ptmass - gtot_mass_acc)
         grv_obvec(4:6) = (grv_totmass*grv_obvec(4:6) - gtot_mom_acc + &
-            gtot_mass_acc*(grv_exactvec(4:6) - pt_pos(4:6)) / (grv_ptmass - gtot_mass_acc)
+            gtot_mass_acc*(grv_exactvec(4:6) - pt_pos(4:6))) / (grv_ptmass - gtot_mass_acc)
         grv_optmass = grv_ptmass
         grv_ptmass = grv_ptmass + gtot_mass_acc
         grv_massacc = grv_massacc + gtot_mass_acc

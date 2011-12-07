@@ -53,8 +53,8 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     use Driver_data, ONLY: dr_simTime
     use Gravity_data, ONLY: grv_ptmass, grv_optmass, grv_thresh, grv_ptvec, &
         grv_obvec, grv_optvec, grv_oobvec, grv_mode, &
-        grv_hptvec, grv_hobvec, grv_exactvec, grv_oexactvec, grv_obaccel, &
-        grv_ptaccel, grv_hptaccel, grv_optaccel, grv_oobaccel
+        grv_hptvec, grv_hobvec, grv_exactvec, grv_oexactvec, grv_mpoleaccel, &
+        grv_ptaccel, grv_hptaccel, grv_optaccel, grv_ompoleaccel
     use Grid_interface, ONLY : Grid_getBlkPhysicalSize, Grid_getBlkPtr, &
         Grid_releaseBlkPtr, Grid_getCellCoords, Grid_getBlkIndexLimits, Grid_getMinCellSize
     use Simulation_data, ONLY: sim_tRelax, sim_softenRadius, sim_fluffDampCutoff
@@ -96,7 +96,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     integer :: j,k
     logical :: gcell = .true.
     double precision :: tinitial, ptx, pty, ptz, deld
-    double precision, dimension(3) :: obaccel, ptaccel
+    double precision, dimension(3) :: mpoleaccel, ptaccel
     !==================================================
 
     call Grid_getBlkPhysicalSize(blockID, blockSize)
@@ -121,7 +121,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
         ptx = grv_oexactvec(1) + (grv_optvec(1) - grv_oobvec(1))
         pty = grv_oexactvec(2) + (grv_optvec(2) - grv_oobvec(2))
         ptz = grv_oexactvec(3) + (grv_optvec(3) - grv_oobvec(3))
-        obaccel = grv_oobaccel
+        mpoleaccel = grv_ompoleaccel
         ptaccel = grv_optaccel
         gm = -newton*grv_optmass
     elseif (grv_mode .eq. 2) then
@@ -134,7 +134,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
         ptx = grv_exactvec(1) + (grv_ptvec(1) - grv_obvec(1))
         pty = grv_exactvec(2) + (grv_ptvec(2) - grv_obvec(2))
         ptz = grv_exactvec(3) + (grv_ptvec(3) - grv_obvec(3))
-        obaccel = grv_obaccel
+        mpoleaccel = grv_mpoleaccel
         ptaccel = grv_ptaccel
         gm = -newton*grv_ptmass
     endif
@@ -150,21 +150,21 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
             gpot(:) = solnVec(potVar,:,pos(1),pos(2))
             dens(:) = solnVec(denVar,:,pos(1),pos(2))
 
-            grav = -obaccel(1)
+            grav = -mpoleaccel(1)
         elseif (sweepDir == SWEEP_Y) then                 ! y-direction
             delxinv = dble(NYB) / blockSize(JAXIS)
             
             gpot(:) = solnVec(potVar,pos(1),:,pos(2))
             dens(:) = solnVec(denVar,pos(1),:,pos(2))
 
-            grav = -obaccel(2)
+            grav = -mpoleaccel(2)
         else                                            ! z-direction
             delxinv = dble(NZB) / blockSize(KAXIS)
             
             gpot(:) = solnVec(potVar,pos(1),pos(2),:)
             dens(:) = solnVec(denVar,pos(1),pos(2),:)
 
-            grav = -obaccel(3)
+            grav = -mpoleaccel(3)
         endif
 
         !-------------------------------------------------------------------------------

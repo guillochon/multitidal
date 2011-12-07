@@ -4,7 +4,7 @@ subroutine Total_force(blockCount, blockList)
     use Gravity_data, ONLY: grv_obvec, grv_ptvec, grv_obaccel, grv_ptaccel, grv_hptaccel, &
         grv_optaccel, grv_oobaccel, grv_oexactvec, grv_exactvec, grv_hobvec, grv_hptvec, &
         grv_oobvec, grv_optvec, grv_orb3D, grv_ptmass, grv_optmass, grv_densCut, &
-        grv_comCutoff, grv_comPeakCut
+        grv_comCutoff, grv_comPeakCut, grv_ompoleaccel, grv_mpoleaccel
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
     use Simulation_data, ONLY: sim_fluffDampCutoff, sim_softenRadius
     use gr_mpoleData, ONLY: twelfth
@@ -21,7 +21,7 @@ subroutine Total_force(blockCount, blockList)
     double precision,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     logical :: gcell = .true.
     double precision, dimension(:,:,:,:),pointer :: solnData
-    double precision, dimension(7) :: lsum, gsum
+    double precision, dimension(10) :: lsum, gsum
     double precision, dimension(3) :: deld, offset, ptpos
     double precision :: dvol, dr32, newton
     double precision :: tinitial, dx, delxinv, cell_mass, ptmass, denscut, ldenscut, extrema
@@ -94,7 +94,6 @@ subroutine Total_force(blockCount, blockList)
                         lsum(2:4) = lsum(2:4) - cell_mass * newton*ptmass/dr32*ptpos
 
                         if (it .eq. 2) cycle
-                        if (solnData(denVar,i,j,k) .lt. denscut) cycle
 
                         if ((solnData(denVar,i+1,j,k) - solnData(denVar,i,j,k))*&
                             (solnData(denVar,i,j,k) - solnData(denVar,i-1,j,k)) .lt. 0.d0) then
@@ -123,6 +122,7 @@ subroutine Total_force(blockCount, blockList)
                         else
                             deld(3) = 0.d0
                         endif
+
                         lsum(5:7) = lsum(5:7) + cell_mass * delxinv * (/ &
                             solnData(potVar,i-1,j,k) - solnData(potVar,i+1,j,k) + deld(1)/solnData(denVar,i,j,k)*twelfth*&
                                 (solnData(potVar,i-1,j,k) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i+1,j,k)), &
@@ -130,6 +130,16 @@ subroutine Total_force(blockCount, blockList)
                                 (solnData(potVar,i,j-1,k) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j+1,k)), &
                             solnData(potVar,i,j,k-1) - solnData(potVar,i,j,k+1) + deld(3)/solnData(denVar,i,j,k)*twelfth*&
                                 (solnData(potVar,i,j,k-1) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j,k+1)) /)
+
+                        if (solnData(denVar,i,j,k) .ge. denscut) then
+                            lsum(8:10) = lsum(8:10) + cell_mass * delxinv * (/ &
+                                solnData(potVar,i-1,j,k) - solnData(potVar,i+1,j,k) + deld(1)/solnData(denVar,i,j,k)*twelfth*&
+                                    (solnData(potVar,i-1,j,k) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i+1,j,k)), &
+                                solnData(potVar,i,j-1,k) - solnData(potVar,i,j+1,k) + deld(2)/solnData(denVar,i,j,k)*twelfth*&
+                                    (solnData(potVar,i,j-1,k) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j+1,k)), &
+                                solnData(potVar,i,j,k-1) - solnData(potVar,i,j,k+1) + deld(3)/solnData(denVar,i,j,k)*twelfth*&
+                                    (solnData(potVar,i,j,k-1) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j,k+1)) /)
+                        endif
                     enddo
                 enddo
             enddo
@@ -140,12 +150,13 @@ subroutine Total_force(blockCount, blockList)
             deallocate(zCoord)
         enddo
 
-        call MPI_ALLREDUCE(lsum, gsum, 7, FLASH_REAL, MPI_SUM, gr_meshComm, ierr)
+        call MPI_ALLREDUCE(lsum, gsum, 10, FLASH_REAL, MPI_SUM, gr_meshComm, ierr)
 
         if (it .eq. 1) then
             grv_optaccel = gsum(2:4) / gsum(1)
             if (.not. grv_orb3D) grv_optaccel(3) = 0.d0
             grv_oobaccel = gsum(5:7) / gsum(1)
+            grv_ompoleaccel = gsum(8:10) / gsum(1)
         elseif (it .eq. 2) then
             grv_hptaccel = gsum(2:4) / gsum(1)
             if (.not. grv_orb3D) grv_hptaccel(3) = 0.d0
@@ -153,6 +164,7 @@ subroutine Total_force(blockCount, blockList)
             grv_ptaccel = gsum(2:4) / gsum(1)
             if (.not. grv_orb3D) grv_ptaccel(3) = 0.d0
             grv_obaccel = gsum(5:7) / gsum(1)
+            grv_mpoleaccel = gsum(8:10) / gsum(1)
         endif
     enddo
 end subroutine Total_force

@@ -45,7 +45,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
     use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec, grv_optmass, grv_momacc, &
-        grv_angmomacc, grv_eneracc, grv_massacc, grv_comPeakCut
+        grv_angmomacc, grv_eneracc, grv_massacc, grv_comPeakCut, grv_totmass
     use Grid_data, ONLY: gr_smalle, gr_meshMe
     implicit none
 

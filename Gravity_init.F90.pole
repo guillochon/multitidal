@@ -33,7 +33,7 @@ subroutine Gravity_init()
   use Logfile_interface, ONLY: Logfile_stampMessage
   use Gravity_interface, ONLY: Gravity_potentialListOfBlocks
   use gr_mpoleData, ONLY: Mtot, X_centerofmass, Y_centerofmass, Z_centerofmass 
-  use Driver_data, ONLY: dr_restart, dr_simTime
+  use Driver_data, ONLY: dr_restart, dr_simTime, dr_dt
   use IO_interface, ONLY: IO_getScalar
   use tree, ONLY: lrefine_max
   use Driver_interface, ONLY : Driver_abortFlash, Driver_getMype,&
@@ -118,6 +118,8 @@ subroutine Gravity_init()
       call IO_getScalar("angmomacc_z", grv_angmomacc(3))
       call IO_getScalar("eneracc", grv_eneracc)
       call IO_getScalar("massacc", grv_massacc)
+      call IO_getScalar("grv_dtold", grv_dtOld)
+      call IO_getScalar("grv_dt2old", grv_dt2Old)
   else
       call RuntimeParameters_get("ptmass", grv_ptmass)
       grv_optmass = grv_ptmass
@@ -125,6 +127,8 @@ subroutine Gravity_init()
       grv_angmomacc = 0.d0
       grv_eneracc = 0.d0
       grv_massacc = 0.d0
+      grv_dtOld = dr_dt
+      grv_dt2Old = dr_dt
   endif
 
   call RuntimeParameters_get("geometry", strGeometry)

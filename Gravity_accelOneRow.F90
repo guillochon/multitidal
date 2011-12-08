@@ -205,97 +205,99 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     endif
 
     !Now include the point mass
-    call RuntimeParameters_get('tinitial',tinitial)
-    ptgrav = 0.d0
-    if (dr_simTime .ge. tinitial + sim_tRelax) then
-      j=pos(1)
-      k=pos(2)
+    if (grv_mode .ne. 0) then
+        call RuntimeParameters_get('tinitial',tinitial)
+        ptgrav = 0.d0
+        if (dr_simTime .ge. tinitial + sim_tRelax) then
+          j=pos(1)
+          k=pos(2)
 #ifndef FIXEDBLOCKSIZE
-      call Grid_getBlkIndexLimits(blockID,blkLimits,blkLimitsGC)
-      sizeX=blkLimitsGC(HIGH,IAXIS)
-      sizeY=blkLimitsGC(HIGH,JAXIS)
-      sizeZ=blkLimitsGC(HIGH,KAXIS)
-      allocate(xCenter(sizeX))
-      allocate(yCenter(sizeY))
-      allocate(zCenter(sizeZ))
+          call Grid_getBlkIndexLimits(blockID,blkLimits,blkLimitsGC)
+          sizeX=blkLimitsGC(HIGH,IAXIS)
+          sizeY=blkLimitsGC(HIGH,JAXIS)
+          sizeZ=blkLimitsGC(HIGH,KAXIS)
+          allocate(xCenter(sizeX))
+          allocate(yCenter(sizeY))
+          allocate(zCenter(sizeZ))
 #else
-      sizeX=GRID_IHI_GC
-      sizeY=GRID_JHI_GC
-      sizeZ=GRID_KHI_GC
+          sizeX=GRID_IHI_GC
+          sizeY=GRID_JHI_GC
+          sizeZ=GRID_KHI_GC
 #endif
-      zCenter = 0.
-      yCenter = 0.
-      if (NDIM == 3) then 
-         call Grid_getCellCoords(KAXIS, blockID, CENTER, gcell, zCenter, sizeZ)
-         zCenter = zCenter - ptz
-      endif
-      if (NDIM >= 2) then
-         call Grid_getCellCoords(JAXIS, blockID, CENTER, gcell, yCenter, sizeY)
-         yCenter = yCenter - pty
-      endif
-      call Grid_getCellCoords(IAXIS, blockID, CENTER, gcell, xCenter, sizeX)
-      xCenter = xCenter - ptx
-      
-      call Grid_getMinCellSize(min_cell)
+          zCenter = 0.
+          yCenter = 0.
+          if (NDIM == 3) then 
+             call Grid_getCellCoords(KAXIS, blockID, CENTER, gcell, zCenter, sizeZ)
+             zCenter = zCenter - ptz
+          endif
+          if (NDIM >= 2) then
+             call Grid_getCellCoords(JAXIS, blockID, CENTER, gcell, yCenter, sizeY)
+             yCenter = yCenter - pty
+          endif
+          call Grid_getCellCoords(IAXIS, blockID, CENTER, gcell, xCenter, sizeX)
+          xCenter = xCenter - ptx
+          
+          call Grid_getMinCellSize(min_cell)
 
-      if (sweepDir .eq. SWEEP_X) then                       ! x-component
+          if (sweepDir .eq. SWEEP_X) then                       ! x-component
 
-         tmpdr32 = yCenter(j)*yCenter(j) + zCenter(k)*zCenter(k) 
-         ptgrav = -ptaccel(1)
+             tmpdr32 = yCenter(j)*yCenter(j) + zCenter(k)*zCenter(k) 
+             ptgrav = -ptaccel(1)
 
-         do ii = 1, numCells
-            if (dens(ii) .lt. sim_fluffDampCutoff) cycle
-            dr32 = dsqrt(xCenter(ii)*xCenter(ii) + tmpdr32)
-            if (dr32 .lt. sim_softenRadius) then
-                dr32 = sim_softenRadius*sim_softenRadius*dr32
-            else
-                dr32 = dr32*dr32*dr32
-            endif
-            ptgrav(ii) = ptgrav(ii) + gm*xCenter(ii)/dr32
-         enddo
+             do ii = 1, numCells
+                if (dens(ii) .lt. sim_fluffDampCutoff) cycle
+                dr32 = dsqrt(xCenter(ii)*xCenter(ii) + tmpdr32)
+                if (dr32 .lt. sim_softenRadius) then
+                    dr32 = sim_softenRadius*sim_softenRadius*dr32
+                else
+                    dr32 = dr32*dr32*dr32
+                endif
+                ptgrav(ii) = ptgrav(ii) + gm*xCenter(ii)/dr32
+             enddo
 
 
-      else if (sweepDir .eq. SWEEP_Y) then          ! y-component
+          else if (sweepDir .eq. SWEEP_Y) then          ! y-component
 
-         tmpdr32 = xCenter(j)*xCenter(j) + zCenter(k)*zCenter(k) 
-         ptgrav = -ptaccel(2)
+             tmpdr32 = xCenter(j)*xCenter(j) + zCenter(k)*zCenter(k) 
+             ptgrav = -ptaccel(2)
 
-         do ii = 1, numCells
-            if (dens(ii) .lt. sim_fluffDampCutoff) cycle
-            dr32 = dsqrt(yCenter(ii)*yCenter(ii) + tmpdr32)
-            if (dr32 .lt. sim_softenRadius) then
-                dr32 = sim_softenRadius*sim_softenRadius*dr32
-            else
-                dr32 = dr32*dr32*dr32
-            endif
-            ptgrav(ii) = ptgrav(ii) + gm*yCenter(ii)/dr32
-         enddo
+             do ii = 1, numCells
+                if (dens(ii) .lt. sim_fluffDampCutoff) cycle
+                dr32 = dsqrt(yCenter(ii)*yCenter(ii) + tmpdr32)
+                if (dr32 .lt. sim_softenRadius) then
+                    dr32 = sim_softenRadius*sim_softenRadius*dr32
+                else
+                    dr32 = dr32*dr32*dr32
+                endif
+                ptgrav(ii) = ptgrav(ii) + gm*yCenter(ii)/dr32
+             enddo
 
-      else if (sweepDir .eq. SWEEP_Z) then          ! z-component
+          else if (sweepDir .eq. SWEEP_Z) then          ! z-component
 
-         tmpdr32 = xCenter(j)*xCenter(j) + yCenter(k)*yCenter(k) 
-         ptgrav = -ptaccel(3)
+             tmpdr32 = xCenter(j)*xCenter(j) + yCenter(k)*yCenter(k) 
+             ptgrav = -ptaccel(3)
 
-         do ii = 1, numCells
-            if (dens(ii) .lt. sim_fluffDampCutoff) cycle
-            dr32 = dsqrt(zCenter(ii)*zCenter(ii) + tmpdr32)           
-            if (dr32 .lt. sim_softenRadius) then
-                dr32 = sim_softenRadius*sim_softenRadius*dr32
-            else
-                dr32 = dr32*dr32*dr32
-            endif
-            ptgrav(ii) = ptgrav(ii) + gm*zCenter(ii)/dr32
-         enddo
+             do ii = 1, numCells
+                if (dens(ii) .lt. sim_fluffDampCutoff) cycle
+                dr32 = dsqrt(zCenter(ii)*zCenter(ii) + tmpdr32)           
+                if (dr32 .lt. sim_softenRadius) then
+                    dr32 = sim_softenRadius*sim_softenRadius*dr32
+                else
+                    dr32 = dr32*dr32*dr32
+                endif
+                ptgrav(ii) = ptgrav(ii) + gm*zCenter(ii)/dr32
+             enddo
 
-      endif
-    endif
+          endif
+        endif
 
     !==============================================================================
 #ifndef FIXEDBLOCKSIZE
-    deallocate(xCenter)
-    deallocate(yCenter)
-    deallocate(zCenter)
+        deallocate(xCenter)
+        deallocate(yCenter)
+        deallocate(zCenter)
 #endif
+    endif
 
     call Grid_releaseBlkPtr(blockID, solnVec)
     return

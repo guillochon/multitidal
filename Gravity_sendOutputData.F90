@@ -90,5 +90,7 @@ subroutine Gravity_sendOutputData()
     call IO_setScalar("angmomacc_z", grv_angmomacc(3))
     call IO_setScalar("eneracc", grv_eneracc)
     call IO_setScalar("massacc", grv_massacc)
+    call IO_setScalar("grv_dtold", grv_dtOld)
+    call IO_setScalar("grv_dt2old", grv_dt2Old)
 end subroutine Gravity_sendOutputData
 

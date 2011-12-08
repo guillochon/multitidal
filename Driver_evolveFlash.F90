@@ -73,7 +73,7 @@ subroutine Driver_evolveFlash()
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   use gr_mpoleInterface, ONLY : gr_mpoleCopyMoments, gr_mpoleDeallocateOldMoments
   use Gravity_data, ONLY : grv_ptmass, grv_bound, grv_obvec, grv_ptvec, grv_hobvec, &
-    grv_hptvec, grv_oobvec, grv_optvec
+    grv_hptvec, grv_oobvec, grv_optvec, grv_dtOld, grv_dt2Old
 
   implicit none
 
@@ -346,6 +346,11 @@ subroutine Driver_evolveFlash()
         call Cosmology_redshiftHydro( blockCount, blockList)
         call Timers_stop("cosmology")
 
+        !! ADDED BY JFG, NECESSARY TO CALCULATE THE PROPER OLD DT FOR SECOND HALF OF EVOLUTION.
+        !! save for old dt
+        dr_dtOld = dr_dt
+        grv_dt2Old = grv_dtOld
+        grv_dtOld = dr_dt
 
         !!******************************************************************************
         !!Second "half-step" of the evolution loop
@@ -445,7 +450,11 @@ subroutine Driver_evolveFlash()
      if (gridChanged) dr_simGeneration = dr_simGeneration + 1
 
      ! backup needed old
-     if (.not. useSTS_local) dr_dtOld = dr_dt
+     if (.not. useSTS_local) then
+         dr_dtOld = dr_dt
+         grv_dt2Old = grv_dtOld
+         grv_dtOld = dr_dt
+     endif
 
      ! calculate new    
      call Timers_start("compute dt")

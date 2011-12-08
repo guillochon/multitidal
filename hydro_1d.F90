@@ -337,7 +337,7 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
           dg       = dt/grv_dtOld*(grav(i) - ograv(i)) + dt**2.d0/(grv_dtOld*grv_dtOld*grv_dt2Old)*&
                      ((grav(i) - ograv(i))*grv_dt2Old - (ograv(i) - o2grav(i))*grv_dtOld)
           hgrav(i) = grav(i) + hptgrav(i) + hdg
-          ngrav(i) = grav(i) + dg + ptgrav(i)
+          ngrav(i) = grav(i) + ptgrav(i) + dg
           grav(i)  = grav(i) + optgrav(i)
        enddo
 

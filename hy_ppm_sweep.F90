@@ -127,7 +127,9 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
                                                tempGrav1d,   &
                                                tempDtDx,     &
                                                tempFict,     &
-                                               tempAreaLeft
+                                               tempAreaLeft, &
+                                               tempDens,     & !Added by JFG
+                                               tempDens2       !Added by JFG
   real, DIMENSION(GRID_ILO_GC:GRID_IHI_GC,                   &
                   GRID_JLO_GC:GRID_JHI_GC,                   &
                   GRID_KLO_GC:GRID_KHI_GC) ::  shock
@@ -426,8 +428,8 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
         end if
 
         ! ADDED BY JFG TO ACCOMODATE TIME-DEPENDENT DENSITY CALCULATION
-        solnData(ODE2_VAR,:,:,:) = solnData(ODEN_VAR,:,:,:)
-        solnData(ODEN_VAR,:,:,:) = solnData(DENS_VAR,:,:,:)
+        tempDens = solnData(DENS_VAR,:,:,:)
+        tempDens2 = solnData(ODEN_VAR,:,:,:)
 
         call hy_ppm_block(hy_meshMe, blockList(blk),sweepDir, dt, dtOld, &
                           blkLimits,blkLimitsGC,bcs,          &
@@ -449,6 +451,10 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
                           tempFlx,       & 
                           shock, solnData)
         
+        ! ADDED BY JFG TO ACCOMODATE TIME-DEPENDENT DENSITY CALCULATION
+        solnData(ODEN_VAR,:,:,:) = tempDens
+        solnData(ODE2_VAR,:,:,:) = tempDens2
+
      else
         tempFlx = 0.0
 

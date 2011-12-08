@@ -146,7 +146,7 @@ subroutine Total_force(blockCount, blockList)
         if (it .eq. 1) then
             grv_o2obaccel = gsum(2:4) / gsum(1)
             grv_o2mpoleaccel = gsum(5:7) / gsum(1)
-        elseif (it .eq. 1) then
+        elseif (it .eq. 2) then
             grv_oobaccel = gsum(2:4) / gsum(1)
             grv_ompoleaccel = gsum(5:7) / gsum(1)
         else

@@ -405,9 +405,9 @@ subroutine gr_mpoleRad3Dcartesian()
 !
   rmin = inner_zone_radii (1) * dr_inner_zone
 
-  if (rmin < dr_critical) then
-      call Driver_abortFlash ('[gr_mpoleRad3Dcartesian] ERROR: Center of Mass close to cell midpoint')
-  end if
+  !if (rmin < dr_critical) then
+  !    call Driver_abortFlash ('[gr_mpoleRad3Dcartesian] ERROR: Center of Mass close to cell midpoint')
+  !end if
 !
 !
 !       ...If the user has specified to use no inner zone, override the

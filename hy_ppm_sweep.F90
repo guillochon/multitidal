@@ -429,7 +429,9 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
 
         ! ADDED BY JFG TO ACCOMODATE TIME-DEPENDENT DENSITY CALCULATION
         tempDens = solnData(DENS_VAR,:,:,:)
+#ifdef GPO2_VAR
         tempDens2 = solnData(ODEN_VAR,:,:,:)
+#endif
 
         call hy_ppm_block(hy_meshMe, blockList(blk),sweepDir, dt, dtOld, &
                           blkLimits,blkLimitsGC,bcs,          &
@@ -453,7 +455,9 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
         
         ! ADDED BY JFG TO ACCOMODATE TIME-DEPENDENT DENSITY CALCULATION
         solnData(ODEN_VAR,:,:,:) = tempDens
+#ifdef GPO2_VAR
         solnData(ODE2_VAR,:,:,:) = tempDens2
+#endif
 
      else
         tempFlx = 0.0

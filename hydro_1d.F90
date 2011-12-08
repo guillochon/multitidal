@@ -313,8 +313,10 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
        ptgrav(:) = 0.d0
        hptgrav(:) = 0.d0
        optgrav(:) = 0.d0
+#ifdef GPO2_VAR
        grv_mode = 0
        call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,o2grav,optgrav,GPO2_VAR)
+#endif
        grv_mode = 1
        call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,ograv,optgrav,GPOL_VAR)
        grv_mode = 2
@@ -332,10 +334,15 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
        !    call Driver_abortFlash('done')
        !endif
        do i = 1,numIntCells8
+#ifdef GPO2_VAR
           hdg       = dt/2.d0/grv_dtOld*(grav(i) - ograv(i)) + dt**2.d0/4.d0/(grv_dtOld*grv_dtOld*grv_dt2Old)*&
                      ((grav(i) - ograv(i))*grv_dt2Old - (ograv(i) - o2grav(i))*grv_dtOld)
           dg       = dt/grv_dtOld*(grav(i) - ograv(i)) + dt**2.d0/(grv_dtOld*grv_dtOld*grv_dt2Old)*&
                      ((grav(i) - ograv(i))*grv_dt2Old - (ograv(i) - o2grav(i))*grv_dtOld)
+#else
+          dg = dt/dt_old*(grav(i) - ograv(i))
+          hdg = dg/2.d0
+#endif
           hgrav(i) = grav(i) + hptgrav(i) + hdg
           ngrav(i) = grav(i) + ptgrav(i) + dg
           grav(i)  = grav(i) + optgrav(i)

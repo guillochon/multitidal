@@ -115,8 +115,12 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
         denVar = DENS_VAR
     elseif (potVar .eq. GPOL_VAR) then
         denVar = ODEN_VAR
-    else
+#ifdef GPO2_VAR
+    elseif (potVar .eq. GPO2_VAR) then
         denVar = ODE2_VAR
+#endif
+    else
+        print *, 'Error: Unknown potential variable specified'
     endif
 
     if (grv_mode .eq. 0) then

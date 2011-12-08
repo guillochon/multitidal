@@ -50,8 +50,12 @@ subroutine Total_force(blockCount, blockList)
         gsum = 0.d0
 
         if (it .eq. 1) then
+#ifdef GPO2_VAR
             potVar = GPO2_VAR
             denVar = ODE2_VAR
+#else
+            cycle
+#endif
         elseif (it .eq. 2) then
             potVar = GPOL_VAR
             denVar = ODEN_VAR

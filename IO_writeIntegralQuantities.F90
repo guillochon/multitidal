@@ -45,6 +45,7 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
     use Gravity_data, ONLY : grv_ptvec, grv_obvec, grv_ptmass, grv_boundvec, &
         grv_exactvec, grv_totmass, grv_thresh, grv_momacc, grv_angmomacc, grv_eneracc, grv_massacc
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
+    use Simulation_data, ONLY : sim_fluffDampCutoff
 
     implicit none
 
@@ -117,6 +118,7 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
                if (NDIM >= 2) yy = bndBox(LOW,JAXIS) + (j-jmin+0.5)*delta(JAXIS)
                do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
                 
+                if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) cycle
                 ! mass   
 #ifdef DENS_VAR
                 lsum(1) = lsum(1) + solnData(DENS_VAR,i,j,k)*dvol 
@@ -126,15 +128,15 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
 #ifdef DENS_VAR
 #ifdef VELX_VAR      
                 ! momentum
-                velx = solnData(VELX_VAR,i,j,k)
+                velx = solnData(VELX_VAR,i,j,k) - grv_exactvec(4)
                 lsum(2) = lsum(2) + solnData(DENS_VAR,i,j,k)*velx*dvol
 #endif
 #ifdef VELY_VAR      
-                vely = solnData(VELY_VAR,i,j,k)
+                vely = solnData(VELY_VAR,i,j,k) - grv_exactvec(5)
                 lsum(3) = lsum(3) + solnData(DENS_VAR,i,j,k)*vely*dvol
 #endif
 #ifdef VELZ_VAR      
-                velz = solnData(VELZ_VAR,i,j,k)
+                velz = solnData(VELZ_VAR,i,j,k) - grv_exactvec(6)
                 lsum(4) = lsum(4) + solnData(DENS_VAR,i,j,k)*velz*dvol
 #endif
                 ! total energy

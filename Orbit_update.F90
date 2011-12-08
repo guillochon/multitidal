@@ -12,6 +12,7 @@
 ! directions at all times.
 
 subroutine Orbit_update()
+
     use nrtype
     use nr
     use ode_path
@@ -23,9 +24,10 @@ subroutine Orbit_update()
     use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
 
     implicit none
+    integer :: i
     double precision :: h1,hmin,x1,x2
     double precision, dimension(:), allocatable :: ystart
-    double precision, dimension(3,3) :: roty, rotx
+    double precision, dimension(3,3) :: roty, rotx, rot
     integer, dimension(2) :: ashape = (/ 3, 3 /)
     double precision, parameter :: rangle = PI/180.d0 * 45.d0
     INTERFACE
@@ -110,7 +112,7 @@ subroutine Orbit_update()
         ystart(5:6) = grv_obvec(4:5)
         ystart(7:8) = grv_ptvec(4:5)
     endif
-    h1=(x2 - x1) / 1.d2
+    h1=(x2 - x1) / 1.d4
     hmin=0.d0
     call odeint(ystart,x1,x2,grv_orbTol,h1,hmin,derivs,bsstep)
     if (grv_orb3D) then
@@ -143,8 +145,7 @@ subroutine Orbit_update()
             grv_hptvec(4:5) = ystart(7:8)
         endif
     !elseif (grv_mode .eq. 3) then
-    !    grv_obvec = grv_obvec + grv_exactvec - grv_oexactvec
-    !    grv_ptvec = grv_ptvec - grv_totmass/grv_ptmass*grv_exactvec + grv_ototmass/grv_optmass*grv_oexactvec
+    !    grv_obvec(1:3) = grv_obvec(1:3) - grv_oexactvec(1:3) + grv_exactvec(1:3)
     endif
 
 
@@ -155,14 +156,14 @@ subroutine derivs(x,y,dydx)
     use Gravity_data, ONLY: grv_ptmass, grv_mode, orb_t, orb_dt, grv_exactvec, &
         grv_orbMinForce, grv_oexactvec, grv_totmass, grv_orb3D, grv_optmass, &
         grv_obaccel, grv_oobaccel, grv_ototmass, grv_mpolevec, grv_ompolevec, &
-        grv_optaccel, grv_ptaccel, grv_rotMat, grv_invRotMat, grv_mpoleaccel, grv_ompoleaccel
+        grv_rotMat, grv_invRotMat
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     use Grid_interface, ONLY: Grid_getMinCellSize
     use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass, &
         max_R, &
         zone_max_radius_fraction, max_radial_zones
     use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
-    use gr_mpoleInterface, ONLY: gr_mpoleGradTotPot, gr_mpoleGradTotOldPot, gr_mpoleGradPot, gr_mpoleGradOldPot
+    use gr_mpoleInterface, ONLY: gr_mpoleGradPot, gr_mpoleGradOldPot
     use Driver_data, ONLY: dr_simTime
     use Grid_data, ONLY: gr_meshMe
 
@@ -173,10 +174,14 @@ subroutine derivs(x,y,dydx)
     double precision, INTENT(IN) :: x
     double precision, DIMENSION(:), INTENT(IN) :: y
     double precision, DIMENSION(:), INTENT(OUT) :: dydx
-    double precision :: newton, fac
-    double precision, dimension(3) :: dist
+    double precision :: xcmt, ycmt
+    double precision :: newton, fac, ifac
+    double precision :: xcm_accel, ycm_accel, nxcm_accel, nycm_accel
+    double precision, dimension(3) :: grad_pot, ptt0, dist
     double precision :: last_zone_fraction
     double precision :: max_dydx
+    double precision, dimension(3,3) :: rotx, roty, rot
+    integer, dimension(2) :: ashape = (/ 3, 3 /)
     double precision, parameter :: rangle = PI/180.d0 * 45.d0
 
     call PhysicalConstants_get("Newton", newton)
@@ -198,9 +203,15 @@ subroutine derivs(x,y,dydx)
     endif
     if (grv_mode .eq. 3) then
         fac = (x - orb_t)/orb_dt
-        dist(1:2) = dist(1:2) - (grv_exactvec(1:2) - grv_oexactvec(1:2))*fac
+        ifac = 1.d0 - fac
+        dist(1:2) = dist(1:2) + grv_oexactvec(1:2) - grv_ompolevec(1:2)*ifac - grv_mpolevec(1:2)*fac
         if (grv_orb3D) then
-            dist(3) = dist(3) - (grv_exactvec(3) - grv_oexactvec(3))*fac
+            dist(3) = dist(3) + grv_oexactvec(3) - grv_ompolevec(3)*ifac - grv_mpolevec(3)*fac
+        endif
+    else
+        dist(1:2) = dist(1:2) + grv_exactvec(1:2) - grv_mpolevec(1:2)
+        if (grv_orb3D) then
+            dist(3) = dist(3) + grv_exactvec(3) - grv_mpolevec(3)
         endif
     endif
     last_zone_fraction = zone_max_radius_fraction (max_radial_zones)
@@ -211,24 +222,27 @@ subroutine derivs(x,y,dydx)
         print *, dist, sqrt(sum(dist**2.d0)), max_R*last_zone_fraction
         call Driver_abortFlash('ERROR: Point mass is beyond outermost radial zone!')
     endif
-
+    call gr_mpoleGradPot(dist, grad_pot)
+    if (grv_orb3D) then
+        dydx(10:12) = matmul(grv_rotMat,grad_pot)
+    else
+        dydx(7:8) = grad_pot(1:2)
+    endif
     if (grv_mode .eq. 3) then
+        call gr_mpoleGradOldPot(dist, ptt0)
         if (grv_orb3D) then
-            dydx(7:9) = matmul(grv_rotMat, grv_optaccel + (grv_ptaccel - grv_optaccel)*fac)
-            dydx(10:12) = matmul(grv_rotMat, -grv_ototmass/grv_optmass*grv_optaccel + &
-                (-grv_totmass/grv_ptmass*grv_ptaccel + grv_ototmass/grv_optmass*grv_optaccel)*fac)
+            ptt0 = matmul(grv_rotMat,ptt0)
+            dydx(10:12) = ptt0*ifac + dydx(10:12)*fac
+            dydx(7:9) = -ptt0*grv_optmass/grv_ototmass*ifac - dydx(10:12)*grv_ptmass/grv_totmass*fac
         else
-            dydx(5:6) = grv_optaccel(1:2) + (grv_ptaccel(1:2) - grv_optaccel(1:2))*fac
-            dydx(7:8) = -grv_ototmass/grv_optmass*grv_optaccel(1:2) + &
-                (-grv_totmass/grv_ptmass*grv_ptaccel(1:2) + grv_ototmass/grv_optmass*grv_optaccel(1:2))*fac
+            dydx(7:8) = ptt0(1:2)*ifac + dydx(7:8)*fac
+            dydx(5:6) = -ptt0(1:2)*grv_optmass/grv_ototmass*ifac - dydx(7:8)*grv_ptmass/grv_totmass*fac
         endif
     else
         if (grv_orb3D) then
-            dydx(7:9) = matmul(grv_rotMat, grv_ptaccel)
-            dydx(10:12) = matmul(grv_rotMat, -grv_totmass/grv_ptmass*grv_ptaccel)
+            dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass
         else
-            dydx(5:6) = grv_ptaccel(1:2)
-            dydx(7:8) = -grv_totmass/grv_ptmass*grv_ptaccel(1:2)
+            dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass
         endif
     endif
 

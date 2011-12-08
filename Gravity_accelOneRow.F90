@@ -54,7 +54,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     use Gravity_data, ONLY: grv_ptmass, grv_optmass, grv_thresh, grv_ptvec, &
         grv_obvec, grv_optvec, grv_oobvec, grv_mode, &
         grv_hptvec, grv_hobvec, grv_exactvec, grv_oexactvec, grv_mpoleaccel, &
-        grv_ptaccel, grv_hptaccel, grv_optaccel, grv_ompoleaccel
+        grv_ptaccel, grv_hptaccel, grv_optaccel, grv_ompoleaccel, grv_o2mpoleaccel
     use Grid_interface, ONLY : Grid_getBlkPhysicalSize, Grid_getBlkPtr, &
         Grid_releaseBlkPtr, Grid_getCellCoords, Grid_getBlkIndexLimits, Grid_getMinCellSize
     use Simulation_data, ONLY: sim_tRelax, sim_softenRadius, sim_fluffDampCutoff
@@ -113,11 +113,15 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
 
     if (potVar .eq. GPOT_VAR) then
         denVar = DENS_VAR
-    else
+    elseif (potVar .eq. GPOL_VAR) then
         denVar = ODEN_VAR
+    else
+        denVar = ODE2_VAR
     endif
 
-    if (grv_mode .eq. 1) then
+    if (grv_mode .eq. 0) then
+        mpoleaccel = grv_o2mpoleaccel
+    elseif (grv_mode .eq. 1) then
         ptx = grv_oexactvec(1) + (grv_optvec(1) - grv_oobvec(1))
         pty = grv_oexactvec(2) + (grv_optvec(2) - grv_oobvec(2))
         ptz = grv_oexactvec(3) + (grv_optvec(3) - grv_oobvec(3))
@@ -140,6 +144,8 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     endif
 
     if (grv_mode .ne. 2) then
+        grav = 0.d0
+
         iimin   = 1
         iimax   = numCells
 

@@ -129,3 +129,5 @@ PARAMETER derefine_cutoff_9 REAL 0.2
 PARAMETER refine_filter_9 REAL 0.01
 
 VARIABLE oden
+VARIABLE gpo2
+VARIABLE ode2

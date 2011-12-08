@@ -45,7 +45,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
     use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec, grv_optmass, grv_momacc, &
-        grv_angmomacc, grv_eneracc, grv_massacc, grv_comPeakCut, grv_totmass
+        grv_angmomacc, grv_eneracc, grv_massacc, grv_comPeakCut, grv_totmass, grv_totmass
     use Grid_data, ONLY: gr_smalle, gr_meshMe
     implicit none
 
@@ -61,15 +61,15 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     
     integer :: i, j, k, lb, ierr, istat
     integer :: sizeX, sizeY, sizeZ
-    real    :: xx, yy, zz, dist, y2, z2, tot_mass, gtot_mass
+    real    :: xx, yy, zz, dist, y2, z2, tot_mass, gtot_mass, peak_mass, gpeak_mass
     real    :: relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
     real    :: tinitial, vol, ldenscut, denscut, extrema
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
     real, dimension(:,:,:,:),pointer :: solnData
-    real, dimension(MDIM) :: avg_vel, tot_mom_acc, gtot_mom_acc, tot_com_acc, gtot_com_acc, &
-        tot_angmom_acc, gtot_angmom_acc, tot_mom, gtot_mom
+    real, dimension(MDIM) :: tot_avg_vel, peak_avg_vel, tot_mom_acc, gtot_mom_acc, tot_com_acc, gtot_com_acc, &
+        tot_angmom_acc, gtot_angmom_acc, tot_mom, gtot_mom, peak_mom, gpeak_mom
     real, dimension(2*MDIM) :: pt_pos
   
     logical :: gcell = .true.
@@ -88,6 +88,10 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     tot_mom = 0.d0
     gtot_mass = 0.d0
     gtot_mom = 0.d0
+    peak_mass = 0.d0
+    peak_mom = 0.d0
+    gpeak_mass = 0.d0
+    gpeak_mom = 0.d0
 
     call RuntimeParameters_get('tinitial',tinitial)
     if (dr_simTime .lt. tinitial + sim_tRelax) then
@@ -165,9 +169,11 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                        if (solnData(DENS_VAR,i,j,k) .lt. denscut) cycle
                         tot_mass = tot_mass + vol*solnData(DENS_VAR,i,j,k)
                         tot_mom = tot_mom + vol*solnData(DENS_VAR,i,j,k)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
+                        if (solnData(DENS_VAR,i,j,k) .lt. denscut) cycle
+                        peak_mass = peak_mass + vol*solnData(DENS_VAR,i,j,k)
+                        peak_mom = peak_mom + vol*solnData(DENS_VAR,i,j,k)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
                     enddo
                 enddo
             enddo
@@ -180,8 +186,11 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
 
         call MPI_ALLREDUCE(tot_mass, gtot_mass, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
         call MPI_ALLREDUCE(tot_mom, gtot_mom, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+        call MPI_ALLREDUCE(peak_mass, gpeak_mass, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+        call MPI_ALLREDUCE(peak_mom, gpeak_mom, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
         
-        avg_vel = gtot_mom/gtot_mass
+        tot_avg_vel = gtot_mom/gtot_mass
+        peak_avg_vel = gpeak_mom/gpeak_mass
 
         do lb = 1, blockCount
             call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
@@ -209,7 +218,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                             solnData(VELZ_VAR,i,j,k) = solnData(VELZ_VAR,i,j,k)*relax_rate
                         else
                             ! Ensure total center of mass has no motion
-                            solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - avg_vel
+                            solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - peak_avg_vel
                         endif
 
                         solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
@@ -218,9 +227,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 enddo
             enddo
 
-            ! Add velocity subtracted from grid to object tracking points
-            !grv_obvec(4:6) = grv_obvec(4:6) + avg_vel
-            !grv_ptvec(4:6) = grv_ptvec(4:6) + avg_vel
+            ! Add total center of mass velocity to object tracking point
+            !grv_obvec(4:6) = grv_obvec(4:6) + tot_avg_vel
+            !grv_ptvec(4:6) = grv_ptvec(4:6) + tot_avg_vel
 
             if (sim_accRadius .ne. 0.d0) then
                 do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
@@ -285,9 +294,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + gtot_com_acc) / (grv_ptmass + gtot_mass_acc)
         grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + gtot_mom_acc) / (grv_ptmass + gtot_mass_acc)
         grv_obvec(1:3) = (grv_totmass*grv_obvec(1:3) - gtot_com_acc + &
-            gtot_mass_acc*(grv_exactvec(1:3) - pt_pos(1:3))) / (grv_ptmass - gtot_mass_acc)
+            gtot_mass_acc*(grv_exactvec(1:3) - pt_pos(1:3))) / (grv_totmass - gtot_mass_acc)
         grv_obvec(4:6) = (grv_totmass*grv_obvec(4:6) - gtot_mom_acc + &
-            gtot_mass_acc*(grv_exactvec(4:6) - pt_pos(4:6))) / (grv_ptmass - gtot_mass_acc)
+            gtot_mass_acc*(grv_exactvec(4:6) - pt_pos(4:6))) / (grv_totmass - gtot_mass_acc)
         grv_optmass = grv_ptmass
         grv_ptmass = grv_ptmass + gtot_mass_acc
         grv_massacc = grv_massacc + gtot_mass_acc

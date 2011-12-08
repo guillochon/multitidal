@@ -312,6 +312,8 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
        ptgrav(:) = 0.d0
        hptgrav(:) = 0.d0
        optgrav(:) = 0.d0
+       grv_mode = 0
+       call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,o2grav,optgrav,GPO2_VAR)
        grv_mode = 1
        call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,ograv,optgrav,GPOL_VAR)
        grv_mode = 2

@@ -144,6 +144,9 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
      
      do lb = 1, blockCount
         call Grid_getBlkPtr(blocklist(lb), solnVec)
+#ifdef GPO2_VAR
+        solnVec(GPO2_VAR,:,:,:) = solnVec(GPOL_VAR,:,:,:)
+#endif
 #ifdef GPOL_VAR
         solnVec(GPOL_VAR,:,:,:) = solnVec(GPOT_VAR,:,:,:)
 #endif
@@ -178,7 +181,9 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
   if (dr_simTime .eq. dr_initialSimTime) then
       do lb = 1, blockCount
           call Grid_getBlkPtr(blocklist(lb), solnVec)
+          solnVec(GPO2_VAR,:,:,:) = solnVec(GPOT_VAR,:,:,:)
           solnVec(GPOL_VAR,:,:,:) = solnVec(GPOT_VAR,:,:,:)
+          solnVec(ODE2_VAR,:,:,:) = solnVec(DENS_VAR,:,:,:)
           solnVec(ODEN_VAR,:,:,:) = solnVec(DENS_VAR,:,:,:)
           call Grid_releaseBlkPtr(blocklist(lb), solnVec)
       enddo

@@ -415,6 +415,8 @@ subroutine Driver_evolveFlash()
 
         !! save for old dt
         dr_dtOld = dr_dt
+        grv_dt2Old = grv_dtOld
+        grv_dtOld = dr_dt
 
      enddo !end of subcycling of super time stepping
 

@@ -113,6 +113,7 @@ subroutine Simulation_init()
     
     sim_softenRadius = sim_softenRadius*obj_radius(obj_ipos)/sim_periBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
     sim_accRadius = sim_accRadius*obj_radius(obj_ipos)/sim_periBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
+    sim_startDistance = obj_radius(obj_ipos)/sim_startBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
 
     write(logstr, fmt='(A30, ES15.8)') 'Sink radius:', sim_softenRadius
     call Logfile_stampMessage(logstr)

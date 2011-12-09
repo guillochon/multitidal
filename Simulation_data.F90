@@ -40,7 +40,7 @@ module Simulation_data
                             sim_softenRadius, sim_accRadius, sim_objMass, sim_objPolyN, sim_objCentDen, &
                             sim_accCoeff, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &
                             sim_periBeta, sim_startBeta, sim_periodFac, &
-                            sim_orbEcc
+                            sim_orbEcc, sim_startDistance
 
 
   !! *** Variables pertaining to this Simulation *** !!

@@ -52,7 +52,7 @@ PARAMETER sim_objPolyN              REAL    3.E0
 PARAMETER sim_objCentDen            REAL    1.E2
 PARAMETER sim_fluidGamma            REAL    1.666666667E0
 PARAMETER sim_fluffDampCoeff        REAL    0.95E0
-PARAMETER sim_fluffDampCutoff       REAL    1.E-20
+PARAMETER sim_fluffDampCutoff       REAL    0.E0
 PARAMETER sim_maxBlocks             INTEGER 40000
 PARAMETER sim_useInitialPeakDensity BOOLEAN TRUE
 PARAMETER sim_ptMassRefine          INTEGER 1

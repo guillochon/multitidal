@@ -103,6 +103,9 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     call PhysicalConstants_get("Newton", newton)
     call Grid_getBlkPtr(blockID, solnVec)
 
+    grav = 0.d0
+    ptgrav = 0.d0
+
     !! IF a variable index is explicitly specified, assume that as the potential
     !! otherwise use the default current potential GPOT_VAR  
     if(present(potentialIndex)) then
@@ -148,7 +151,6 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     endif
 
     if (grv_mode .ne. 2) then
-        grav = 0.d0
 
         iimin   = 1
         iimax   = numCells
@@ -211,7 +213,6 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     !Now include the point mass
     if (grv_mode .ne. 0) then
         call RuntimeParameters_get('tinitial',tinitial)
-        ptgrav = 0.d0
         if (dr_simTime .ge. tinitial + sim_tRelax) then
           j=pos(1)
           k=pos(2)

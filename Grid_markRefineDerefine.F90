@@ -240,8 +240,8 @@ subroutine Grid_markRefineDerefine()
   ! Always refine maximally right around com to ensure innermost region of mpole solver doesn't change size
   call gr_markInRadius(grv_mpolevec(1), grv_mpolevec(2), grv_mpolevec(3), &
                        4.d0*min_cell,grv_dynRefineMax,0)
-  call gr_markInRadius(grv_exactvec(1), grv_exactvec(2), grv_exactvec(3), &
-                       4.d0*min_cell,grv_dynRefineMax,0)
+  !call gr_markInRadius(grv_exactvec(1), grv_exactvec(2), grv_exactvec(3), &
+  !                     4.d0*min_cell,grv_dynRefineMax,0)
   call gr_markInRadius(grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1), &
                        grv_exactvec(2) - grv_obvec(2) + grv_ptvec(2), &
                        grv_exactvec(3) - grv_obvec(3) + grv_ptvec(3), &

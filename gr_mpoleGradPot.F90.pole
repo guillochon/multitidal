@@ -197,7 +197,7 @@ subroutine gr_mpoleGradPot (coord, grad_phi)
 
                total_potential = - G_constant * (R_dot_I + I_dot_R)
 
-               grad_phi(i) = grad_phi(i) - j*total_potential
+               grad_phi(i) = grad_phi(i) + j*total_potential
             enddo
          enddo
                       

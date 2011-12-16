@@ -25,7 +25,7 @@ subroutine Total_force(blockCount, blockList)
     logical :: gcell = .true.
     double precision, dimension(:,:,:,:),pointer :: solnData
     double precision, dimension(8) :: lsum, gsum
-    double precision, dimension(3) :: deld, ooffset, noffset, ptpos, tempaccel
+    double precision, dimension(3) :: deld, ooffset, hoffset, noffset, ptpos, tempaccel
     double precision :: dvol, dr32, newton
     double precision :: tinitial, dx, delxinv, cell_mass, denscut, ldenscut, extrema
 
@@ -43,6 +43,8 @@ subroutine Total_force(blockCount, blockList)
     denscut = denscut*grv_comPeakCut
 
     ooffset = grv_oexactvec(1:3) + grv_optvec(1:3) - grv_oobvec(1:3) - grv_ompolevec(1:3)
+    hoffset = (grv_oexactvec(1:3) + grv_exactvec(1:3))/2.d0 + &
+        grv_hptvec(1:3) - grv_hobvec(1:3) - (grv_ompolevec(1:3) + grv_mpolevec(1:3))/2.d0
     noffset = grv_exactvec(1:3) + grv_ptvec(1:3) - grv_obvec(1:3) - grv_mpolevec(1:3)
 
     do it = 1, 3
@@ -164,8 +166,8 @@ subroutine Total_force(blockCount, blockList)
     call gr_mpoleGradPot(noffset, grv_ptaccel)
     grv_optaccel = grv_optaccel*grv_optmass/grv_ototmass
     grv_ptaccel = grv_ptaccel*grv_ptmass/grv_totmass
-    call gr_mpoleGradOldPot((ooffset + noffset)/2.d0, grv_hptaccel)
-    call gr_mpoleGradPot((ooffset + noffset)/2.d0, tempaccel)
+    call gr_mpoleGradOldPot(hoffset, grv_hptaccel)
+    call gr_mpoleGradPot(hoffset, tempaccel)
     grv_hptaccel = (grv_hptaccel + tempaccel) / 2.d0
     grv_hptaccel = grv_hptaccel*(grv_ptmass + grv_optmass)/(grv_totmass + grv_ototmass)
 

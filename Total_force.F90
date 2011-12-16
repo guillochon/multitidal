@@ -12,6 +12,7 @@ subroutine Total_force(blockCount, blockList)
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     use Grid_data, ONLY: gr_meshMe, gr_meshComm
     use gr_mpoleInterface, ONLY: gr_mpoleGradPot, gr_mpoleGradOldPot
+    use Driver_data, ONLY: dr_dt, dr_dtOld
 
     implicit none 
 #include "constants.h"
@@ -26,7 +27,7 @@ subroutine Total_force(blockCount, blockList)
     double precision, dimension(:,:,:,:),pointer :: solnData
     double precision, dimension(8) :: lsum, gsum
     double precision, dimension(3) :: deld, ooffset, hoffset, noffset, ptpos, tempaccel
-    double precision :: dvol, dr32, newton
+    double precision :: dvol, dr32, newton, dtfac, dtfac2
     double precision :: tinitial, dx, delxinv, cell_mass, denscut, ldenscut, extrema
 
     call RuntimeParameters_get('tinitial',tinitial)
@@ -162,14 +163,29 @@ subroutine Total_force(blockCount, blockList)
         endif
     enddo
 
-    call gr_mpoleGradOldPot(ooffset, grv_optaccel)
-    call gr_mpoleGradPot(noffset, grv_ptaccel)
-    grv_optaccel = grv_optaccel*grv_optmass/grv_ototmass
-    grv_ptaccel = grv_ptaccel*grv_ptmass/grv_totmass
-    call gr_mpoleGradOldPot(hoffset, grv_hptaccel)
-    call gr_mpoleGradPot(hoffset, tempaccel)
-    grv_hptaccel = (grv_hptaccel + tempaccel) / 2.d0
-    grv_hptaccel = grv_hptaccel*(grv_ptmass + grv_optmass)/(grv_totmass + grv_ototmass)
+    if (grv_mode .eq. 1) then
+        dtfac = dr_dt/dr_dtOld
+        dtfac2 = dtfac/2.d0
+        call gr_mpoleGradPot(ooffset, grv_optaccel)
+        grv_optaccel = grv_optaccel*grv_optmass/grv_ototmass
+        call gr_mpoleGradOldPot(hoffset, grv_hptaccel)
+        call gr_mpoleGradPot(hoffset, tempaccel)
+        grv_hptaccel = (dtfac2*(grv_hptaccel - tempaccel) + grv_hptaccel)*&
+            (dtfac2*(grv_ptmass - grv_optmass) + grv_ptmass)/(dtfac2*(grv_totmass - grv_ototmass) + grv_totmass)
+        call gr_mpoleGradOldPot(noffset, grv_ptaccel)
+        call gr_mpoleGradPot(noffset, tempaccel)
+        grv_ptaccel = (dtfac*(grv_ptaccel - tempaccel) + grv_ptaccel)*&
+            (dtfac*(grv_ptmass - grv_optmass) + grv_ptmass)/(dtfac*(grv_totmass - grv_ototmass) + grv_totmass)
+    else
+        call gr_mpoleGradOldPot(ooffset, grv_optaccel)
+        call gr_mpoleGradPot(noffset, grv_ptaccel)
+        grv_optaccel = grv_optaccel*grv_optmass/grv_ototmass
+        grv_ptaccel = grv_ptaccel*grv_ptmass/grv_totmass
+        call gr_mpoleGradOldPot(hoffset, grv_hptaccel)
+        call gr_mpoleGradPot(hoffset, tempaccel)
+        grv_hptaccel = (grv_hptaccel + tempaccel) / 2.d0
+        grv_hptaccel = grv_hptaccel*(grv_ptmass + grv_optmass)/(grv_totmass + grv_ototmass)
+    endif
 
     if (.not. grv_orb3D) then
         grv_optaccel(3) = 0.d0

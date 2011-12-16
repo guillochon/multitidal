@@ -222,78 +222,78 @@ subroutine derivs(x,y,dydx)
         print *, dist, sqrt(sum(dist**2.d0)), max_R*last_zone_fraction
         call Driver_abortFlash('ERROR: Point mass is beyond outermost radial zone!')
     endif
+    if (grv_mode .eq. 3) then
+        if (fac .lt. 0.5d0) then
+            if (grv_orb3D) then
+                dydx(7:9) = -matmul(grv_rotMat,grv_hptaccel)
+            else
+                dydx(5:6) = -grv_hptaccel(1:2)
+            endif
+            fac = fac/0.5d0
+            ifac = 1.d0 - fac
+            if (grv_orb3D) then
+                ptt0 = -matmul(grv_rotMat,grv_optaccel)
+                dydx(7:9) = ptt0*ifac + dydx(7:9)*fac
+                dydx(10:12) = -ptt0*grv_ototmass/grv_optmass*ifac - &
+                    dydx(7:9)*(grv_ototmass + grv_totmass)/(grv_optmass + grv_ptmass)*fac
+            else
+                ptt0(1:2) = -grv_optaccel(1:2)
+                dydx(5:6) = ptt0(1:2)*ifac + dydx(5:6)*fac
+                dydx(7:8) = -ptt0(1:2)*grv_ototmass/grv_optmass*ifac - &
+                    dydx(5:6)*(grv_ototmass + grv_totmass)/(grv_optmass + grv_ptmass)*fac
+            endif
+        else
+            if (grv_orb3D) then
+                dydx(7:9) = -matmul(grv_rotMat,grv_ptaccel)
+            else
+                dydx(5:6) = -grv_ptaccel(1:2)
+            endif
+            fac = (fac - 0.5d0)/0.5d0
+            ifac = 1.d0 - fac
+            if (grv_orb3D) then
+                ptt0 = -matmul(grv_rotMat,grv_hptaccel)
+                dydx(7:9) = ptt0*ifac + dydx(7:9)*fac
+                dydx(10:12) = -ptt0*(grv_ototmass + grv_totmass)/(grv_optmass + grv_ptmass)*ifac - &
+                    dydx(7:9)*grv_totmass/grv_ptmass*fac
+            else
+                ptt0(1:2) = -grv_hptaccel(1:2)
+                dydx(5:6) = ptt0(1:2)*ifac + dydx(5:6)*fac
+                dydx(7:8) = -ptt0(1:2)*(grv_ototmass + grv_totmass)/(grv_optmass + grv_ptmass)*ifac - &
+                    dydx(5:6)*grv_totmass/grv_ptmass*fac
+            endif
+        endif
+    else
+        if (grv_orb3D) then
+            dydx(7:9) = -matmul(grv_rotMat,grv_ptaccel)
+            dydx(10:12) = -dydx(7:9)*grv_totmass/grv_ptmass
+        else
+            dydx(5:6) = -grv_ptaccel(1:2)
+            dydx(7:8) = -dydx(5:6)*grv_totmass/grv_ptmass
+        endif
+    endif
+    !call gr_mpoleGradPot(dist, grad_pot)
+    !if (grv_orb3D) then
+    !    dydx(10:12) = matmul(grv_rotMat,grad_pot)
+    !else
+    !    dydx(7:8) = grad_pot(1:2)
+    !endif
     !if (grv_mode .eq. 3) then
-    !    if (fac .lt. 0.5d0) then
-    !        if (grv_orb3D) then
-    !            dydx(7:9) = -matmul(grv_rotMat,grv_hptaccel)
-    !        else
-    !            dydx(5:6) = -grv_hptaccel(1:2)
-    !        endif
-    !        fac = fac/0.5d0
-    !        ifac = 1.d0 - fac
-    !        if (grv_orb3D) then
-    !            ptt0 = -matmul(grv_rotMat,grv_optaccel)
-    !            dydx(7:9) = ptt0*ifac + dydx(7:9)*fac
-    !            dydx(10:12) = -ptt0*grv_ototmass/grv_optmass*ifac - &
-    !                dydx(7:9)*(grv_ototmass + grv_totmass)/(grv_optmass + grv_ptmass)*fac
-    !        else
-    !            ptt0(1:2) = -grv_optaccel(1:2)
-    !            dydx(5:6) = ptt0(1:2)*ifac + dydx(5:6)*fac
-    !            dydx(7:8) = -ptt0(1:2)*grv_ototmass/grv_optmass*ifac - &
-    !                dydx(5:6)*(grv_ototmass + grv_totmass)/(grv_optmass + grv_ptmass)*fac
-    !        endif
+    !    call gr_mpoleGradOldPot(dist, ptt0)
+    !    if (grv_orb3D) then
+    !        ptt0 = matmul(grv_rotMat,ptt0)
+    !        dydx(10:12) = ptt0*ifac + dydx(10:12)*fac
+    !        dydx(7:9) = -ptt0*grv_optmass/grv_ototmass*ifac - dydx(10:12)*grv_ptmass/grv_totmass*fac
     !    else
-    !        if (grv_orb3D) then
-    !            dydx(7:9) = -matmul(grv_rotMat,grv_ptaccel)
-    !        else
-    !            dydx(5:6) = -grv_ptaccel(1:2)
-    !        endif
-    !        fac = (fac - 0.5d0)/0.5d0
-    !        ifac = 1.d0 - fac
-    !        if (grv_orb3D) then
-    !            ptt0 = -matmul(grv_rotMat,grv_hptaccel)
-    !            dydx(7:9) = ptt0*ifac + dydx(7:9)*fac
-    !            dydx(10:12) = -ptt0*(grv_ototmass + grv_totmass)/(grv_optmass + grv_ptmass)*ifac - &
-    !                dydx(7:9)*grv_totmass/grv_ptmass*fac
-    !        else
-    !            ptt0(1:2) = -grv_hptaccel(1:2)
-    !            dydx(5:6) = ptt0(1:2)*ifac + dydx(5:6)*fac
-    !            dydx(7:8) = -ptt0(1:2)*(grv_ototmass + grv_totmass)/(grv_optmass + grv_ptmass)*ifac - &
-    !                dydx(5:6)*grv_totmass/grv_ptmass*fac
-    !        endif
+    !        dydx(7:8) = ptt0(1:2)*ifac + dydx(7:8)*fac
+    !        dydx(5:6) = -ptt0(1:2)*grv_optmass/grv_ototmass*ifac - dydx(7:8)*grv_ptmass/grv_totmass*fac
     !    endif
     !else
     !    if (grv_orb3D) then
-    !        dydx(7:9) = -matmul(grv_rotMat,grv_ptaccel)
-    !        dydx(10:12) = -dydx(7:9)*grv_totmass/grv_ptmass
+    !        dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass
     !    else
-    !        dydx(5:6) = -grv_ptaccel(1:2)
-    !        dydx(7:8) = -dydx(5:6)*grv_totmass/grv_ptmass
+    !        dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass
     !    endif
     !endif
-    call gr_mpoleGradPot(dist, grad_pot)
-    if (grv_orb3D) then
-        dydx(10:12) = matmul(grv_rotMat,grad_pot)
-    else
-        dydx(7:8) = grad_pot(1:2)
-    endif
-    if (grv_mode .eq. 3) then
-        call gr_mpoleGradOldPot(dist, ptt0)
-        if (grv_orb3D) then
-            ptt0 = matmul(grv_rotMat,ptt0)
-            dydx(10:12) = ptt0*ifac + dydx(10:12)*fac
-            dydx(7:9) = -ptt0*grv_optmass/grv_ototmass*ifac - dydx(10:12)*grv_ptmass/grv_totmass*fac
-        else
-            dydx(7:8) = ptt0(1:2)*ifac + dydx(7:8)*fac
-            dydx(5:6) = -ptt0(1:2)*grv_optmass/grv_ototmass*ifac - dydx(7:8)*grv_ptmass/grv_totmass*fac
-        endif
-    else
-        if (grv_orb3D) then
-            dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass
-        else
-            dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass
-        endif
-    endif
 
     ! Make sure none of the forces are much smaller than the maximum force
     if (grv_orb3D) then

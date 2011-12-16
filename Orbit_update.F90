@@ -263,13 +263,21 @@ subroutine derivs(x,y,dydx)
             endif
         endif
     else
+        call gr_mpoleGradPot(dist, grad_pot)
         if (grv_orb3D) then
-            dydx(7:9) = -matmul(grv_rotMat,grv_ptaccel)
-            dydx(10:12) = -dydx(7:9)*grv_totmass/grv_ptmass
+            dydx(10:12) = matmul(grv_rotMat,grad_pot)
+            dydx(7:9) = -dydx(10:12)*grv_ptmass/grv_totmass
         else
-            dydx(5:6) = -grv_ptaccel(1:2)
-            dydx(7:8) = -dydx(5:6)*grv_totmass/grv_ptmass
+            dydx(7:8) = grad_pot(1:2)
+            dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass
         endif
+        !if (grv_orb3D) then
+        !    dydx(7:9) = -matmul(grv_rotMat,grv_ptaccel)
+        !    dydx(10:12) = -dydx(7:9)*grv_totmass/grv_ptmass
+        !else
+        !    dydx(5:6) = -grv_ptaccel(1:2)
+        !    dydx(7:8) = -dydx(5:6)*grv_totmass/grv_ptmass
+        !endif
     endif
     !call gr_mpoleGradPot(dist, grad_pot)
     !if (grv_orb3D) then

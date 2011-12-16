@@ -5,7 +5,7 @@ subroutine Total_force(blockCount, blockList)
         grv_optaccel, grv_oobaccel, grv_oexactvec, grv_exactvec, grv_hobvec, grv_hptvec, &
         grv_oobvec, grv_optvec, grv_orb3D, grv_ptmass, grv_optmass, grv_densCut, &
         grv_comCutoff, grv_comPeakCut, grv_ompoleaccel, grv_mpoleaccel, grv_ompolevec, &
-        grv_mpolevec, grv_totmass, grv_ototmass, grv_o2obaccel, grv_o2mpoleaccel
+        grv_mpolevec, grv_totmass, grv_ototmass, grv_o2obaccel, grv_o2mpoleaccel, grv_mode
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
     use Simulation_data, ONLY: sim_fluffDampCutoff, sim_softenRadius
     use gr_mpoleData, ONLY: twelfth
@@ -170,11 +170,11 @@ subroutine Total_force(blockCount, blockList)
         grv_optaccel = grv_optaccel*grv_optmass/grv_ototmass
         call gr_mpoleGradOldPot(hoffset, grv_hptaccel)
         call gr_mpoleGradPot(hoffset, tempaccel)
-        grv_hptaccel = (dtfac2*(grv_hptaccel - tempaccel) + grv_hptaccel)*&
+        grv_hptaccel = (dtfac2*(grv_hptaccel - tempaccel) + tempaccel)*&
             (dtfac2*(grv_ptmass - grv_optmass) + grv_ptmass)/(dtfac2*(grv_totmass - grv_ototmass) + grv_totmass)
         call gr_mpoleGradOldPot(noffset, grv_ptaccel)
         call gr_mpoleGradPot(noffset, tempaccel)
-        grv_ptaccel = (dtfac*(grv_ptaccel - tempaccel) + grv_ptaccel)*&
+        grv_ptaccel = (dtfac*(grv_ptaccel - tempaccel) + tempaccel)*&
             (dtfac*(grv_ptmass - grv_optmass) + grv_ptmass)/(dtfac*(grv_totmass - grv_ototmass) + grv_totmass)
     else
         call gr_mpoleGradOldPot(ooffset, grv_optaccel)

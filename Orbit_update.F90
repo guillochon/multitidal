@@ -112,7 +112,7 @@ subroutine Orbit_update()
         ystart(5:6) = grv_obvec(4:5)
         ystart(7:8) = grv_ptvec(4:5)
     endif
-    h1=(x2 - x1) / 1.d2
+    h1=(x2 - x1) / 1.d4
     hmin=0.d0
     call odeint(ystart,x1,x2,grv_orbTol,h1,hmin,derivs,bsstep)
     if (grv_orb3D) then

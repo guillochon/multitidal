@@ -24,7 +24,7 @@ subroutine Total_force(blockCount, blockList)
     double precision,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     logical :: gcell = .true.
     double precision, dimension(:,:,:,:),pointer :: solnData
-    double precision, dimension(7) :: lsum, gsum
+    double precision, dimension(8) :: lsum, gsum
     double precision, dimension(3) :: deld, ooffset, noffset, ptpos, tempaccel
     double precision :: dvol, dr32, newton
     double precision :: tinitial, dx, delxinv, cell_mass, denscut, ldenscut, extrema
@@ -127,7 +127,8 @@ subroutine Total_force(blockCount, blockList)
                                 (solnData(potVar,i,j,k-1) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j,k+1)) /)
 
                         if (solnData(denVar,i,j,k) .ge. denscut) then
-                            lsum(5:7) = lsum(5:7) + cell_mass * delxinv * (/ &
+                            lsum(5) = lsum(5) + cell_mass
+                            lsum(6:8) = lsum(6:8) + cell_mass * delxinv * (/ &
                                 solnData(potVar,i-1,j,k) - solnData(potVar,i+1,j,k) + deld(1)/solnData(denVar,i,j,k)*twelfth*&
                                     (solnData(potVar,i-1,j,k) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i+1,j,k)), &
                                 solnData(potVar,i,j-1,k) - solnData(potVar,i,j+1,k) + deld(2)/solnData(denVar,i,j,k)*twelfth*&
@@ -145,17 +146,17 @@ subroutine Total_force(blockCount, blockList)
             deallocate(zCoord)
         enddo
 
-        call MPI_ALLREDUCE(lsum, gsum, 7, FLASH_REAL, MPI_SUM, gr_meshComm, ierr)
+        call MPI_ALLREDUCE(lsum, gsum, 8, FLASH_REAL, MPI_SUM, gr_meshComm, ierr)
 
         if (it .eq. 1) then
             grv_o2obaccel = gsum(2:4) / gsum(1)
-            grv_o2mpoleaccel = gsum(5:7) / gsum(1)
+            grv_o2mpoleaccel = gsum(6:8) / gsum(5)
         elseif (it .eq. 2) then
             grv_oobaccel = gsum(2:4) / gsum(1)
-            grv_ompoleaccel = gsum(5:7) / gsum(1)
+            grv_ompoleaccel = gsum(6:8) / gsum(5)
         else
             grv_obaccel = gsum(2:4) / gsum(1)
-            grv_mpoleaccel = gsum(5:7) / gsum(1)
+            grv_mpoleaccel = gsum(6:8) / gsum(5)
         endif
     enddo
 

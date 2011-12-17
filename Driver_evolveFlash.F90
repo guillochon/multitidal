@@ -277,7 +277,6 @@ subroutine Driver_evolveFlash()
         dr_simGeneration = 0
 
         ! Calculate the total force applied to the box to remove it in the hydro step (ADDED BY JFG)
-        grv_mode = 1
         call Total_force(blockCount, blockList)
 
         ! 2a. Hydro/MHD/RHD
@@ -332,10 +331,6 @@ subroutine Driver_evolveFlash()
         print*, 'return from Gravity_potential '
 #endif
 
-        ! Calculate the total force again after evolving the hydro for the current step.
-        grv_mode = 2
-        call Total_force(blockCount, blockList)
-
         call Bound_mass(blockCount, blockList)
         if (dr_simTime - dr_dt .ge. tinitial + sim_tRelax) then
             grv_mode = 3
@@ -379,7 +374,6 @@ subroutine Driver_evolveFlash()
         endif
 
         ! Calculate the total force applied to the box to remove it in the hydro step (ADDED BY JFG)
-        grv_mode = 1
         call Total_force(blockCount, blockList)
 
         ! 2b. Hydro/MHD/RHD
@@ -408,10 +402,6 @@ subroutine Driver_evolveFlash()
         call gr_mpoleDeallocateOldMoments()
         call gr_mpoleCopyMoments()
         call Gravity_potentialListOfBlocks(blockCount,blockList)
-
-        ! Calculate the total force again after evolving the hydro for the current step.
-        grv_mode = 2
-        call Total_force(blockCount, blockList)
 
         call Bound_mass(blockCount, blockList)
         if (dr_simTime - dr_dt .ge. tinitial + sim_tRelax) then

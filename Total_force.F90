@@ -25,9 +25,9 @@ subroutine Total_force(blockCount, blockList)
     double precision,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     logical :: gcell = .true.
     double precision, dimension(:,:,:,:),pointer :: solnData
-    double precision, dimension(8) :: lsum, gsum
+    double precision, dimension(12) :: lsum, gsum
     double precision, dimension(3) :: deld, ooffset, hoffset, noffset, ptpos, tempaccel
-    double precision :: dvol, dr32, newton, dtfac, dtfac2
+    double precision :: dvol, dr32, newton, dtfac, dtfac2, ptmass
     double precision :: tinitial, dx, delxinv, cell_mass, denscut, ldenscut, extrema
 
     call RuntimeParameters_get('tinitial',tinitial)
@@ -43,10 +43,14 @@ subroutine Total_force(blockCount, blockList)
 
     denscut = denscut*grv_comPeakCut
 
-    ooffset = grv_oexactvec(1:3) + grv_optvec(1:3) - grv_oobvec(1:3) - grv_ompolevec(1:3)
-    hoffset = (grv_oexactvec(1:3) + grv_exactvec(1:3))/2.d0 + &
-        grv_hptvec(1:3) - grv_hobvec(1:3) - (grv_ompolevec(1:3) + grv_mpolevec(1:3))/2.d0
-    noffset = grv_exactvec(1:3) + grv_ptvec(1:3) - grv_obvec(1:3) - grv_mpolevec(1:3)
+    dtfac = dr_dt/dr_dtOld
+    dtfac2 = dtfac/2.d0
+
+    ooffset = grv_exactvec(1:3) + grv_optvec(1:3) - grv_oobvec(1:3)
+    hoffset = (dtfac2*(grv_exactvec(1:3) - grv_oexactvec(1:3)) + grv_exactvec(1:3)) + &
+        grv_hptvec(1:3) - grv_hobvec(1:3)
+    noffset = (dtfac*(grv_exactvec(1:3) - grv_oexactvec(1:3)) + grv_exactvec(1:3)) + &
+        grv_hptvec(1:3) - grv_hobvec(1:3)
 
     do it = 1, 3
         lsum = 0.d0
@@ -88,7 +92,7 @@ subroutine Total_force(blockCount, blockList)
             do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                        if (solnData(denVar,i,j,k) .lt. sim_fluffDampCutoff) cycle !Don't include any mass below the damping cutoff
+                        if (solnData(denVar,i,j,k) .lt. denscut) cycle
 
                         cell_mass = solnData(denVar,i,j,k) * dvol
                         lsum(1) = lsum(1) + cell_mass
@@ -128,17 +132,6 @@ subroutine Total_force(blockCount, blockList)
                                 (solnData(potVar,i,j-1,k) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j+1,k)), &
                             solnData(potVar,i,j,k-1) - solnData(potVar,i,j,k+1) + deld(3)/solnData(denVar,i,j,k)*twelfth*&
                                 (solnData(potVar,i,j,k-1) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j,k+1)) /)
-
-                        if (solnData(denVar,i,j,k) .ge. denscut) then
-                            lsum(5) = lsum(5) + cell_mass
-                            lsum(6:8) = lsum(6:8) + cell_mass * delxinv * (/ &
-                                solnData(potVar,i-1,j,k) - solnData(potVar,i+1,j,k) + deld(1)/solnData(denVar,i,j,k)*twelfth*&
-                                    (solnData(potVar,i-1,j,k) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i+1,j,k)), &
-                                solnData(potVar,i,j-1,k) - solnData(potVar,i,j+1,k) + deld(2)/solnData(denVar,i,j,k)*twelfth*&
-                                    (solnData(potVar,i,j-1,k) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j+1,k)), &
-                                solnData(potVar,i,j,k-1) - solnData(potVar,i,j,k+1) + deld(3)/solnData(denVar,i,j,k)*twelfth*&
-                                    (solnData(potVar,i,j,k-1) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j,k+1)) /)
-                        endif
                     enddo
                 enddo
             enddo
@@ -149,43 +142,117 @@ subroutine Total_force(blockCount, blockList)
             deallocate(zCoord)
         enddo
 
-        call MPI_ALLREDUCE(lsum, gsum, 8, FLASH_REAL, MPI_SUM, gr_meshComm, ierr)
+        call MPI_ALLREDUCE(lsum(1:4), gsum(1:4), 4, FLASH_REAL, MPI_SUM, gr_meshComm, ierr)
 
         if (it .eq. 1) then
-            grv_o2obaccel = gsum(2:4) / gsum(1)
-            grv_o2mpoleaccel = gsum(6:8) / gsum(5)
+            grv_o2mpoleaccel = gsum(2:4) / gsum(1)
         elseif (it .eq. 2) then
-            grv_oobaccel = gsum(2:4) / gsum(1)
-            grv_ompoleaccel = gsum(6:8) / gsum(5)
+            grv_ompoleaccel = gsum(2:4) / gsum(1)
         else
-            grv_obaccel = gsum(2:4) / gsum(1)
-            grv_mpoleaccel = gsum(6:8) / gsum(5)
+            grv_mpoleaccel = gsum(2:4) / gsum(1)
         endif
     enddo
 
-    if (grv_mode .eq. 1) then
-        dtfac = dr_dt/dr_dtOld
-        dtfac2 = dtfac/2.d0
-        call gr_mpoleGradPot(ooffset, grv_optaccel)
-        grv_optaccel = grv_optaccel*grv_optmass/grv_ototmass
-        call gr_mpoleGradOldPot(hoffset, grv_hptaccel)
-        call gr_mpoleGradPot(hoffset, tempaccel)
-        grv_hptaccel = (dtfac2*(grv_hptaccel - tempaccel) + tempaccel)*&
-            (dtfac2*(grv_ptmass - grv_optmass) + grv_ptmass)/(dtfac2*(grv_totmass - grv_ototmass) + grv_totmass)
-        call gr_mpoleGradOldPot(noffset, grv_ptaccel)
-        call gr_mpoleGradPot(noffset, tempaccel)
-        grv_ptaccel = (dtfac*(grv_ptaccel - tempaccel) + tempaccel)*&
-            (dtfac*(grv_ptmass - grv_optmass) + grv_ptmass)/(dtfac*(grv_totmass - grv_ototmass) + grv_totmass)
-    else
-        call gr_mpoleGradOldPot(ooffset, grv_optaccel)
-        call gr_mpoleGradPot(noffset, grv_ptaccel)
-        grv_optaccel = grv_optaccel*grv_optmass/grv_ototmass
-        grv_ptaccel = grv_ptaccel*grv_ptmass/grv_totmass
-        call gr_mpoleGradOldPot(hoffset, grv_hptaccel)
-        call gr_mpoleGradPot(hoffset, tempaccel)
-        grv_hptaccel = (grv_hptaccel + tempaccel) / 2.d0
-        grv_hptaccel = grv_hptaccel*(grv_ptmass + grv_optmass)/(grv_totmass + grv_ototmass)
-    endif
+    lsum = 0.d0
+    gsum = 0.d0
+
+    do lb = 1, blockCount
+        call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
+        sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
+        allocate(xCoord(sizeX),stat=istat)
+        sizeY = blkLimitsGC(HIGH,JAXIS) - blkLimitsGC(LOW,JAXIS) + 1
+        allocate(yCoord(sizeY),stat=istat)
+        sizeZ = blkLimitsGC(HIGH,KAXIS) - blkLimitsGC(LOW,KAXIS) + 1
+        allocate(zCoord(sizeZ),stat=istat)
+
+        if (NDIM == 3) call Grid_getCellCoords&
+                            (KAXIS, blockList(lb), CENTER, gcell, zCoord, sizeZ)
+        if (NDIM >= 2) call Grid_getCellCoords&
+                            (JAXIS, blockList(lb), CENTER,gcell, yCoord, sizeY)
+        call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
+        call Grid_getBlkPtr(blockList(lb),solnData)
+        dx = xCoord(2) - xCoord(1)
+        dvol = dx**3.d0
+        delxinv = 0.5e0 / dx
+        do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
+            do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
+                do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                    if (solnData(denVar,i,j,k) .lt. sim_fluffDampCutoff) cycle !Don't include any mass below the damping cutoff
+
+                    cell_mass = solnData(DENS_VAR,i,j,k) * dvol
+                    ptpos = (/ xCoord(i), yCoord(j), zCoord(k) /) - ooffset
+                    ptmass = grv_ptmass
+                    dr32 = dsqrt(sum(ptpos**2.d0))
+                    if (dr32 .lt. sim_softenRadius) then
+                        dr32 = sim_softenRadius*sim_softenRadius*dr32
+                    else
+                        dr32 = dr32*dr32*dr32
+                    endif
+                    lsum(1) = lsum(1) + cell_mass
+                    lsum(2:4) = lsum(2:4) - cell_mass * newton*ptmass/dr32*ptpos
+
+                    cell_mass = (dtfac2*((solnData(DENS_VAR,i,j,k) - solnData(ODEN_VAR,i,j,k)) + &
+                        solnData(DENS_VAR,i,j,k))) * dvol
+                    ptpos = (/ xCoord(i), yCoord(j), zCoord(k) /) - hoffset
+                    ptmass = (dtfac2*(grv_ptmass - grv_optmass) + grv_ptmass)
+                    dr32 = dsqrt(sum(ptpos**2.d0))
+                    if (dr32 .lt. sim_softenRadius) then
+                        dr32 = sim_softenRadius*sim_softenRadius*dr32
+                    else
+                        dr32 = dr32*dr32*dr32
+                    endif
+                    lsum(5) = lsum(5) + cell_mass
+                    lsum(6:8) = lsum(6:8) - cell_mass * newton*ptmass/dr32*ptpos
+
+                    cell_mass = (dtfac*((solnData(DENS_VAR,i,j,k) - solnData(ODEN_VAR,i,j,k)) + &
+                        solnData(DENS_VAR,i,j,k))) * dvol
+                    ptpos = (/ xCoord(i), yCoord(j), zCoord(k) /) - noffset
+                    ptmass = (dtfac*(grv_ptmass - grv_optmass) + grv_ptmass)
+                    dr32 = dsqrt(sum(ptpos**2.d0))
+                    if (dr32 .lt. sim_softenRadius) then
+                        dr32 = sim_softenRadius*sim_softenRadius*dr32
+                    else
+                        dr32 = dr32*dr32*dr32
+                    endif
+                    lsum(9) = lsum(9) + cell_mass
+                    lsum(10:12) = lsum(10:12) - cell_mass * newton*ptmass/dr32*ptpos
+                enddo
+            enddo
+        enddo
+
+        call Grid_releaseBlkPtr(blockList(lb), solnData)
+        deallocate(xCoord)
+        deallocate(yCoord)
+        deallocate(zCoord)
+    enddo
+
+    call MPI_ALLREDUCE(lsum, gsum, 12, FLASH_REAL, MPI_SUM, gr_meshComm, ierr)
+
+    grv_optaccel = gsum(2:4)   / gsum(1)
+    grv_hptaccel = gsum(6:8)   / gsum(5)
+    grv_ptaccel  = gsum(10:12) / gsum(9)
+
+    !if (grv_mode .eq. 1) then
+    !    call gr_mpoleGradPot(ooffset, grv_optaccel)
+    !    grv_optaccel = grv_optaccel*grv_optmass/grv_ototmass
+    !    call gr_mpoleGradOldPot(hoffset, grv_hptaccel)
+    !    call gr_mpoleGradPot(hoffset, tempaccel)
+    !    grv_hptaccel = (dtfac2*(tempaccel - grv_hptaccel) + tempaccel)*&
+    !        (dtfac2*(grv_ptmass - grv_optmass) + grv_ptmass)/(dtfac2*(grv_totmass - grv_ototmass) + grv_totmass)
+    !    call gr_mpoleGradOldPot(noffset, grv_ptaccel)
+    !    call gr_mpoleGradPot(noffset, tempaccel)
+    !    grv_ptaccel = (dtfac*(tempaccel - grv_ptaccel) + tempaccel)*&
+    !        (dtfac*(grv_ptmass - grv_optmass) + grv_ptmass)/(dtfac*(grv_totmass - grv_ototmass) + grv_totmass)
+    !else
+    !    call gr_mpoleGradOldPot(ooffset, grv_optaccel)
+    !    call gr_mpoleGradPot(noffset, grv_ptaccel)
+    !    grv_optaccel = grv_optaccel*grv_optmass/grv_ototmass
+    !    grv_ptaccel = grv_ptaccel*grv_ptmass/grv_totmass
+    !    call gr_mpoleGradOldPot(hoffset, grv_hptaccel)
+    !    call gr_mpoleGradPot(hoffset, tempaccel)
+    !    grv_hptaccel = (grv_hptaccel + tempaccel) / 2.d0
+    !    grv_hptaccel = grv_hptaccel*(grv_ptmass + grv_optmass)/(grv_totmass + grv_ototmass)
+    !endif
 
     if (.not. grv_orb3D) then
         grv_optaccel(3) = 0.d0

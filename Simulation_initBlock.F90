@@ -170,7 +170,7 @@ subroutine Simulation_initBlock (blockId, myPE)
                        jLo = obj_ipos
                        jHi = obj_ipos
                        frac = 0.
-					   efrac = 1.
+                       efrac = 1.
                     else
                        jHi = jLo + 1
                        frac = (dist - obj_radius(jLo)) / & 
@@ -197,20 +197,20 @@ subroutine Simulation_initBlock (blockId, myPE)
                     sumRho = sumRho + & 
                          obj_rhop(jLo) + frac*(obj_rhop(jHi) - obj_rhop(jLo))
 
-					sumGam = sumGam + &
-						gammac + efrac*(gammae - gammac)
+                    sumGam = sumGam + &
+                         gammac + efrac*(gammae - gammac)
+                    
+                    sumMu  = sumMu + &
+                         obj_muc + efrac*(obj_mue -obj_muc)
 
-					sumMu  = sumMu + &
-						obj_muc + efrac*(obj_mue -obj_muc)
-
-					sumXn(H1_SPEC) = sumXn(H1_SPEC) + &
-						0.0 + efrac*(0.7 - 0.0)
-
-					sumXn(HE4_SPEC) = sumXn(HE4_SPEC) + &
-						0.0 + efrac*(0.3 - 0.0)
-
-					sumXn(CORE_SPEC) = sumXn(CORE_SPEC) + &
-						1.0 + efrac*(0.0 - 1.0)
+                    sumXn(H1_SPEC) = sumXn(H1_SPEC) + &
+                         0.0 + efrac*(0.7 - 0.0)
+                    
+                    sumXn(HE4_SPEC) = sumXn(HE4_SPEC) + &
+                         0.0 + efrac*(0.3 - 0.0)
+                    
+                    sumXn(CORE_SPEC) = sumXn(CORE_SPEC) + &
+                         1.0 + efrac*(0.0 - 1.0)
                  enddo
               enddo
            enddo

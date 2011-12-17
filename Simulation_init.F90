@@ -50,6 +50,7 @@ subroutine Simulation_init()
                     xsurf,ypsurf,combo
     integer mode,iend,ipos
     character(len=100) :: logstr
+    logical :: ionized
 
     call RuntimeParameters_get('sim_pAmbient', sim_pAmbient)
     call RuntimeParameters_get('sim_rhoAmbient', sim_rhoAmbient)
@@ -94,14 +95,23 @@ subroutine Simulation_init()
         speciesMask(H1_SPEC) = H1_SPEC
         speciesMask(HE4_SPEC) = HE4_SPEC
         speciesMask(CORE_SPEC) = UNDEFINED_INT
-        call Multispecies_getSumInv(A, obj_mue, obj_xn, speciesMask)
-        obj_mue = 1.e0 / obj_mue
+        
+        ionized = .false. 
+        if(ionized) then
+           obj_mue = 4.d0/(3.d0 + 5.d0*obj_xn(H1_SPEC))
+           print*, "obj_mue", obj_mue
+        else
+           call Multispecies_getSumInv(A, obj_mue, obj_xn, speciesMask)
+           obj_mue = 1.e0 / obj_mue
+           print*, "obj_mue", obj_mue
+        endif
 
         obj_xn(H1_SPEC) = 0.0
         obj_xn(HE4_SPEC) = 0.0
         obj_xn(CORE_SPEC) = 1.0
         call Multispecies_getSumInv(A, obj_muc, obj_xn)!, speciesMask)
         obj_muc = 1.e0 / obj_muc
+        print*, "obj_muc", obj_muc
         mode = 1
         open(42,file="input.dat",position='append')
         write(42,*) sim_objPolyN,sim_objPolyN2,sim_objCoreMass,sim_objCentDen,polyk,sim_objRadius,obj_muc,obj_mue,mode,&

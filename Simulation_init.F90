@@ -106,6 +106,7 @@ subroutine Simulation_init()
            print*, "obj_mue", obj_mue
         endif
 
+
         obj_xn(H1_SPEC) = 0.0
         obj_xn(HE4_SPEC) = 0.0
         obj_xn(CORE_SPEC) = 1.0

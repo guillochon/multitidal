@@ -140,6 +140,7 @@ subroutine Gravity_init()
   call RuntimeParameters_get("grv_orbMinForce", grv_orbMinForce)
   call RuntimeParameters_get("grv_orb3D", grv_orb3D)
   call RuntimeParameters_get("grv_cfl", grv_cfl)
+  call RuntimeParameters_get("grv_orbStepFrac", grv_orbStepFrac)
 
   call RuntimeParameters_get("useGravity", useGravity)
   call RuntimeParameters_get("updateGravity", updateGravity)

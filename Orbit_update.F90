@@ -19,7 +19,8 @@ subroutine Orbit_update()
     use Gravity_data, ONLY: grv_ptmass, grv_mode, orb_t, orb_dt, &
         grv_ptvec, grv_obvec, grv_optvec, grv_oobvec, grv_hptvec, &
         grv_hobvec, grv_exactvec, grv_oexactvec, grv_orbTol, grv_orb3D, &
-        grv_ototmass, grv_optmass, grv_totmass, grv_rotMat, grv_invRotMat
+        grv_ototmass, grv_optmass, grv_totmass, grv_rotMat, grv_invRotMat, &
+        grv_orbStepFrac
     use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass
     use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
 
@@ -112,7 +113,7 @@ subroutine Orbit_update()
         ystart(5:6) = grv_obvec(4:5)
         ystart(7:8) = grv_ptvec(4:5)
     endif
-    h1=(x2 - x1) / 1.d2
+    h1=(x2 - x1) * grv_orbStepFrac
     hmin=0.d0
     call odeint(ystart,x1,x2,grv_orbTol,h1,hmin,derivs,bsstep)
     if (grv_orb3D) then

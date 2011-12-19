@@ -63,6 +63,7 @@ PARAMETER grv_comCutoff       REAL    0.E0
 PARAMETER grv_comPeakCut      REAL    0.E0
 PARAMETER grv_orb3D           BOOLEAN TRUE
 PARAMETER grv_cfl             REAL    0.1E0
+PARAMETER grv_orbStepFrac     REAL    1.0E-4
 
 D sim_nsubzones       Number of `sub-zones' in cells for applying 1d profile
 PARAMETER sim_nsubzones     INTEGER 7

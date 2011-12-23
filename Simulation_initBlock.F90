@@ -47,12 +47,9 @@ subroutine Simulation_initBlock (blockId, myPE)
   double precision,dimension(SPECIES_BEGIN:SPECIES_END) ::	sumXn
   real     ::  vel, diagonal
   real     ::  xx, dxx, yy, dyy, zz, dzz, frac, efrac
-  real     ::  sumRho, sumP
-  real     ::  xx, dxx, yy, dyy, zz, dzz, frac
   real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb
   real     ::  dist, gam, mu
   logical  ::  validGeom
-  real     ::  dist, gam
   integer  ::  istat
 
   real,allocatable,dimension(:) :: xCoord,yCoord,zCoord

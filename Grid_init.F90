@@ -134,7 +134,7 @@ subroutine Grid_init()
 #include "constants.h"
   include "Flash_mpi.h"
 
-  integer :: i, j, k, localNumBlocks, ii, numLeafBlks
+  integer :: i 
 
   character(len=MAX_STRING_LENGTH),save :: refVarname,refVarString,paramString
   character(len=MAX_STRING_LENGTH),save :: refCutoffName,refCutOffString
@@ -148,7 +148,6 @@ subroutine Grid_init()
   real :: dx, dy, dz
   real, dimension(NDIM) :: rnb
   integer,save :: refVar
-  integer :: countInComm, color, key, ierr
   integer :: nonrep
   
 !----------------------------------------------------------------------------------

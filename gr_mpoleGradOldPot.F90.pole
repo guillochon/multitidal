@@ -824,7 +824,7 @@ subroutine gr_mpoleGradOldPot (coord, grad_phi)
          end if
 
       end if
-    grad_phi = grad_phi / (2.d0 * dx)
+    grad_phi = -grad_phi / (2.d0 * dx)
     return
 end subroutine gr_mpoleGradOldPot
 

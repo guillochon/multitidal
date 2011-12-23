@@ -30,9 +30,10 @@ subroutine Simulation_init()
 
     use Simulation_data 
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
-    use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
+    use Multispecies_interface, ONLY : Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
     use Grid_data, ONLY : gr_globalMe
-    use Logfile_interface, ONLY: Logfile_stampMessage
+    use Logfile_interface, ONLY : Logfile_stampMessage
+    use tree, ONLY : lrefine_max
 
     implicit none
 
@@ -40,15 +41,16 @@ subroutine Simulation_init()
 #include "Flash.h"
 #include "Flash_mpi.h"
 #include "Multispecies.h"
+#include "Eos.h"
 
     integer             :: i, ierr, j
     double precision    :: start_t
     double precision  order,mtot,rhoc,polyk,mu, &
                     x(np),y(np),yp(np), &
-                    mass(np),ebind(np),zopac(np), &
+                    mass(np),ebind(np), &
                     rhom(np),zbeta(np),ztemp(np),exact(np), &
-                    xsurf,ypsurf,combo
-    integer mode,iend,ipos
+                    xsurf,ypsurf,cfl
+    integer mode,iend
     character(len=100) :: logstr
     logical :: ionized
 
@@ -70,6 +72,8 @@ subroutine Simulation_init()
     call RuntimeParameters_get('sim_softenRadius',sim_softenRadius)
 !    call RuntimeParameters_get('sim_objMass',sim_objMass)
     call RuntimeParameters_get('sim_objCoreMass',sim_objCoreMass)
+    call RuntimeParameters_get('sim_accRadius',sim_accRadius)
+    call RuntimeParameters_get('sim_accCoeff',sim_accCoeff)
     call RuntimeParameters_get('sim_objPolyN',sim_objPolyN)
     call RuntimeParameters_get('sim_objPolyN2',sim_objPolyN2)
 !    call RuntimeParameters_get('sim_objCentDen',sim_objCentDen)
@@ -84,7 +88,9 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_periodFac", sim_periodFac)
     call RuntimeParameters_get("sim_orbEcc", sim_orbEcc)
     call RuntimeParameters_get("sim_useInitialPeakDensity", sim_useInitialPeakDensity)
+    call RuntimeParameters_get("sim_ptMassRefine", sim_ptMassRefine)
     call RuntimeParameters_get("ptmass", sim_ptMass)
+    call RuntimeParameters_get("cfl", cfl)
 
     gammac = 1.0d0+1.0d0/sim_objPolyN
     gammae = 1.0d0+1.0d0/sim_objPolyN2
@@ -92,10 +98,10 @@ subroutine Simulation_init()
         obj_xn(H1_SPEC) = 0.7
         obj_xn(HE4_SPEC) = 0.3
         obj_xn(CORE_SPEC) = 0.0
-        !speciesMask(H1_SPEC) = H1_SPEC
-        !speciesMask(HE4_SPEC) = HE4_SPEC
-        !speciesMask(CORE_SPEC) = UNDEFINED_INT
-        call Multispecies_getSumInv(A, obj_mue, obj_xn)
+        speciesMask(H1_SPEC) = H1_SPEC
+        speciesMask(HE4_SPEC) = HE4_SPEC
+        speciesMask(CORE_SPEC) = UNDEFINED_INT
+        call Multispecies_getSumInv(A, obj_mue, obj_xn, speciesMask)
         obj_mue = 1.e0 / obj_mue
         print*, "obj_mue", obj_mue
         obj_xn(H1_SPEC) = 0.0
@@ -143,6 +149,11 @@ subroutine Simulation_init()
 		enddo
         write(42,*) iend,obj_ipos,obj_ipoi
         close(42)
+
+        write(logstr, fmt='(A30, 2ES15.8)') 'Ambient CFL timestep:', cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGamma*sim_pAmbient/sim_rhoAmbient)
+        call Logfile_stampMessage(logstr)
+        write(logstr, fmt='(A30, 2ES15.8)') 'Fluff CFL timestep:', cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGamma*sim_smallP/sim_smallRho)
+        call Logfile_stampMessage(logstr)
     endif
 
     call MPI_BCAST(obj_xn, NSPECIES, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
@@ -160,6 +171,8 @@ subroutine Simulation_init()
     !Sink radius is scaled relative to the original pericenter distance
     
     sim_softenRadius = sim_softenRadius*obj_radius(obj_ipos)/sim_periBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
+    sim_accRadius = sim_accRadius*obj_radius(obj_ipos)/sim_periBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
+    sim_startDistance = obj_radius(obj_ipos)/sim_startBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
 
     write(logstr, fmt='(A30, ES15.8)') 'Sink radius:', sim_softenRadius
     call Logfile_stampMessage(logstr)

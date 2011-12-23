@@ -35,14 +35,13 @@ module Simulation_data
                             sim_xMin, sim_xMax, sim_yMin, sim_yMax, sim_zMin, sim_zMax
   integer, save          :: sim_nSubZones
   integer, save          :: sim_tableRows, sim_tableCols
-  integer, save          :: sim_maxBlocks
+  integer, save          :: sim_maxBlocks, sim_ptMassRefine
   double precision, save :: sim_tInitial, sim_tRelax, sim_relaxRate, sim_starRadius, &
-                            sim_softenRadius, sim_objMass, sim_objCoreMass, sim_objPolyN, sim_objCentDen, &
+                            sim_softenRadius, sim_accRadius, sim_objMass, sim_objCoreMass, sim_objPolyN, sim_objCentDen, &
                             sim_objPolyN2, sim_objRadius, sim_objCore, sim_objEnve, &
-                            sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &
+                            sim_accCoeff, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &
                             sim_periBeta, sim_startBeta, sim_periodFac, &
-                            sim_orbEcc, sim_objAbarCore
-
+                            sim_orbEcc, sim_objAbarCore, sim_startDistance
 
   !! *** Variables pertaining to this Simulation *** !!
 

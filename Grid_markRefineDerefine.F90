@@ -41,10 +41,10 @@ subroutine Grid_markRefineDerefine()
   use Driver_interface, ONLY: Driver_getSimTime
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   use Simulation_data, ONLY: sim_objMass, sim_objPolyN, sim_objCentDen, np, obj_radius, &
-      obj_ipos, obj_ipoi, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity
+      obj_ipos, obj_ipoi, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity, sim_ptMassRefine
   use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
-  use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_factor, grv_dynRefineMax, &
-      grv_exactvec, grv_mpolevec
+  use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_dynRefineMax, &
+      grv_exactvec, grv_mpolevec, grv_periDist
   use PhysicalConstants_interface, ONLY: PhysicalConstants_get
   use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass
   use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
@@ -58,11 +58,10 @@ subroutine Grid_markRefineDerefine()
 
   double precision :: xcom, ycom, zcom
   double precision, dimension(:,:,:,:), pointer :: solnData
-  double precision :: ref_cut,deref_cut,ref_filter,ref_val_cut,t
+  double precision :: ref_val_cut,t
   double precision :: xcenter,ycenter,zcenter
-  double precision :: maxptime,shrinkdur,box,zbox,dens_cut
+  double precision :: dens_cut
   integer       :: l,iref,blkCount,lb,i,j
-  logical :: doEos=.true.
   integer,parameter :: maskSize = NUNK_VARS+NDIM*NFACE_VARS
   logical,dimension(maskSize) :: gcMask
   double precision :: maxvals(MAXBLOCKS),maxvals_parent(MAXBLOCKS)
@@ -70,7 +69,6 @@ subroutine Grid_markRefineDerefine()
   integer :: reqr(MAXBLOCKS),reqs(MAXBLOCKS)
   integer :: statr(MPI_STATUS_SIZE,MAXBLOCKS)
   integer :: stats(MPI_STATUS_SIZE,MAXBLOCKS)
-
   double precision :: polyk,mu, &
           x(np),y(np),yp(np),radius(np),rhop(np), &
           mass(np),prss(np),ebind(np),zopac(np), &
@@ -148,9 +146,6 @@ subroutine Grid_markRefineDerefine()
           ref_level = min(gr_refine_level(l), grv_dynRefineMax)
           call gr_markVarThreshold(iref,ref_val_cut,0,ref_level)
       enddo
-
-      !call gr_markInRectangle(xcenter-box,xcenter+box,ycenter-box,ycenter+box,&
-      !   zcenter-zbox,zcenter+zbox,8,1,1)
 
       do l = 1,gr_numRefineVars
           iref = gr_refine_var(l)
@@ -250,8 +245,12 @@ subroutine Grid_markRefineDerefine()
   ! Always refine maximally right around com to ensure innermost region of mpole solver doesn't change size
   call gr_markInRadius(grv_mpolevec(1), grv_mpolevec(2), grv_mpolevec(3), &
                        4.d0*min_cell,grv_dynRefineMax,0)
-  call gr_markInRadius(grv_exactvec(1), grv_exactvec(2), grv_exactvec(3), &
-                       4.d0*min_cell,grv_dynRefineMax,0)
+  !call gr_markInRadius(grv_exactvec(1), grv_exactvec(2), grv_exactvec(3), &
+  !                     4.d0*min_cell,grv_dynRefineMax,0)
+  call gr_markInRadius(grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1), &
+                       grv_exactvec(2) - grv_obvec(2) + grv_ptvec(2), &
+                       grv_exactvec(3) - grv_obvec(3) + grv_ptvec(3), &
+                       grv_periDist,sim_ptMassRefine,0)
 
   return
 end subroutine Grid_markRefineDerefine

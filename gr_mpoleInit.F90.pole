@@ -607,6 +607,10 @@ subroutine gr_mpoleInit()
 !    ...Check for bad radial zone data.
 !
 !
+  if (max_radial_zones .lt. 3) then
+      call Driver_abortFlash('[gr_mpoleInit] ERROR: At least 3 radial zones must be specified')
+  endif
+
   last_zone_fraction = zone_max_radius_fraction (max_radial_zones)
 
   if (last_zone_fraction < one) then

@@ -179,7 +179,7 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
   use Hydro_data, ONLY : hy_ppmEnerFluxConstructionMeth
   use Driver_interface, ONLY : Driver_abortFlash
   use Gravity_interface, ONLY : Gravity_accelOneRow
-  use Gravity_data, ONLY : grv_mode
+  use Gravity_data, ONLY : grv_mode, grv_dtOld, grv_dt2Old
   use hy_ppm_interface, ONLY: hy_ppm_force, hy_ppm_geom, hy_ppm_completeGeomFactors
   use Driver_data, ONLY : dr_simTime
   use Simulation_data, ONLY : sim_tRelax
@@ -233,7 +233,7 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
               &                   urell, ugrdl, gameav, gamel, gamer, &
               &                   eintl, eintr, eintAv, &
               &                   v, dvol, &
-              &                   ograv, hgrav, ptgrav, hptgrav, optgrav
+              &                   ograv, hgrav, ptgrav, hptgrav, optgrav, o2grav
 
 
   
@@ -246,7 +246,7 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
   integer :: i, n, kk
   integer :: numIntCells4, numIntCells5, numIntCells8
   
-  real ::  dtfac, dg
+  real ::  dtfac, dg, hdg
 
 !  real :: pres_jump
   integer,dimension(2) :: pos
@@ -307,11 +307,16 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
 #if defined(GPOT_VAR) && defined(GPOL_VAR) && defined(FLASH_GRAVITY_TIMEDEP)
        ! Gravity implementation defines FLASH_GRAVITY_TIMEDEP -> time-dependent gravity field,
        ! interpolate the acceleration linearly in time (pointwise) - KW
-       grav(:) = 0.e0
-       ograv(:) = 0.e0       ! initialize array to zero
+       grav(:) = 0.d0
+       ograv(:) = 0.d0       ! initialize array to zero
+       o2grav(:) = 0.d0
        ptgrav(:) = 0.d0
        hptgrav(:) = 0.d0
        optgrav(:) = 0.d0
+#ifdef GPO2_VAR
+       grv_mode = 0
+       call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,o2grav,optgrav,GPO2_VAR)
+#endif
        grv_mode = 1
        call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,ograv,optgrav,GPOL_VAR)
        grv_mode = 2
@@ -329,9 +334,17 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
        !    call Driver_abortFlash('done')
        !endif
        do i = 1,numIntCells8
-          dg       = dtfac*(grav(i) - ograv(i))
-          hgrav(i) = grav(i) + hptgrav(i) + 0.5e0*dg
-          ngrav(i) = grav(i) + dg + ptgrav(i)
+#ifdef GPO2_VAR
+          hdg       = dt/2.d0/grv_dtOld*(grav(i) - ograv(i)) + dt**2.d0/4.d0/(grv_dtOld*grv_dtOld*grv_dt2Old)*&
+                     ((grav(i) - ograv(i))*grv_dt2Old - (ograv(i) - o2grav(i))*grv_dtOld)
+          dg       = dt/grv_dtOld*(grav(i) - ograv(i)) + dt**2.d0/(grv_dtOld*grv_dtOld*grv_dt2Old)*&
+                     ((grav(i) - ograv(i))*grv_dt2Old - (ograv(i) - o2grav(i))*grv_dtOld)
+#else
+          dg = dt/dt_old*(grav(i) - ograv(i))
+          hdg = dg/2.d0
+#endif
+          hgrav(i) = grav(i) + hptgrav(i) + hdg
+          ngrav(i) = grav(i) + ptgrav(i) + dg
           grav(i)  = grav(i) + optgrav(i)
        enddo
 

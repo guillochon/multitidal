@@ -171,13 +171,14 @@ subroutine Driver_initFlash()
   call Hydro_init()           ! Hydrodynamics, MHD, RHD
   if(dr_globalMe==MASTER_PE)print*,'Hydro initialized'
   
+
+  ! Note from JFG: Moved this in front of gravity_init as it needs to know dr_dt
+  call Driver_verifyInitDt()
+  if(dr_globalMe==MASTER_PE)print*,'Initial dt verified'
+
   
   call Gravity_init()         ! Gravity
   if(dr_globalMe==MASTER_PE)print*,'Gravity initialized'
-
-
-  call Driver_verifyInitDt()
-  if(dr_globalMe==MASTER_PE)print*,'Initial dt verified'
 
 
   !For active particle simulations we must initialize particle 

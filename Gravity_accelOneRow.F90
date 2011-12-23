@@ -51,9 +51,10 @@
 subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, potentialIndex)
 
     use Driver_data, ONLY: dr_simTime
-    use Gravity_data, ONLY: grv_factor, grv_thresh, grv_ptvec, grv_obvec, grv_optvec, grv_oobvec, grv_mode, &
-        grv_hptvec, grv_hobvec, grv_exactvec, grv_oexactvec, grv_obaccel, &
-        grv_ptaccel, grv_hptaccel, grv_optaccel, grv_oobaccel
+    use Gravity_data, ONLY: grv_ptmass, grv_optmass, grv_thresh, grv_ptvec, &
+        grv_obvec, grv_optvec, grv_oobvec, grv_mode, &
+        grv_hptvec, grv_hobvec, grv_exactvec, grv_oexactvec, grv_mpoleaccel, &
+        grv_ptaccel, grv_hptaccel, grv_optaccel, grv_ompoleaccel, grv_o2mpoleaccel
     use Grid_interface, ONLY : Grid_getBlkPhysicalSize, Grid_getBlkPtr, &
         Grid_releaseBlkPtr, Grid_getCellCoords, Grid_getBlkIndexLimits, Grid_getMinCellSize
     use Simulation_data, ONLY: sim_tRelax, sim_softenRadius, sim_fluffDampCutoff
@@ -75,9 +76,9 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     double precision            :: blockSize(MDIM)
     double precision, POINTER, DIMENSION(:,:,:,:) :: solnVec
 
-    integer         :: ii, iimin, iimax, lb
+    integer         :: ii, iimin, iimax
     double precision            :: gpot(numCells), delxinv
-    double precision            :: dens(numCells), xgrid(numCells)
+    double precision            :: dens(numCells)
     double precision, parameter :: onesixth = 1.e0/6.e0
     integer         :: potVar, denVar
 
@@ -88,20 +89,22 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
 #else
     double precision,allocatable,dimension(:) ::xCenter,yCenter,zCenter
 #endif
-    double precision :: dr32, tmpdr32, min_cell
+    double precision :: dr32, tmpdr32, min_cell, newton, gm
 
     integer :: sizeX,sizeY,sizez
 
     integer :: j,k
     logical :: gcell = .true.
-    double precision :: period
     double precision :: tinitial, ptx, pty, ptz, deld
-    double precision, dimension(3) :: obaccel, ptaccel
+    double precision, dimension(3) :: mpoleaccel, ptaccel
     !==================================================
 
     call Grid_getBlkPhysicalSize(blockID, blockSize)
-
+    call PhysicalConstants_get("Newton", newton)
     call Grid_getBlkPtr(blockID, solnVec)
+
+    grav = 0.d0
+    ptgrav = 0.d0
 
     !! IF a variable index is explicitly specified, assume that as the potential
     !! otherwise use the default current potential GPOT_VAR  
@@ -113,30 +116,42 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
 
     if (potVar .eq. GPOT_VAR) then
         denVar = DENS_VAR
-    else
+    elseif (potVar .eq. GPOL_VAR) then
         denVar = ODEN_VAR
+#ifdef GPO2_VAR
+    elseif (potVar .eq. GPO2_VAR) then
+        denVar = ODE2_VAR
+#endif
+    else
+        print *, 'Error: Unknown potential variable specified'
     endif
 
-    if (grv_mode .eq. 1) then
+    if (grv_mode .eq. 0) then
+        mpoleaccel = grv_o2mpoleaccel
+    elseif (grv_mode .eq. 1) then
         ptx = grv_oexactvec(1) + (grv_optvec(1) - grv_oobvec(1))
         pty = grv_oexactvec(2) + (grv_optvec(2) - grv_oobvec(2))
         ptz = grv_oexactvec(3) + (grv_optvec(3) - grv_oobvec(3))
-        obaccel = grv_oobaccel
+        mpoleaccel = grv_ompoleaccel
         ptaccel = grv_optaccel
+        gm = -newton*grv_optmass
     elseif (grv_mode .eq. 2) then
         ptx = (grv_oexactvec(1) + grv_exactvec(1))/2.d0 + (grv_hptvec(1) - grv_hobvec(1))
         pty = (grv_oexactvec(2) + grv_exactvec(2))/2.d0 + (grv_hptvec(2) - grv_hobvec(2))
         ptz = (grv_oexactvec(3) + grv_exactvec(3))/2.d0 + (grv_hptvec(3) - grv_hobvec(3))
         ptaccel = grv_hptaccel
+        gm = -newton*(grv_optmass + grv_ptmass)/2.d0
     elseif (grv_mode .eq. 3) then
         ptx = grv_exactvec(1) + (grv_ptvec(1) - grv_obvec(1))
         pty = grv_exactvec(2) + (grv_ptvec(2) - grv_obvec(2))
         ptz = grv_exactvec(3) + (grv_ptvec(3) - grv_obvec(3))
-        obaccel = grv_obaccel
+        mpoleaccel = grv_mpoleaccel
         ptaccel = grv_ptaccel
+        gm = -newton*grv_ptmass
     endif
 
     if (grv_mode .ne. 2) then
+
         iimin   = 1
         iimax   = numCells
 
@@ -147,21 +162,21 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
             gpot(:) = solnVec(potVar,:,pos(1),pos(2))
             dens(:) = solnVec(denVar,:,pos(1),pos(2))
 
-            grav = -obaccel(1)
+            grav = -mpoleaccel(1)
         elseif (sweepDir == SWEEP_Y) then                 ! y-direction
             delxinv = dble(NYB) / blockSize(JAXIS)
             
             gpot(:) = solnVec(potVar,pos(1),:,pos(2))
             dens(:) = solnVec(denVar,pos(1),:,pos(2))
 
-            grav = -obaccel(2)
+            grav = -mpoleaccel(2)
         else                                            ! z-direction
             delxinv = dble(NZB) / blockSize(KAXIS)
             
             gpot(:) = solnVec(potVar,pos(1),pos(2),:)
             dens(:) = solnVec(denVar,pos(1),pos(2),:)
 
-            grav = -obaccel(3)
+            grav = -mpoleaccel(3)
         endif
 
         !-------------------------------------------------------------------------------
@@ -196,97 +211,98 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     endif
 
     !Now include the point mass
-    call RuntimeParameters_get('tinitial',tinitial)
-    ptgrav = 0.d0
-    if (dr_simTime .ge. tinitial + sim_tRelax) then
-      j=pos(1)
-      k=pos(2)
+    if (grv_mode .ne. 0) then
+        call RuntimeParameters_get('tinitial',tinitial)
+        if (dr_simTime .ge. tinitial + sim_tRelax) then
+          j=pos(1)
+          k=pos(2)
 #ifndef FIXEDBLOCKSIZE
-      call Grid_getBlkIndexLimits(blockID,blkLimits,blkLimitsGC)
-      sizeX=blkLimitsGC(HIGH,IAXIS)
-      sizeY=blkLimitsGC(HIGH,JAXIS)
-      sizeZ=blkLimitsGC(HIGH,KAXIS)
-      allocate(xCenter(sizeX))
-      allocate(yCenter(sizeY))
-      allocate(zCenter(sizeZ))
+          call Grid_getBlkIndexLimits(blockID,blkLimits,blkLimitsGC)
+          sizeX=blkLimitsGC(HIGH,IAXIS)
+          sizeY=blkLimitsGC(HIGH,JAXIS)
+          sizeZ=blkLimitsGC(HIGH,KAXIS)
+          allocate(xCenter(sizeX))
+          allocate(yCenter(sizeY))
+          allocate(zCenter(sizeZ))
 #else
-      sizeX=GRID_IHI_GC
-      sizeY=GRID_JHI_GC
-      sizeZ=GRID_KHI_GC
+          sizeX=GRID_IHI_GC
+          sizeY=GRID_JHI_GC
+          sizeZ=GRID_KHI_GC
 #endif
-      zCenter = 0.
-      yCenter = 0.
-      if (NDIM == 3) then 
-         call Grid_getCellCoords(KAXIS, blockID, CENTER, gcell, zCenter, sizeZ)
-         zCenter = zCenter - ptz
-      endif
-      if (NDIM >= 2) then
-         call Grid_getCellCoords(JAXIS, blockID, CENTER, gcell, yCenter, sizeY)
-         yCenter = yCenter - pty
-      endif
-      call Grid_getCellCoords(IAXIS, blockID, CENTER, gcell, xCenter, sizeX)
-      xCenter = xCenter - ptx
-      
-      call Grid_getMinCellSize(min_cell)
+          zCenter = 0.
+          yCenter = 0.
+          if (NDIM == 3) then 
+             call Grid_getCellCoords(KAXIS, blockID, CENTER, gcell, zCenter, sizeZ)
+             zCenter = zCenter - ptz
+          endif
+          if (NDIM >= 2) then
+             call Grid_getCellCoords(JAXIS, blockID, CENTER, gcell, yCenter, sizeY)
+             yCenter = yCenter - pty
+          endif
+          call Grid_getCellCoords(IAXIS, blockID, CENTER, gcell, xCenter, sizeX)
+          xCenter = xCenter - ptx
+          
+          call Grid_getMinCellSize(min_cell)
 
-      if (sweepDir .eq. SWEEP_X) then                       ! x-component
+          if (sweepDir .eq. SWEEP_X) then                       ! x-component
 
-         tmpdr32 = yCenter(j)*yCenter(j) + zCenter(k)*zCenter(k) 
-         ptgrav = -ptaccel(1)
+             tmpdr32 = yCenter(j)*yCenter(j) + zCenter(k)*zCenter(k) 
+             ptgrav = -ptaccel(1)
 
-         do ii = 1, numCells
-            if (dens(ii) .lt. sim_fluffDampCutoff) cycle
-            dr32 = dsqrt(xCenter(ii)*xCenter(ii) + tmpdr32)
-            if (dr32 .lt. sim_softenRadius) then
-                dr32 = sim_softenRadius*sim_softenRadius*dr32
-            else
-                dr32 = dr32*dr32*dr32
-            endif
-            ptgrav(ii) = ptgrav(ii) + grv_factor*xCenter(ii)/dr32
-         enddo
+             do ii = 1, numCells
+                if (dens(ii) .lt. sim_fluffDampCutoff) cycle
+                dr32 = dsqrt(xCenter(ii)*xCenter(ii) + tmpdr32)
+                if (dr32 .lt. sim_softenRadius) then
+                    dr32 = sim_softenRadius*sim_softenRadius*dr32
+                else
+                    dr32 = dr32*dr32*dr32
+                endif
+                ptgrav(ii) = ptgrav(ii) + gm*xCenter(ii)/dr32
+             enddo
 
 
-      else if (sweepDir .eq. SWEEP_Y) then          ! y-component
+          else if (sweepDir .eq. SWEEP_Y) then          ! y-component
 
-         tmpdr32 = xCenter(j)*xCenter(j) + zCenter(k)*zCenter(k) 
-         ptgrav = -ptaccel(2)
+             tmpdr32 = xCenter(j)*xCenter(j) + zCenter(k)*zCenter(k) 
+             ptgrav = -ptaccel(2)
 
-         do ii = 1, numCells
-            if (dens(ii) .lt. sim_fluffDampCutoff) cycle
-            dr32 = dsqrt(yCenter(ii)*yCenter(ii) + tmpdr32)
-            if (dr32 .lt. sim_softenRadius) then
-                dr32 = sim_softenRadius*sim_softenRadius*dr32
-            else
-                dr32 = dr32*dr32*dr32
-            endif
-            ptgrav(ii) = ptgrav(ii) + grv_factor*yCenter(ii)/dr32
-         enddo
+             do ii = 1, numCells
+                if (dens(ii) .lt. sim_fluffDampCutoff) cycle
+                dr32 = dsqrt(yCenter(ii)*yCenter(ii) + tmpdr32)
+                if (dr32 .lt. sim_softenRadius) then
+                    dr32 = sim_softenRadius*sim_softenRadius*dr32
+                else
+                    dr32 = dr32*dr32*dr32
+                endif
+                ptgrav(ii) = ptgrav(ii) + gm*yCenter(ii)/dr32
+             enddo
 
-      else if (sweepDir .eq. SWEEP_Z) then          ! z-component
+          else if (sweepDir .eq. SWEEP_Z) then          ! z-component
 
-         tmpdr32 = xCenter(j)*xCenter(j) + yCenter(k)*yCenter(k) 
-         ptgrav = -ptaccel(3)
+             tmpdr32 = xCenter(j)*xCenter(j) + yCenter(k)*yCenter(k) 
+             ptgrav = -ptaccel(3)
 
-         do ii = 1, numCells
-            if (dens(ii) .lt. sim_fluffDampCutoff) cycle
-            dr32 = dsqrt(zCenter(ii)*zCenter(ii) + tmpdr32)           
-            if (dr32 .lt. sim_softenRadius) then
-                dr32 = sim_softenRadius*sim_softenRadius*dr32
-            else
-                dr32 = dr32*dr32*dr32
-            endif
-            ptgrav(ii) = ptgrav(ii) + grv_factor*zCenter(ii)/dr32
-         enddo
+             do ii = 1, numCells
+                if (dens(ii) .lt. sim_fluffDampCutoff) cycle
+                dr32 = dsqrt(zCenter(ii)*zCenter(ii) + tmpdr32)           
+                if (dr32 .lt. sim_softenRadius) then
+                    dr32 = sim_softenRadius*sim_softenRadius*dr32
+                else
+                    dr32 = dr32*dr32*dr32
+                endif
+                ptgrav(ii) = ptgrav(ii) + gm*zCenter(ii)/dr32
+             enddo
 
-      endif
-    endif
+          endif
+        endif
 
     !==============================================================================
 #ifndef FIXEDBLOCKSIZE
-    deallocate(xCenter)
-    deallocate(yCenter)
-    deallocate(zCenter)
+        deallocate(xCenter)
+        deallocate(yCenter)
+        deallocate(zCenter)
 #endif
+    endif
 
     call Grid_releaseBlkPtr(blockID, solnVec)
     return

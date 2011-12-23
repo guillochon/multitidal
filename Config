@@ -45,7 +45,6 @@ PARAMETER sim_pAmbient              REAL    1.E-4
 PARAMETER sim_tRelax                REAL    1.E3
 PARAMETER sim_relaxRate             REAL    0.99E0
 PARAMETER larget                    REAL    1.E10
-<<<<<<< local
 PARAMETER sim_softenRadius          REAL    1.E0
 PARAMETER sim_objMass         REAL    0.E0
 PARAMETER sim_objCoreMass     REAL    0.E0
@@ -60,17 +59,8 @@ PARAMETER sim_fluidGammac     REAL    3.E0
 PARAMETER sim_fluidGammae     REAL    2.E0
 PARAMETER sim_fluffDampCoeff        REAL    1.E0
 PARAMETER sim_fluffDampCutoff       REAL    1.E-20
-=======
-PARAMETER sim_softenRadius          REAL    0.E0
 PARAMETER sim_accRadius             REAL    0.E0
 PARAMETER sim_accCoeff              REAL    0.95E0
-PARAMETER sim_objMass               REAL    2.E30
-PARAMETER sim_objPolyN              REAL    3.E0
-PARAMETER sim_objCentDen            REAL    1.E2
-PARAMETER sim_fluidGamma            REAL    1.666666667E0
-PARAMETER sim_fluffDampCoeff        REAL    0.95E0
-PARAMETER sim_fluffDampCutoff       REAL    0.E0
->>>>>>> other
 PARAMETER sim_maxBlocks             INTEGER 40000
 PARAMETER sim_useInitialPeakDensity BOOLEAN TRUE
 PARAMETER sim_ptMassRefine          INTEGER 1

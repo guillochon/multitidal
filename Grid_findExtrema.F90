@@ -32,7 +32,6 @@ subroutine Grid_findExtrema (blockID,ivar,flag,extrema)
   integer,intent(IN) :: blockID, ivar, flag
   real,intent(INOUT)  :: extrema
   
-  real,dimension(MDIM) :: delta
   real,dimension(LOW:HIGH,MDIM) :: bndBox
   integer,dimension(LOW:HIGH,MDIM) :: blkLimits, blkLimitsGC
 

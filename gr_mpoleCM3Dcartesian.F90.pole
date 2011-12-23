@@ -49,7 +49,7 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
   use Driver_data,       ONLY : dr_initialSimTime, dr_simTime, dr_restart, dr_initialSimTime
   use Gravity_data,      ONLY : grv_densCut, grv_exactvec, grv_peakvec, grv_mpolevec, &
                                 grv_totmass, grv_comCutoff, grv_comPeakCut, grv_mode, &
-                                grv_oexactvec, grv_ompolevec
+                                grv_oexactvec, grv_ompolevec, grv_ototmass
   use Simulation_data,   ONLY : sim_fluffDampCutoff
 
   implicit none
@@ -97,8 +97,9 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
 !
   call Grid_getMinCellSize(mcs)
 
-  if (grv_mode .eq. 1) then
+  !if (grv_mode .eq. 1) then
      if (.not. dr_restart .or. dr_simTime .ne. dr_initialSimTime) then
+         grv_ototmass = grv_totmass
          grv_oexactvec = grv_exactvec
          grv_ompolevec = grv_mpolevec
      endif
@@ -203,11 +204,11 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
 !        ...Analyze total mass obtained. If nonsense, stamp a message or abort.
 !   
 !   
-     if (grv_mode .eq. 1) then
+     !if (grv_mode .eq. 1) then
          Mtot = total_MXYZ_sum (1)
-     else
-         Mtot = total_MXYZ_sum (8)
-     endif
+     !else
+     !    Mtot = total_MXYZ_sum (8)
+     !endif
         
      if (abs (Mtot) < TINY (Mtot)) then
          call Driver_abortFlash ('FATAL ERROR: mpole_centerOfMass:  Mtot = 0')
@@ -228,10 +229,11 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
      grv_peakvec = total_MXYZ_sum(16:21) / total_MXYZ_sum(15)
      !if (.not. dr_restart .and. dr_simTime .eq. dr_initialSimTime) then
      if (dr_simTime .eq. dr_initialSimTime) then
+         grv_ototmass = grv_totmass
          grv_oexactvec = grv_exactvec
          grv_ompolevec = grv_mpolevec
      endif
-  endif
+  !endif
 
   if (grv_mode .eq. 1) then
       X_centerofmass  = grv_exactvec(1)

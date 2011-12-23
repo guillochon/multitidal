@@ -33,8 +33,6 @@
 !!
 !!***
 
-!!REORDER(4):solnData
-
 subroutine IO_writeOrbitInfo (isFirst, simTime)
 
     use IO_data, ONLY : io_restart, io_statsFileName
@@ -58,20 +56,14 @@ subroutine IO_writeOrbitInfo (isFirst, simTime)
 
     integer, intent(in) :: isFirst
 
-    integer :: lb, error, blockCount
+    integer :: error, blockCount
     
     integer :: funit = 95
     
-    character (len=MAX_STRING_LENGTH), save :: fname 
-    
-    integer :: blockList(MAXBLOCKS), blkLimits(HIGH, MDIM), blkLimitsGC(HIGH, MDIM)
+    integer :: blockList(MAXBLOCKS)
 
-    integer :: i, j, k
-    real, DIMENSION(:,:,:,:), POINTER :: solnData
-
-    integer :: point(MDIM)
     double precision :: r, vel, arglat, semimaj, hsq, ecc, radvel, cose, sine, &
-      truanom, longperi, arguperi, newton, tinitial, raasc, inclin, &
+      truanom, longperi, arguperi, newton, raasc, inclin, &
       h1, h2, h3, p1, p2, x, y, z, vx, vy, vz
     character(len=50) :: filename
 
@@ -143,9 +135,10 @@ subroutine IO_writeOrbitInfo (isFirst, simTime)
                   'Inclination            ', &
                   'Bound mass             ', &
                   'Orbital energy         ', &
-                  'Orb. energy, bound     '
+                  'Orb. energy, bound     ', &
+                  'Mass of point mass     '
 
-10         format (2x,56(a25, :, 1X))
+10         format (2x,52(a25, :, 1X))
 
           else
              open (funit, file=trim(filename), position='APPEND')
@@ -181,8 +174,8 @@ subroutine IO_writeOrbitInfo (isFirst, simTime)
        longperi = dmod(arguperi - raasc, 2.d0*PI)
 
        write (funit, 12) simTime, grv_ptvec, grv_obvec, grv_boundvec, grv_exactvec, grv_peakvec, grv_mpolevec, r, vel, &
-           arglat, semimaj, ecc, radvel, truanom, arguperi, raasc, longperi, inclin, grv_bound, grv_tot_ener, grv_ener
-12     format (1x, 51(es25.15, :, 1x))
+           arglat, semimaj, ecc, radvel, truanom, arguperi, raasc, longperi, inclin, grv_bound, grv_tot_ener, grv_ener, grv_ptmass
+12     format (1x, 52(es25.15, :, 1x))
    
        close (funit)          ! Close the file.
        

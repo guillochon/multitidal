@@ -42,8 +42,10 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
     use Grid_interface, ONLY : Grid_getListOfBlocks, &
       Grid_getBlkIndexLimits, Grid_getBlkPtr, &
       Grid_releaseBlkPtr, Grid_getDeltas, Grid_getBlkBoundBox
-    use Gravity_data, ONLY : grv_ptvec, grv_obvec, grv_ptmass, grv_boundvec, grv_exactvec, grv_totmass, grv_thresh
+    use Gravity_data, ONLY : grv_ptvec, grv_obvec, grv_ptmass, grv_boundvec, &
+        grv_exactvec, grv_totmass, grv_thresh, grv_momacc, grv_angmomacc, grv_eneracc, grv_massacc
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
+    use Simulation_data, ONLY : sim_fluffDampCutoff
 
     implicit none
 
@@ -59,8 +61,6 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
     
     integer :: funit = 99
     integer :: error
-    
-    character (len=MAX_STRING_LENGTH), save :: fname 
     
     integer :: blockList(MAXBLOCKS)
 
@@ -79,8 +79,6 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
     real,dimension(LOW:HIGH,MDIM) :: bndBox
     logical :: gcell = .true.
 
-    double precision :: bvx, bvy, bvz
-
     ! Sum quantities over all locally held leaf-node blocks.
     gsum = 0.
     lsum = 0.
@@ -88,13 +86,6 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
     call Grid_getListOfBlocks(LEAF, blockList, count)
     call PhysicalConstants_get("Newton", newton)
     
-    !bvx = (grv_ptmass*grv_ptvec(4) + &
-    !    grv_totmass*(grv_obvec(4) + grv_exactvec(4)))/(grv_ptmass + grv_totmass)
-    !bvy = (grv_ptmass*grv_ptvec(5) + &
-    !    grv_totmass*(grv_obvec(5) + grv_exactvec(5)))/(grv_ptmass + grv_totmass)
-    !bvz = (grv_ptmass*grv_ptvec(6) + &
-    !    grv_totmass*(grv_obvec(6) + grv_exactvec(6)))/(grv_ptmass + grv_totmass)
-
     do lb = 1, count
        call Grid_getDeltas(blockList(lb),delta)
        call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
@@ -127,6 +118,7 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
                if (NDIM >= 2) yy = bndBox(LOW,JAXIS) + (j-jmin+0.5)*delta(JAXIS)
                do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
                 
+                if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) cycle
                 ! mass   
 #ifdef DENS_VAR
                 lsum(1) = lsum(1) + solnData(DENS_VAR,i,j,k)*dvol 
@@ -136,15 +128,15 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
 #ifdef DENS_VAR
 #ifdef VELX_VAR      
                 ! momentum
-                velx = solnData(VELX_VAR,i,j,k)
+                velx = solnData(VELX_VAR,i,j,k) - grv_exactvec(4)
                 lsum(2) = lsum(2) + solnData(DENS_VAR,i,j,k)*velx*dvol
 #endif
 #ifdef VELY_VAR      
-                vely = solnData(VELY_VAR,i,j,k)
+                vely = solnData(VELY_VAR,i,j,k) - grv_exactvec(5)
                 lsum(3) = lsum(3) + solnData(DENS_VAR,i,j,k)*vely*dvol
 #endif
 #ifdef VELZ_VAR      
-                velz = solnData(VELZ_VAR,i,j,k)
+                velz = solnData(VELZ_VAR,i,j,k) - grv_exactvec(6)
                 lsum(4) = lsum(4) + solnData(DENS_VAR,i,j,k)*velz*dvol
 #endif
                 ! total energy
@@ -255,9 +247,17 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
                   'Mass bound to pt. mass ', &
                   'Ang. mom. bnd. pt., x  ', &
                   'y comp.                ', &
-                  'z comp.                '
+                  'z comp.                ', &
+                  'Mass acc. pt.          ', &
+                  'Mom. acc. pt., x       ', &
+                  'y comp.                ', &
+                  'z comp.                ', &
+                  'Ang. mom. acc. pt., x  ', &
+                  'y comp.                ', &
+                  'z comp.                ', &
+                  'Ener. acc. pt.         '
 
-10        format (2x,50(a25, :, 1X))
+10        format (2x,58(a25, :, 1X))
 
           else
              open (funit, file=trim(io_statsFileName), position='APPEND')
@@ -266,8 +266,8 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
           endif
        endif
        
-       write (funit, 12) simtime, gsum     ! Write the global sums to the file.
-12     format (1x, 50(es25.15, :, 1x))
+       write (funit, 12) simtime, gsum, grv_massacc, grv_momacc, grv_angmomacc, grv_eneracc ! Write the global sums to the file.
+12     format (1x, 58(es25.15, :, 1x))
    
        close (funit)          ! Close the file.
        

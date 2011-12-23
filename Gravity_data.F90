@@ -37,8 +37,11 @@ module Gravity_data
   double precision, dimension(6), save :: grv_ptvec, grv_obvec, grv_optvec, grv_oobvec, &
       grv_boundvec, grv_exactvec, grv_mpolevec, grv_oexactvec, grv_ompolevec
   double precision, dimension(6), save :: grv_hptvec, grv_hobvec, grv_peakvec
-  double precision, dimension(3), save :: grv_obaccel, grv_ptaccel, grv_hptaccel, grv_optaccel, grv_oobaccel
-  double precision, save :: grv_orbTol, grv_orbMinForce, grv_finiteDiffLen
+  double precision, dimension(3), save :: grv_obaccel, grv_ptaccel, grv_hptaccel, grv_optaccel, grv_oobaccel, &
+      grv_momacc, grv_angmomacc, grv_mpoleaccel, grv_ompoleaccel, grv_o2mpoleaccel, grv_o2obaccel
+  double precision, save :: grv_orbTol, grv_orbMinForce, grv_ototmass, grv_optmass, &
+      grv_eneracc, grv_massacc, grv_dtOld, grv_dt2Old, grv_cfl, grv_orbStepFrac
+  double precision, dimension(3,3), save :: grv_rotMat, grv_invRotMat
   logical, save :: grv_orb3D
 
 end module Gravity_data

@@ -62,7 +62,6 @@ subroutine gr_mpoleGradTotOldPot (coord, grad_phi)
                                   Old_Tot_Denorm_R,Old_Tot_Denorm_I,  &
                                   Old_Tot_Damping_R,Old_Tot_Damping_I,&
                                   Old_Tot_Moment_R,Old_Tot_Moment_I
-    use Gravity_data,      ONLY : grv_finiteDiffLen
 
 
     implicit none
@@ -99,7 +98,7 @@ subroutine gr_mpoleGradTotOldPot (coord, grad_phi)
     integer :: zone
 
     del = old_tot_dr_inner_zone
-    dx = del*grv_finiteDiffLen
+    dx = del
     grad_phi = 0.d0
 
     if (del + dx(1) .gt. sqrt(sum(coord**2.d0))) return

@@ -4,7 +4,7 @@ subroutine Orbit_energy(blockCount, blockList)
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_getDeltas,&
         Grid_getBlkBoundBox
     use Gravity_data, ONLY: grv_thresh, grv_ener, grv_ptvec, grv_obvec, grv_ptmass, grv_tot_ener, &
-        grv_totmass, grv_exactvec, grv_factor
+        grv_totmass, grv_exactvec
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass
     use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
@@ -18,7 +18,7 @@ subroutine Orbit_energy(blockCount, blockList)
 
     integer, intent(IN) :: blockCount
     integer, dimension(blockCount), intent(IN):: blockList
-    double precision :: ener, dvol, newton, r, vel2, xx, yy, zz, tot_ener
+    double precision :: ener, dvol, newton, r, xx, yy, zz, tot_ener
     double precision :: x, y, z, min_cell
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
     integer :: sizeX,sizeY,sizeZ, lb, istat, i, j, k, ierr, imin, imax, jmin, jmax, kmin, kmax
@@ -27,7 +27,7 @@ subroutine Orbit_energy(blockCount, blockList)
     real, dimension(:,:,:,:),pointer :: solnData
     real,dimension(MDIM) :: delta
     real,dimension(LOW:HIGH,MDIM) :: bndBox
-    double precision :: bvx, bvy, bvz, inner_rad
+    double precision :: inner_rad
 
     call PhysicalConstants_get("Newton", newton)
     call Grid_getMinCellSize(min_cell)

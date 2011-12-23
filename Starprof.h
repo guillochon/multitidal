@@ -1,0 +1,12 @@
+#define R_PROF    2
+#define RHO_PROF  3
+#define TEMP_PROF 4
+#define H1_PROF   15
+#define HE3_PROF  17
+#define HE4_PROF  18
+#define C12_PROF  27
+#define N14_PROF  30
+#define O16_PROF  32
+#define NE20_PROF 35
+#define MG24_PROF 39
+#define SI28_PROF 43

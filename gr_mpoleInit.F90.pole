@@ -1,0 +1,640 @@
+!!****if* source/Grid/GridSolvers/Multipole_experimental/gr_mpoleInit
+!!
+!! NAME
+!!
+!!  gr_mpoleInit
+!!
+!! 
+!! SYNOPSIS
+!!
+!!  gr_mpoleInit()
+!!
+!!
+!! DESCRIPTION
+!!
+!!  Initialize the multipole Poisson solver.  Read in any of the
+!!  runtime parameters for this solver.
+!!
+!!
+!!***
+
+subroutine gr_mpoleInit()
+
+  use Grid_data,                   ONLY : gr_meshMe, &
+                                          gr_geometry
+  use gr_mpoleData
+
+  use Driver_interface,            ONLY : Driver_abortFlash
+  use RuntimeParameters_interface, ONLY : RuntimeParameters_get
+  use Logfile_interface,           ONLY : Logfile_stamp
+  use PhysicalConstants_interface, ONLY : PhysicalConstants_get
+
+  implicit none
+
+#include "Flash.h"
+#include "constants.h"
+
+  character*30 :: label_fraction
+  character*30 :: label_type
+  character*30 :: label_scalar
+  character*30 :: label_exponent
+  character*11 :: type_of_zone
+  character*3  :: zone_number
+
+  logical :: angular_y_grid
+  logical :: angular_z_grid
+  logical :: radial_x_grid
+
+  integer :: n
+  integer :: status_R_Moment
+  integer :: status_I_Moment
+  integer :: status_Old_R_Moment
+  integer :: status_Old_I_Moment
+  integer :: status_Tot_R_Moment
+  integer :: status_Tot_I_Moment
+  integer :: status_Old_Tot_R_Moment
+  integer :: status_Old_Tot_I_Moment
+  integer :: status_D_Damper
+  integer :: status_R_Damper
+  integer :: status_I_Damper
+  integer :: status_Old_R_Damper
+  integer :: status_Old_I_Damper
+  integer :: status_Tot_R_Damper
+  integer :: status_Tot_I_Damper
+  integer :: status_Old_Tot_R_Damper
+  integer :: status_Old_Tot_I_Damper
+  integer :: status_Denorm_D
+  integer :: status_Denorm_R
+  integer :: status_Denorm_I
+  integer :: status_Old_Denorm_R
+  integer :: status_Old_Denorm_I
+  integer :: status_Tot_Denorm_R
+  integer :: status_Tot_Denorm_I
+  integer :: status_Old_Tot_Denorm_R
+  integer :: status_Old_Tot_Denorm_I
+  integer :: status_NumberInv
+  integer :: status_old_zone_rmax
+  integer :: status_old_zone_qmax
+  integer :: status_zone_rmax
+  integer :: status_zone_qmax
+  integer :: status_tot_zone_rmax
+  integer :: status_tot_zone_qmax
+  integer :: status_old_tot_zone_rmax
+  integer :: status_old_tot_zone_qmax
+  integer :: status_zone_type
+  integer :: status_zone_scalar
+  integer :: status_zone_exponent
+  integer :: status_zone_lognorm
+  integer :: status_zone_scalar_inv
+  integer :: status_zone_exponent_inv
+  integer :: status_zone_lognorm_inv
+  integer :: status_zone_max_radius_fraction
+  integer :: status_delta
+  integer :: status_bndBox
+  integer :: status_blkLimits
+  integer :: status_blkLimitsGC
+  integer :: status_blockList
+  integer :: zone
+
+  real    :: angular_y_range
+  real    :: angular_z_range
+  real    :: last_zone_fraction
+  real    :: sqrt3_inv
+!
+!
+!    ...Get the external parameters. Catch any 'nonsense' parameters.
+!
+!
+  call RuntimeParameters_get  ("mpole_Lmax",                max_L             )
+  call RuntimeParameters_get  ("mpole_2D_symmetry_plane",   symmetry_plane_2D )
+  call RuntimeParameters_get  ("mpole_3D_axisymmetry",      symmetry_axis_3D  )
+  call RuntimeParameters_get  ("mpole_dumpMoments",         dumpMoments       )
+  call RuntimeParameters_get  ("mpole_printRadialInfo",     printRadialInfo   )
+  call RuntimeParameters_get  ("mpole_ignore_inner_zone",   ignore_inner_zone )
+  call RuntimeParameters_get  ("mpole_max_radial_zones",    max_radial_zones  )
+  call RuntimeParameters_get  ("mpole_inner_zone_grid",     inner_zone_grid   )
+  call RuntimeParameters_get  ("mpole_inner_zone_size",     inner_zone_size   )
+  call RuntimeParameters_get  ("xmin",                      xmin              )
+  call RuntimeParameters_get  ("xmax",                      xmax              )
+  call RuntimeParameters_get  ("ymin",                      ymin              )
+  call RuntimeParameters_get  ("ymax",                      ymax              )
+  call RuntimeParameters_get  ("zmin",                      zmin              )
+  call RuntimeParameters_get  ("zmax",                      zmax              )
+
+  if (max_radial_zones <= 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: no radial zones specified')
+  end if
+
+  if (inner_zone_size <= 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: no radial inner zone specified')
+  end if
+
+  if (inner_zone_grid <= 0.0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: no radial inner zone grid spacing specified')
+  end if
+!
+!
+!    ...A bunch of local constants needed by other routines.
+!
+!
+  zero       = 0.0
+  one        = 1.0
+  two        = 2.0
+  three      = 3.0
+  eight      = 8.0
+  half       = 0.5
+  third      = 1.0 / 3.0
+  fourth     = 0.25
+  twelfth    = 1.0 / 12.0
+  hundredth  = 0.01
+  twopi      = PI + PI
+  halfpi     = half * PI
+  thirdpi    = third * PI
+  sixthpi    = half * thirdpi
+  fourpi     = twopi + twopi
+  fourpi_inv = one / fourpi
+  ebase      = exp (one)
+  ebase_inv  = one / ebase
+
+  inner_zone_grid_inv = one / inner_zone_grid
+!
+!
+!    ...Create a handle to the current geometry.
+!
+!
+  G_3D = (NDIM == 3)
+  G_2D = (NDIM == 2)
+  G_1D = (NDIM == 1)
+
+  G_CARTESIAN   = (gr_geometry == CARTESIAN)
+  G_CYLINDRICAL = (gr_geometry == CYLINDRICAL)
+  G_SPHERICAL   = (gr_geometry == SPHERICAL)
+  G_POLAR       = (gr_geometry == POLAR)
+
+  if (G_3D .and. G_CARTESIAN)   mpole_geometry = G_3DCARTESIAN
+  if (G_2D .and. G_CARTESIAN)   mpole_geometry = G_2DCARTESIAN
+  if (G_1D .and. G_CARTESIAN)   mpole_geometry = G_1DCARTESIAN
+  if (G_3D .and. G_CYLINDRICAL) mpole_geometry = G_3DCYLINDRICAL
+  if (G_2D .and. G_CYLINDRICAL) mpole_geometry = G_2DCYLINDRICAL
+  if (G_1D .and. G_CYLINDRICAL) mpole_geometry = G_1DCYLINDRICAL
+  if (G_3D .and. G_SPHERICAL)   mpole_geometry = G_3DSPHERICAL
+  if (G_2D .and. G_SPHERICAL)   mpole_geometry = G_2DSPHERICAL
+  if (G_1D .and. G_SPHERICAL)   mpole_geometry = G_1DSPHERICAL
+  if (G_3D .and. G_POLAR)       mpole_geometry = G_3DPOLAR
+  if (G_2D .and. G_POLAR)       mpole_geometry = G_2DPOLAR
+  if (G_1D .and. G_POLAR)       mpole_geometry = G_1DPOLAR
+!
+!
+!    ...Before proceeding, catch the unsupported geometries (not needed or not
+!       yet implemented).
+!
+!
+  if (mpole_geometry == G_2DCARTESIAN   .or. &
+      mpole_geometry == G_1DCARTESIAN   .or. &
+      mpole_geometry == G_3DCYLINDRICAL .or. &
+      mpole_geometry == G_1DCYLINDRICAL .or. &
+      mpole_geometry == G_3DSPHERICAL   .or. &
+      mpole_geometry == G_3DPOLAR       .or. &
+      mpole_geometry == G_2DPOLAR       .or. &
+      mpole_geometry == G_1DPOLAR) then
+
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: unsupported geometry')
+  end if
+
+  if (.not.G_2D .and. symmetry_plane_2D) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: plane of symmetry only allowed in 2D geometry')
+  end if
+!
+!
+!    ...Check the given domain boundaries. In case we have a geometry with an underlying
+!       angular grid, the FLASH convention is that the angular boundaries are set internally
+!       in terms of radians. Any value different from 0 or pi/2pi cannot be handled. Also, when
+!       specifying a symmetry plane in 2D, we want to make sure that the lower left boundary
+!       corresponds to the center of the problem. Likewise, all radial coordinates should
+!       start from 0.
+!
+!
+  radial_x_grid  = (G_CYLINDRICAL .or. &
+                    G_SPHERICAL   .or. &
+                    G_POLAR)
+
+  angular_y_grid = (mpole_geometry == G_2DSPHERICAL   .or. &
+                    mpole_geometry == G_3DSPHERICAL   .or. &
+                    mpole_geometry == G_2DPOLAR       .or. &
+                    mpole_geometry == G_3DPOLAR)
+
+  angular_z_grid = (mpole_geometry == G_3DCYLINDRICAL .or. &
+                    mpole_geometry == G_3DSPHERICAL)
+
+  angular_y_range = PI
+  angular_z_range = twopi
+
+  if (mpole_geometry == G_2DSPHERICAL .and. symmetry_plane_2D) then
+      angular_y_range = half * PI
+  end if
+
+  if (mpole_geometry == G_2DPOLAR .or. mpole_geometry == G_3DPOLAR) then
+      angular_y_range = twopi
+  end if
+
+  if (radial_x_grid) then
+      if (xmin /= zero) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: radial X-coord out of range')
+      end if
+  end if
+
+  if (angular_y_grid) then
+      if (ymin /= zero .or. ymax /= angular_y_range) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: angular Y-coord out of range')
+      end if
+  end if
+
+  if (angular_z_grid) then
+      if (zmin /= zero .or. zmax /= angular_z_range) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: angular Z-coord out of range')
+      end if
+  end if
+
+  if (symmetry_plane_2D) then
+      if (xmin /= zero .or. ymin /= zero) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: 2D symmetry plane requires xmin,ymin = 0')
+      end if
+  end if
+!
+!
+!    ...Some extra data needed.
+!
+!          The cube potential factor arises from considering the potential that exists
+!          at the center of a unit cube with mass density equal to 1. This factor
+!          is given by:
+!
+!                        6 artanh (1/sqrt(3)) - 3 arctan (1/sqrt(3))
+!
+!          and can be evaluated using the expression for the inverse hyperbolic
+!          tangens:
+!
+!                       artanh (w) = 1/2  *  ln ((1 + w) / (1 - w))
+!
+!
+!
+  sqrt3_inv = one / sqrt (three)
+
+  cube_potential_factor = three * ( log ((one + sqrt3_inv)/(one - sqrt3_inv)) - atan (sqrt3_inv) )
+!
+!
+!  ...Printout some L,M restriction info (if applicable).
+!
+!
+  select case (mpole_geometry)
+
+     case (G_3DCARTESIAN)
+
+       if (symmetry_axis_3D) then
+           call Logfile_stamp('3D axissymmetry, ignoring M > 0 moments','[gr_mpoleInit]')
+       end if
+
+     case (G_2DCYLINDRICAL)
+           call Logfile_stamp('2D cylindrical, ignoring M > 0 moments','[gr_mpoleInit]')
+     case (G_2DSPHERICAL)
+           call Logfile_stamp('2D spherical, ignoring M > 0 moments','[gr_mpoleInit]')
+     case (G_1DSPHERICAL)
+           call Logfile_stamp('1D spherical, ignoring L > 0 moments','[gr_mpoleInit]')
+  end select
+!
+!
+!  ...Set the M and combined LM dimensions from the given maximum L.
+!     Override maximum L only for the 1D spherical case.
+!     Set values of constants depending on this data.
+!
+!
+  select case (mpole_geometry)
+
+     case (G_3DCARTESIAN)
+
+       if (symmetry_axis_3D) then
+           max_M = 0
+           max_LM = max_L + 1
+           n_cosine_moments = max_LM
+       else
+           max_M = max_L
+           max_LM = (max_L + 1) * (max_L + 1)
+           n_cosine_moments = (max_L * (max_L + 1) / 2) + max_L + 1
+       end if
+
+     case (G_2DCYLINDRICAL , G_2DSPHERICAL)
+
+           max_M  = 0
+           max_LM = max_L + 1
+           n_cosine_moments = max_LM
+
+    case (G_1DSPHERICAL)
+
+           max_M  = 0
+           max_L  = 0
+           max_LM = 1
+           n_cosine_moments = 1
+
+     case default
+           call Driver_abortFlash ('[gr_mpoleInit] PROGRAMMER ERROR 1: We should never be here!')
+  end select
+
+  max_2L = max_L + max_L
+!
+!
+!    ...Allocate the arrays related to the leaf blocks.
+!
+!
+  allocate (   blockList (1:MAXBLOCKS),     stat = status_blockList   )
+  allocate (       delta (1:MDIM),          stat = status_delta       )
+  allocate (      bndBox (LOW:HIGH,1:MDIM), stat = status_bndBox      )
+  allocate (   blkLimits (LOW:HIGH,1:MDIM), stat = status_blkLimits   )
+  allocate ( blkLimitsGC (LOW:HIGH,1:MDIM), stat = status_blkLimitsGC )
+
+  if (status_blockList > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: blockList () allocate failed')
+  end if
+
+  if (status_delta > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: delta () allocate failed')
+  end if
+
+  if (status_bndBox > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: bndBox () allocate failed')
+  end if
+
+  if (status_blkLimits > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: blkLimits () allocate failed')
+  end if
+
+  if (status_blkLimitsGC > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: blkLimitsGC () allocate failed')
+  end if
+!
+!
+!    ...Allocate the one-bin moment arrays and other needed data structures.
+!
+!
+  allocate (  R_Moment (1:max_LM), stat = status_R_Moment  )
+  allocate (  I_Moment (1:max_LM), stat = status_I_Moment  )
+  allocate (  Old_R_Moment (1:max_LM), stat = status_Old_R_Moment  )
+  allocate (  Old_I_Moment (1:max_LM), stat = status_Old_I_Moment  )
+  allocate (  Tot_R_Moment (1:max_LM), stat = status_Tot_R_Moment  )
+  allocate (  Tot_I_Moment (1:max_LM), stat = status_Tot_I_Moment  )
+  allocate (  Old_Tot_R_Moment (1:max_LM), stat = status_Old_Tot_R_Moment  )
+  allocate (  Old_Tot_I_Moment (1:max_LM), stat = status_Old_Tot_I_Moment  )
+  allocate (  D_Damper (1:max_LM), stat = status_D_Damper  )
+  allocate (  R_Damper (1:max_LM), stat = status_R_Damper  )
+  allocate (  I_Damper (1:max_LM), stat = status_I_Damper  )
+  allocate (  Old_R_Damper (1:max_LM), stat = status_Old_R_Damper  )
+  allocate (  Old_I_Damper (1:max_LM), stat = status_Old_I_Damper  )
+  allocate (  Tot_R_Damper (1:max_LM), stat = status_Tot_R_Damper  )
+  allocate (  Tot_I_Damper (1:max_LM), stat = status_Tot_I_Damper  )
+  allocate (  Old_Tot_R_Damper (1:max_LM), stat = status_Old_Tot_R_Damper  )
+  allocate (  Old_Tot_I_Damper (1:max_LM), stat = status_Old_Tot_I_Damper  )
+
+  if (status_R_Moment > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: R_Moment () allocate failed')
+  end if
+
+  if (status_I_Moment > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: I_Moment () allocate failed')
+  end if
+
+  if (status_Old_R_Moment > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_R_Moment () allocate failed')
+  end if
+
+  if (status_Old_I_Moment > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_I_Moment () allocate failed')
+  end if
+
+  if (status_Tot_R_Moment > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_R_Moment () allocate failed')
+  end if
+
+  if (status_Tot_I_Moment > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_I_Moment () allocate failed')
+  end if
+
+  if (status_Old_Tot_R_Moment > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_R_Moment () allocate failed')
+  end if
+
+  if (status_Old_Tot_I_Moment > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_I_Moment () allocate failed')
+  end if
+
+  if (status_D_Damper > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: D_Damper () allocate failed')
+  end if
+
+  if (status_R_Damper > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: R_Damper () allocate failed')
+  end if
+
+  if (status_I_Damper > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: I_Damper () allocate failed')
+  end if
+
+  if (status_Old_R_Damper > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_R_Damper () allocate failed')
+  end if
+
+  if (status_Tot_R_Damper > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_R_Damper () allocate failed')
+  end if
+
+  if (status_Old_Tot_R_Damper > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_R_Damper () allocate failed')
+  end if
+
+  if (status_Old_I_Damper > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_I_Damper () allocate failed')
+  end if
+
+  if (status_Tot_I_Damper > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_I_Damper () allocate failed')
+  end if
+
+  if (status_Old_Tot_I_Damper > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_I_Damper () allocate failed')
+  end if
+
+  if (max_L > 0) then
+      allocate ( NumberInv (1:max_2L), stat = status_NumberInv )
+      allocate (  Denorm_D (1:max_L ), stat = status_Denorm_D  )
+      allocate (  Denorm_R (1:max_L ), stat = status_Denorm_R  )
+      allocate (  Denorm_I (1:max_L ), stat = status_Denorm_I  )
+      allocate (  Old_Denorm_R (1:max_L ), stat = status_Old_Denorm_R  )
+      allocate (  Old_Denorm_I (1:max_L ), stat = status_Old_Denorm_I  )
+      allocate (  Tot_Denorm_R (1:max_L ), stat = status_Tot_Denorm_R  )
+      allocate (  Tot_Denorm_I (1:max_L ), stat = status_Tot_Denorm_I  )
+      allocate (  Old_Tot_Denorm_R (1:max_L ), stat = status_Old_Tot_Denorm_R  )
+      allocate (  Old_Tot_Denorm_I (1:max_L ), stat = status_Old_Tot_Denorm_I  )
+
+      if (status_NumberInv > 0) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: NumberInv () allocate failed')
+      end if
+
+      if (status_Denorm_D > 0) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Denorm_D () allocate failed')
+      end if
+
+      if (status_Denorm_R > 0) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Denorm_R () allocate failed')
+      end if
+
+      if (status_Denorm_I > 0) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Denorm_I () allocate failed')
+      end if
+
+      if (status_Tot_Denorm_R > 0) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_Denorm_R () allocate failed')
+      end if
+
+      if (status_Tot_Denorm_I > 0) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_Denorm_I () allocate failed')
+      end if
+
+      if (status_Old_Tot_Denorm_R > 0) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_Denorm_R () allocate failed')
+      end if
+
+      if (status_Old_Tot_Denorm_I > 0) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_Denorm_I () allocate failed')
+      end if
+  end if
+!
+!
+!    ...Allocate the radial zone arrays.
+!
+!
+  allocate (                zone_rmax (0:max_radial_zones), stat = status_zone_rmax                )
+  allocate (                zone_qmax (0:max_radial_zones), stat = status_zone_qmax                )
+  allocate (            old_zone_rmax (0:max_radial_zones), stat = status_old_zone_rmax            )
+  allocate (            old_zone_qmax (0:max_radial_zones), stat = status_old_zone_qmax            )
+  allocate (            tot_zone_rmax (0:max_radial_zones), stat = status_tot_zone_rmax            )
+  allocate (            tot_zone_qmax (0:max_radial_zones), stat = status_tot_zone_qmax            )
+  allocate (        old_tot_zone_rmax (0:max_radial_zones), stat = status_old_tot_zone_rmax        )
+  allocate (        old_tot_zone_qmax (0:max_radial_zones), stat = status_old_tot_zone_qmax        )
+  allocate (                zone_type (1:max_radial_zones), stat = status_zone_type                )
+  allocate (              zone_scalar (1:max_radial_zones), stat = status_zone_scalar              )
+  allocate (             zone_lognorm (1:max_radial_zones), stat = status_zone_lognorm             )
+  allocate (            zone_exponent (1:max_radial_zones), stat = status_zone_exponent            )
+  allocate (          zone_scalar_inv (1:max_radial_zones), stat = status_zone_scalar_inv          )
+  allocate (         zone_lognorm_inv (1:max_radial_zones), stat = status_zone_lognorm_inv         )
+  allocate (        zone_exponent_inv (1:max_radial_zones), stat = status_zone_exponent_inv        )
+  allocate ( zone_max_radius_fraction (1:max_radial_zones), stat = status_zone_max_radius_fraction )
+
+  if (status_zone_rmax > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: zone_rmax () allocate failed')
+  end if
+
+  if (status_zone_qmax > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: zone_qmax () allocate failed')
+  end if
+
+  if (status_zone_type > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: zone_type () allocate failed')
+  end if
+
+  if (status_zone_scalar > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: zone_scalar () allocate failed')
+  end if
+
+  if (status_zone_lognorm > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: zone_lognorm () allocate failed')
+  end if
+
+  if (status_zone_exponent > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: zone_exponent () allocate failed')
+  end if
+
+  if (status_zone_scalar_inv > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: zone_scalar_inv () allocate failed')
+  end if
+
+  if (status_zone_lognorm_inv > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: zone_lognorm_inv () allocate failed')
+  end if
+
+  if (status_zone_exponent_inv > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: zone_exponent_inv () allocate failed')
+  end if
+
+  if (status_zone_max_radius_fraction > 0) then
+      call Driver_abortFlash ('[gr_mpoleInit] ERROR: zone_max_radius_fraction () allocate failed')
+  end if
+!
+!
+!    ...Fill the needed arrays.
+!
+!
+  do n = 1,max_2L
+     NumberInv (n) = one / real (n)
+  end do
+
+  do zone = 1,max_radial_zones
+
+     write (zone_number,'(I3)') zone
+
+     label_fraction = "mpole_zone_radius_fraction_"//adjustl (zone_number)
+     label_scalar   = "mpole_zone_scalar_"//adjustl (zone_number)
+     label_exponent = "mpole_zone_exponent_"//adjustl (zone_number)
+     label_type     = "mpole_zone_type_"//adjustl (zone_number)
+
+     call RuntimeParameters_get  (label_fraction,   zone_max_radius_fraction (zone))
+     call RuntimeParameters_get  (label_scalar,     zone_scalar              (zone))
+     call RuntimeParameters_get  (label_exponent,   zone_exponent            (zone))
+     call RuntimeParameters_get  (label_type,       type_of_zone                   )
+     
+     zone_lognorm      (zone) = one / (exp ( zone_exponent (zone)) - one)
+     zone_scalar_inv   (zone) = one / zone_scalar   (zone)
+     zone_lognorm_inv  (zone) = one / zone_lognorm  (zone)
+     zone_exponent_inv (zone) = one / zone_exponent (zone)
+
+     if (type_of_zone == 'exponential') then
+         zone_type (zone) = ZONE_EXP
+     else if (type_of_zone == 'logarithmic') then
+         zone_type (zone) = ZONE_LOG
+     else
+         call Driver_abortFlash ('[gr_mpoleInit] ERROR: unvalid radial zone type')
+     end if
+
+  end do
+!
+!
+!    ...Check for bad radial zone data.
+!
+!
+  last_zone_fraction = zone_max_radius_fraction (max_radial_zones)
+
+  if (last_zone_fraction < one) then
+      zone_max_radius_fraction (max_radial_zones) = one
+      call Logfile_stamp('last radial zone fraction reset to 1','[gr_mpoleInit]')
+  end if
+
+  do zone = 2,max_radial_zones
+     if ( zone_max_radius_fraction (zone) < zone_max_radius_fraction (zone-1) ) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: radial zone fractions out of order!')
+     end if
+  end do
+
+  do zone = 1,max_radial_zones
+     if ( zone_scalar (zone) <= zero ) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: radial zone scalar =< 0 !')
+     end if
+  end do
+
+  do zone = 1,max_radial_zones
+     if ( zone_exponent (zone) <= zero ) then
+          call Driver_abortFlash ('[gr_mpoleInit] ERROR: radial zone exponent =< 0 !')
+     end if
+  end do
+!
+!
+!       Done.
+!
+!
+  return
+end subroutine gr_mpoleInit

@@ -1,0 +1,6 @@
+# Code originally written by James Guillochon. README last updated 10/12/2010.
+
+Please use the following setup line for this project:
+	./setup MultiTidalPoly -noclobber -maxblocks=1000 -nxb=8 -nyb=8 -nzb=8 -auto -3d -objdir=object_multitidalpoly +pm4dev +newMpole
+
+This simulation setup allows one to simulate the interaction between an extended, polytropic object and a point mass. The code integrates the orbit equations, enabling the user to simulate many orbits and thus allowing one to determine an object's long-term survival prospects.

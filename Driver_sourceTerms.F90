@@ -39,7 +39,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use Deleptonize_interface, ONLY : Deleptonize
     use Simulation_data, ONLY: sim_smallX, &
         sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_accRadius, sim_accCoeff, &
-        sim_fluidGamma
+        sim_fluidGammae
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_findExtrema
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
@@ -257,7 +257,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                                 tot_ener_acc = tot_ener_acc + mass_acc*(solnData(EINT_VAR,i,j,k) + &
                                     0.5d0*sum((solnData(VELX_VAR:VELZ_VAR,i,j,k) - pt_pos(4:6))**2.d0))
                                 solnData(DENS_VAR,i,j,k) = max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_fluffDampCutoff)
-                                solnData(EINT_VAR,i,j,k) = max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)**(sim_fluidGamma - 1.d0)*&
+                                ! MM using Gammae here because presumably accreted material is mostly envelope
+                                ! however this should be cleaned up
+                                solnData(EINT_VAR,i,j,k) = max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)**(sim_fluidGammae - 1.d0)*&
                                     solnData(EINT_VAR,i,j,k), gr_smalle)
                                 !solnData(VELX_VAR:VELZ_VAR,i,j,k) = dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
                                 solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &

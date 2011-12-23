@@ -150,9 +150,9 @@ subroutine Simulation_init()
         write(42,*) iend,obj_ipos,obj_ipoi
         close(42)
 
-        write(logstr, fmt='(A30, 2ES15.8)') 'Ambient CFL timestep:', cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGamma*sim_pAmbient/sim_rhoAmbient)
+        write(logstr, fmt='(A30, 2ES15.8)') 'Ambient CFL timestep:', cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGammae*sim_pAmbient/sim_rhoAmbient)
         call Logfile_stampMessage(logstr)
-        write(logstr, fmt='(A30, 2ES15.8)') 'Fluff CFL timestep:', cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGamma*sim_smallP/sim_smallRho)
+        write(logstr, fmt='(A30, 2ES15.8)') 'Fluff CFL timestep:', cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGammae*sim_smallP/sim_smallRho)
         call Logfile_stampMessage(logstr)
     endif
 

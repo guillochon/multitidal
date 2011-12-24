@@ -11,7 +11,7 @@
 
 # Output options (plot files and checkpoint files).
 basenm                     = "multibipoly_"
-checkpointFileIntervalTime = 5000.0
+checkpointFileIntervalTime = 50000.0
 #checkpointFileIntervalStep = 10
 plotFileIntervalTime       = 0.0 
 
@@ -83,35 +83,35 @@ mpole_zone_radius_fraction_4 = 10.0E0
 
 # Refinement parameters. Highest refinement levels should be specified first.
 lrefine_min         = 1
-lrefine_max         = 15
+lrefine_max         = 16
 sim_maxBlocks       = 40000   # Maximum total number of blocks in simulation. Derefines by 1 level if number is exceeded.
 refine_var_1        = "core"
 refine_val_cutoff_1 = 1.e-2
-refine_level_1      = 14
+refine_level_1      = 16
 refine_var_2        = "dens"
 refine_val_cutoff_2 = 5.e-3
-refine_level_2      = 13
+refine_level_2      = 14
 refine_var_3        = "dens"
 refine_val_cutoff_3 = 1.e-3
-refine_level_3      = 12
+refine_level_3      = 13
 refine_var_4        = "dens"
 refine_val_cutoff_4 = 1.00e-4
-refine_level_4      = 11
+refine_level_4      = 12
 refine_var_5        = "dens"
 refine_val_cutoff_5 = 1.e-5
-refine_level_5      = 10
+refine_level_5      = 11
 refine_var_6        = "dens"
 refine_val_cutoff_6 = 1.00e-6
-refine_level_6      = 9
+refine_level_6      = 10
 refine_var_7        = "dens"
 refine_val_cutoff_7 = 1.e-8
-refine_level_7      = 8
+refine_level_7      = 9
 refine_var_8        = "dens"
 refine_val_cutoff_8 = 1.e-9
-refine_level_8      = 7
+refine_level_8      = 8
 refine_var_9        = "dens"
 refine_val_cutoff_9 = 1.e-10
-refine_level_9      = 6
+refine_level_9      = 7
 
 # Variables to include in plot files.
 plot_var_1 = "dens"

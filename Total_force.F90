@@ -92,7 +92,7 @@ subroutine Total_force(blockCount, blockList)
             do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                        if (solnData(denVar,i,j,k) .lt. denscut) cycle
+                        if (solnData(denVar,i,j,k) .lt. sim_fluffDampCutoff) cycle
 
                         cell_mass = solnData(denVar,i,j,k) * dvol
                         lsum(1) = lsum(1) + cell_mass

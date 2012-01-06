@@ -169,6 +169,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                        if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) cycle
                         tot_mass = tot_mass + vol*solnData(DENS_VAR,i,j,k)
                         tot_mom = tot_mom + vol*solnData(DENS_VAR,i,j,k)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
                         if (solnData(DENS_VAR,i,j,k) .lt. denscut) cycle
@@ -227,9 +228,10 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 enddo
             enddo
 
-            ! Add total center of mass velocity to object tracking point
-            !grv_obvec(4:6) = grv_obvec(4:6) + tot_avg_vel
-            !grv_ptvec(4:6) = grv_ptvec(4:6) + tot_avg_vel
+            !print *, 'before', grv_obvec(4:6)
+            !print *, 'peak_avg_vel', peak_avg_vel
+            !print *, 'after', grv_obvec(4:6)
+            !call Driver_abortFlash('done')
 
             if (sim_accRadius .ne. 0.d0) then
                 do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
@@ -276,6 +278,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             deallocate(zCoord)
         enddo
 
+        ! Add subtracted velocity to tracking point
+        !grv_obvec(4:6) = grv_obvec(4:6) + peak_avg_vel
+
         call MPI_ALLREDUCE(tot_mass_acc, gtot_mass_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
         call MPI_ALLREDUCE(tot_ener_acc, gtot_ener_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
         call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
@@ -291,6 +296,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         !    print *, 'Net vel: ', grv_ptvec(4:6) - (grv_ptmass*grv_ptvec(4:6) + &
         !        (gtot_mom_acc/gtot_mass_acc - grv_exactvec(4:6) + grv_obvec(4:6) - grv_ptvec(4:6))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
         !endif
+
         grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + gtot_com_acc) / (grv_ptmass + gtot_mass_acc)
         grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + gtot_mom_acc) / (grv_ptmass + gtot_mass_acc)
         grv_obvec(1:3) = (grv_totmass*grv_obvec(1:3) - gtot_com_acc + &

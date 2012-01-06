@@ -155,6 +155,9 @@ subroutine gr_mpoleSetOuterZoneGrid ()
          r_global = pt_dist - pt_travel_dist
      elseif (zone .eq. max_radial_zones - 1) then
          r_global = pt_dist + pt_travel_dist
+     elseif (zone .eq. 1) then
+         r_global = max(zone_max_radius_fraction (zone) * max_R, &
+             dsqrt(sum((grv_mpolevec(1:3) - grv_exactvec(1:3))**2.d0)))
      else
          r_global = zone_max_radius_fraction (zone) * max_R
      endif

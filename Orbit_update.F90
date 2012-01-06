@@ -205,9 +205,11 @@ subroutine derivs(x,y,dydx)
     if (grv_mode .eq. 3) then
         fac = (x - orb_t)/orb_dt
         ifac = 1.d0 - fac
-        dist(1:2) = dist(1:2) + grv_oexactvec(1:2) - grv_ompolevec(1:2)*ifac - grv_mpolevec(1:2)*fac
+        dist(1:2) = dist(1:2) + (grv_oexactvec(1:2) - grv_ompolevec(1:2))*ifac + &
+            (grv_exactvec(1:2) - grv_mpolevec(1:2))*fac
         if (grv_orb3D) then
-            dist(3) = dist(3) + grv_oexactvec(3) - grv_ompolevec(3)*ifac - grv_mpolevec(3)*fac
+            dist(3) = dist(3) + (grv_oexactvec(3) - grv_ompolevec(3))*ifac + &
+                (grv_exactvec(3) - grv_mpolevec(3))*fac
         endif
     else
         dist(1:2) = dist(1:2) + grv_exactvec(1:2) - grv_mpolevec(1:2)

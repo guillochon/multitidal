@@ -164,7 +164,7 @@ subroutine derivs(x,y,dydx)
         max_R, &
         zone_max_radius_fraction, max_radial_zones
     use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
-    use gr_mpoleInterface, ONLY: gr_mpoleGradPot, gr_mpoleGradOldPot
+    use gr_mpoleInterface, ONLY: gr_mpoleGradTotPot, gr_mpoleGradTotOldPot
     use Driver_data, ONLY: dr_simTime
     use Grid_data, ONLY: gr_meshMe
 
@@ -205,17 +205,17 @@ subroutine derivs(x,y,dydx)
     if (grv_mode .eq. 3) then
         fac = (x - orb_t)/orb_dt
         ifac = 1.d0 - fac
-        dist(1:2) = dist(1:2) + (grv_oexactvec(1:2) - grv_ompolevec(1:2))*ifac + &
-            (grv_exactvec(1:2) - grv_mpolevec(1:2))*fac
-        if (grv_orb3D) then
-            dist(3) = dist(3) + (grv_oexactvec(3) - grv_ompolevec(3))*ifac + &
-                (grv_exactvec(3) - grv_mpolevec(3))*fac
-        endif
+        !dist(1:2) = dist(1:2) + (grv_oexactvec(1:2) - grv_ompolevec(1:2))*ifac + &
+        !    (grv_exactvec(1:2) - grv_mpolevec(1:2))*fac
+        !if (grv_orb3D) then
+        !    dist(3) = dist(3) + (grv_oexactvec(3) - grv_ompolevec(3))*ifac + &
+        !        (grv_exactvec(3) - grv_mpolevec(3))*fac
+        !endif
     else
-        dist(1:2) = dist(1:2) + grv_exactvec(1:2) - grv_mpolevec(1:2)
-        if (grv_orb3D) then
-            dist(3) = dist(3) + grv_exactvec(3) - grv_mpolevec(3)
-        endif
+        !dist(1:2) = dist(1:2) + grv_exactvec(1:2) - grv_mpolevec(1:2)
+        !if (grv_orb3D) then
+        !    dist(3) = dist(3) + grv_exactvec(3) - grv_mpolevec(3)
+        !endif
     endif
     last_zone_fraction = zone_max_radius_fraction (max_radial_zones)
     if (sqrt(sum(dist**2.d0)) .gt. 0.99*max_R*last_zone_fraction) then
@@ -282,14 +282,14 @@ subroutine derivs(x,y,dydx)
     !    !    dydx(7:8) = -dydx(5:6)*grv_totmass/grv_ptmass
     !    !endif
     !endif
-    call gr_mpoleGradPot(dist, grad_pot)
+    call gr_mpoleGradTotPot(dist, grad_pot)
     if (grv_orb3D) then
         dydx(10:12) = matmul(grv_rotMat,grad_pot)
     else
         dydx(7:8) = grad_pot(1:2)
     endif
     if (grv_mode .eq. 3) then
-        call gr_mpoleGradOldPot(dist, ptt0)
+        call gr_mpoleGradTotOldPot(dist, ptt0)
         if (grv_orb3D) then
             ptt0 = matmul(grv_rotMat,ptt0)
             dydx(10:12) = ptt0*ifac + dydx(10:12)*fac

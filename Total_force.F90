@@ -151,6 +151,9 @@ subroutine Total_force(blockCount, blockList)
         else
             grv_mpoleaccel = gsum(2:4) / gsum(1)
         endif
+        !grv_o2mpoleaccel = 0.d0
+        !grv_ompoleaccel = 0.d0
+        !grv_mpoleaccel = 0.d0
     enddo
 
     lsum = 0.d0

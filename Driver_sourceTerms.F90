@@ -281,34 +281,38 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         ! Add subtracted velocity to tracking point
         !grv_obvec(4:6) = grv_obvec(4:6) + peak_avg_vel
 
-        call MPI_ALLREDUCE(tot_mass_acc, gtot_mass_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(tot_ener_acc, gtot_ener_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(tot_mom_acc, gtot_mom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(tot_angmom_acc, gtot_angmom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+        if (sim_accRadius .ne. 0.d0) then
+            call MPI_ALLREDUCE(tot_mass_acc, gtot_mass_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+            call MPI_ALLREDUCE(tot_ener_acc, gtot_ener_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+            call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+            call MPI_ALLREDUCE(tot_mom_acc, gtot_mom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+            call MPI_ALLREDUCE(tot_angmom_acc, gtot_angmom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
 
-        !if (gr_meshMe .eq. MASTER_PE) then
-        !    print *, 'Mass accreted this step: ', gtot_mass_acc
-        !    print *, 'COM accreted mass: ', gtot_com_acc/gtot_mass_acc
-        !    print *, 'Mom accreted mass: ', gtot_mom_acc/gtot_mass_acc
-        !    print *, 'Net shift: ', grv_ptvec(1:3) - (grv_ptmass*grv_ptvec(1:3) + &
-        !        (gtot_com_acc/gtot_mass_acc - grv_exactvec(1:3) + grv_obvec(1:3) - grv_ptvec(1:3))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
-        !    print *, 'Net vel: ', grv_ptvec(4:6) - (grv_ptmass*grv_ptvec(4:6) + &
-        !        (gtot_mom_acc/gtot_mass_acc - grv_exactvec(4:6) + grv_obvec(4:6) - grv_ptvec(4:6))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
-        !endif
+            !if (gr_meshMe .eq. MASTER_PE) then
+            !    print *, 'Mass accreted this step: ', gtot_mass_acc
+            !    print *, 'COM accreted mass: ', gtot_com_acc/gtot_mass_acc
+            !    print *, 'Mom accreted mass: ', gtot_mom_acc/gtot_mass_acc
+            !    print *, 'Net shift: ', grv_ptvec(1:3) - (grv_ptmass*grv_ptvec(1:3) + &
+            !        (gtot_com_acc/gtot_mass_acc - grv_exactvec(1:3) + grv_obvec(1:3) - grv_ptvec(1:3))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
+            !    print *, 'Net vel: ', grv_ptvec(4:6) - (grv_ptmass*grv_ptvec(4:6) + &
+            !        (gtot_mom_acc/gtot_mass_acc - grv_exactvec(4:6) + grv_obvec(4:6) - grv_ptvec(4:6))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
+            !endif
 
-        grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + gtot_com_acc) / (grv_ptmass + gtot_mass_acc)
-        grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + gtot_mom_acc) / (grv_ptmass + gtot_mass_acc)
-        grv_obvec(1:3) = (grv_totmass*grv_obvec(1:3) - gtot_com_acc + &
-            gtot_mass_acc*(grv_exactvec(1:3) - pt_pos(1:3))) / (grv_totmass - gtot_mass_acc)
-        grv_obvec(4:6) = (grv_totmass*grv_obvec(4:6) - gtot_mom_acc + &
-            gtot_mass_acc*(grv_exactvec(4:6) - pt_pos(4:6))) / (grv_totmass - gtot_mass_acc)
-        grv_optmass = grv_ptmass
-        grv_ptmass = grv_ptmass + gtot_mass_acc
-        grv_massacc = grv_massacc + gtot_mass_acc
-        grv_momacc = grv_momacc + gtot_mom_acc
-        grv_angmomacc = grv_angmomacc + gtot_angmom_acc
-        grv_eneracc = grv_eneracc + gtot_ener_acc
+            grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + gtot_com_acc) / (grv_ptmass + gtot_mass_acc)
+            grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + gtot_mom_acc) / (grv_ptmass + gtot_mass_acc)
+            grv_obvec(1:3) = (grv_totmass*grv_obvec(1:3) - gtot_com_acc + &
+                gtot_mass_acc*(grv_exactvec(1:3) - pt_pos(1:3))) / (grv_totmass - gtot_mass_acc)
+            grv_obvec(4:6) = (grv_totmass*grv_obvec(4:6) - gtot_mom_acc + &
+                gtot_mass_acc*(grv_exactvec(4:6) - pt_pos(4:6))) / (grv_totmass - gtot_mass_acc)
+            grv_optmass = grv_ptmass
+            grv_ptmass = grv_ptmass + gtot_mass_acc
+            grv_massacc = grv_massacc + gtot_mass_acc
+            grv_momacc = grv_momacc + gtot_mom_acc
+            grv_angmomacc = grv_angmomacc + gtot_angmom_acc
+            grv_eneracc = grv_eneracc + gtot_ener_acc
+        else
+            grv_optmass = grv_ptmass
+        endif
 
         call Stir(blockCount, blockList, dt) 
         call Burn(blockCount, blockList, dt) 

@@ -92,18 +92,18 @@ subroutine Grid_solvePoisson (iSoln,             &
 !
   call Grid_getListOfBlocks         (LEAF, blockList, blockCount)
 
-  !grv_mode = 1
+  grv_mode = 1
   if (allocated(Moment_R)) call gr_mpoleDeallocateRadialArrays ()
-  !call gr_mpoleCenterOfMass           (iSrc)
-  !call gr_mpoleRadialSampling         ()
-  !call gr_mpoleAllocateRadialArrays   ()
-  !call gr_mpoleSetDampingFactors      ()
-  !call gr_mpoleMoments                (iSrc)
-  !if (allocated(Tot_Moment_R)) call gr_mpoleDeallocateTotMoments()
-  !call gr_mpoleCopyTotMoments         ()
+  call gr_mpoleCenterOfMass           (iSrc)
+  call gr_mpoleRadialSampling         ()
+  call gr_mpoleAllocateRadialArrays   ()
+  call gr_mpoleSetDampingFactors      ()
+  call gr_mpoleMoments                (iSrc)
+  if (allocated(Tot_Moment_R)) call gr_mpoleDeallocateTotMoments()
+  call gr_mpoleCopyTotMoments         ()
 
   grv_mode = 2
-  !call gr_mpoleDeallocateRadialArrays ()
+  call gr_mpoleDeallocateRadialArrays ()
   call gr_mpoleCenterOfMass           (iSrc)
   call gr_mpoleRadialSampling         ()
   call gr_mpoleAllocateRadialArrays   ()

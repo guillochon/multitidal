@@ -39,36 +39,36 @@ subroutine gr_mpoleCopyMoments ()
     Old_Moment_R =  Moment_R
     Old_Moment_I =  Moment_I
 
-    old_tot_max_Q = tot_max_Q
-    old_tot_inner_zone_qmax = tot_inner_zone_qmax
-    old_tot_min_radial_zone = tot_min_radial_zone
-    old_tot_outer_zone_Qshift = tot_outer_zone_Qshift
-    old_tot_dr = tot_dr
-    old_tot_dr_inv = tot_dr_inv
-    old_tot_dr_inner_zone = tot_dr_inner_zone
-    old_tot_dr_inner_zone_inv = tot_dr_inner_zone_inv
-    old_tot_inner_zone_rmax = tot_inner_zone_rmax
-    old_tot_max_R = tot_max_R
-    old_tot_zone_rmax = tot_zone_rmax
-    old_tot_zone_qmax = tot_zone_qmax
-    allocate ( old_tot_inner_zone_Qlower (0:inner_zone_size) )
-    allocate ( old_tot_inner_zone_Qupper (0:inner_zone_size) )
-    allocate ( old_tot_inner_zone_radii (old_tot_inner_zone_qmax) )
-    allocate ( Old_Tot_Moment_R (1:max_LM,0:old_tot_max_Q  ), stat = istat )
-    allocate ( Old_Tot_Moment_I (1:max_LM,1:old_tot_max_Q+1), stat = istat )
-    allocate ( Old_Tot_Damping_R (0:old_tot_max_Q  ), stat = istat ) 
-    allocate ( Old_Tot_Damping_I (1:old_tot_max_Q+1), stat = istat ) 
-    old_tot_inner_zone_Qlower = tot_inner_zone_Qlower
-    old_tot_inner_zone_Qupper = tot_inner_zone_Qupper
-    old_tot_inner_zone_radii = tot_inner_zone_radii
-    Old_Tot_R_Moment =  Tot_R_Moment
-    Old_Tot_I_Moment =  Tot_I_Moment
-    Old_Tot_R_Damper =  Tot_R_Damper
-    Old_Tot_I_Damper =  Tot_I_Damper
-    Old_Tot_Damping_R = Tot_Damping_R
-    Old_Tot_Damping_I = Tot_Damping_I
-    Old_Tot_Denorm_R =  Tot_Denorm_R
-    Old_Tot_Denorm_I =  Tot_Denorm_I
-    Old_Tot_Moment_R =  Tot_Moment_R
-    Old_Tot_Moment_I =  Tot_Moment_I
+!    old_tot_max_Q = tot_max_Q
+!    old_tot_inner_zone_qmax = tot_inner_zone_qmax
+!    old_tot_min_radial_zone = tot_min_radial_zone
+!    old_tot_outer_zone_Qshift = tot_outer_zone_Qshift
+!    old_tot_dr = tot_dr
+!    old_tot_dr_inv = tot_dr_inv
+!    old_tot_dr_inner_zone = tot_dr_inner_zone
+!    old_tot_dr_inner_zone_inv = tot_dr_inner_zone_inv
+!    old_tot_inner_zone_rmax = tot_inner_zone_rmax
+!    old_tot_max_R = tot_max_R
+!    old_tot_zone_rmax = tot_zone_rmax
+!    old_tot_zone_qmax = tot_zone_qmax
+!    allocate ( old_tot_inner_zone_Qlower (0:inner_zone_size) )
+!    allocate ( old_tot_inner_zone_Qupper (0:inner_zone_size) )
+!    allocate ( old_tot_inner_zone_radii (old_tot_inner_zone_qmax) )
+!    allocate ( Old_Tot_Moment_R (1:max_LM,0:old_tot_max_Q  ), stat = istat )
+!    allocate ( Old_Tot_Moment_I (1:max_LM,1:old_tot_max_Q+1), stat = istat )
+!    allocate ( Old_Tot_Damping_R (0:old_tot_max_Q  ), stat = istat ) 
+!    allocate ( Old_Tot_Damping_I (1:old_tot_max_Q+1), stat = istat ) 
+!    old_tot_inner_zone_Qlower = tot_inner_zone_Qlower
+!    old_tot_inner_zone_Qupper = tot_inner_zone_Qupper
+!    old_tot_inner_zone_radii = tot_inner_zone_radii
+!    Old_Tot_R_Moment =  Tot_R_Moment
+!    Old_Tot_I_Moment =  Tot_I_Moment
+!    Old_Tot_R_Damper =  Tot_R_Damper
+!    Old_Tot_I_Damper =  Tot_I_Damper
+!    Old_Tot_Damping_R = Tot_Damping_R
+!    Old_Tot_Damping_I = Tot_Damping_I
+!    Old_Tot_Denorm_R =  Tot_Denorm_R
+!    Old_Tot_Denorm_I =  Tot_Denorm_I
+!    Old_Tot_Moment_R =  Tot_Moment_R
+!    Old_Tot_Moment_I =  Tot_Moment_I
 end subroutine

@@ -47,10 +47,8 @@ subroutine Total_force(blockCount, blockList)
     dtfac2 = dtfac/2.d0
 
     ooffset = grv_exactvec(1:3) + grv_optvec(1:3) - grv_oobvec(1:3)
-    hoffset = (dtfac2*(grv_exactvec(1:3) - grv_oexactvec(1:3)) + grv_exactvec(1:3)) + &
-        grv_hptvec(1:3) - grv_hobvec(1:3)
-    noffset = (dtfac*(grv_exactvec(1:3) - grv_oexactvec(1:3)) + grv_exactvec(1:3)) + &
-        grv_hptvec(1:3) - grv_hobvec(1:3)
+    hoffset = grv_exactvec(1:3) + grv_hptvec(1:3) - grv_hobvec(1:3)
+    noffset = grv_exactvec(1:3) + grv_hptvec(1:3) - grv_hobvec(1:3)
 
     do it = 1, 3
         lsum = 0.d0

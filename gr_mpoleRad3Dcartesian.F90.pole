@@ -393,6 +393,16 @@ subroutine gr_mpoleRad3Dcartesian()
                                  nR_inner_zone, &
                                  nP_inner_zone, &
                                  R_inner_zone   )
+
+  rmin = inner_zone_radii (1) * dr_inner_zone
+
+  if (rmin < dr_critical) then
+      print *, rmin/dr_critical
+      print *, 'R_inner_zone(1)', R_inner_zone(1)
+      print *, 'inner_zone_radii(1)', inner_zone_radii(1)
+      call Driver_abortFlash ('[gr_mpoleRad3Dcartesian] ERROR: Center of Mass close to cell midpoint')
+  end if
+
   deallocate (R_inner_zone)
 !
 !
@@ -403,11 +413,6 @@ subroutine gr_mpoleRad3Dcartesian()
 !          inner zone atomic distance.
 !
 !
-  rmin = inner_zone_radii (1) * dr_inner_zone
-
-  if (rmin < dr_critical) then
-      call Driver_abortFlash ('[gr_mpoleRad3Dcartesian] ERROR: Center of Mass close to cell midpoint')
-  end if
 !
 !
 !       ...If the user has specified to use no inner zone, override the

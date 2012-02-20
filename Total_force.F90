@@ -7,7 +7,7 @@ subroutine Total_force(blockCount, blockList)
         grv_comCutoff, grv_comPeakCut, grv_ompoleaccel, grv_mpoleaccel, grv_ompolevec, &
         grv_mpolevec, grv_totmass, grv_ototmass, grv_o2obaccel, grv_o2mpoleaccel, grv_mode
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
-    use Simulation_data, ONLY: sim_fluffDampCutoff, sim_softenRadius
+    use Simulation_data, ONLY: sim_fluffDampCutoff, sim_softenRadius, sim_totForceInv, sim_totForceSub
     use gr_mpoleData, ONLY: twelfth
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     use Grid_data, ONLY: gr_meshMe, gr_meshComm
@@ -21,13 +21,13 @@ subroutine Total_force(blockCount, blockList)
     integer, intent(IN) :: blockCount
     integer, dimension(blockCount), intent(IN):: blockList
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
-    integer :: sizeX,sizeY,sizeZ, lb, istat, i, j, k, ierr, it, potVar, denVar
+    integer :: sizeX,sizeY,sizeZ, lb, istat, i, j, k, ierr, it, potVar, denVar, ii, jj, kk
     double precision,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     logical :: gcell = .true.
     double precision, dimension(:,:,:,:),pointer :: solnData
     double precision, dimension(12) :: lsum, gsum
     double precision, dimension(3) :: deld, ooffset, hoffset, noffset, ptpos, tempaccel
-    double precision :: dvol, dr32, newton, dtfac, dtfac2, ptmass
+    double precision :: dvol, dr32, newton, dtfac, dtfac2, ptmass, xx, yy, zz
     double precision :: tinitial, dx, delxinv, cell_mass, denscut, ldenscut, extrema
 
     call RuntimeParameters_get('tinitial',tinitial)
@@ -47,8 +47,8 @@ subroutine Total_force(blockCount, blockList)
     dtfac2 = dtfac/2.d0
 
     ooffset = grv_exactvec(1:3) + grv_optvec(1:3) - grv_oobvec(1:3)
-    hoffset = grv_exactvec(1:3) + grv_hptvec(1:3) - grv_hobvec(1:3)
-    noffset = grv_exactvec(1:3) + grv_hptvec(1:3) - grv_hobvec(1:3)
+    hoffset = dtfac2*(grv_exactvec(1:3) - grv_oexactvec(1:3)) + grv_exactvec(1:3) + grv_hptvec(1:3) - grv_hobvec(1:3)
+    noffset = dtfac *(grv_exactvec(1:3) - grv_oexactvec(1:3)) + grv_exactvec(1:3) + grv_ptvec(1:3) - grv_obvec(1:3)
 
     do it = 1, 3
         lsum = 0.d0
@@ -173,50 +173,59 @@ subroutine Total_force(blockCount, blockList)
         call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
         call Grid_getBlkPtr(blockList(lb),solnData)
         dx = xCoord(2) - xCoord(1)
-        dvol = dx**3.d0
+        dvol = (dx/sim_totForceSub)**3.d0
         delxinv = 0.5e0 / dx
         do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
             do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                 do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
                     if (solnData(denVar,i,j,k) .lt. sim_fluffDampCutoff) cycle !Don't include any mass below the damping cutoff
+                    do kk = 1, sim_totForceSub
+                       zz    = zCoord(k) + dx*((2*kk - 1)*sim_totForceInv - 0.5)
+                       do jj = 1, sim_totForceSub
+                          yy    = yCoord(j) + dx*((2*jj - 1)*sim_totForceInv - 0.5)
+                          do ii = 1, sim_totForceSub
+                             xx    = xCoord(i) + dx*((2*ii - 1)*sim_totForceInv - 0.5)
+                            
+                             cell_mass = solnData(DENS_VAR,i,j,k) * dvol
+                             ptpos = (/ xx, yy, zz /) - ooffset
+                             ptmass = grv_ptmass
+                             dr32 = dsqrt(sum(ptpos**2.d0))
+                             if (dr32 .lt. sim_softenRadius) then
+                                 dr32 = sim_softenRadius*sim_softenRadius*dr32
+                             else
+                                 dr32 = dr32*dr32*dr32
+                             endif
+                             lsum(1) = lsum(1) + cell_mass
+                             lsum(2:4) = lsum(2:4) - cell_mass * newton*ptmass/dr32*ptpos
 
-                    cell_mass = solnData(DENS_VAR,i,j,k) * dvol
-                    ptpos = (/ xCoord(i), yCoord(j), zCoord(k) /) - ooffset
-                    ptmass = grv_ptmass
-                    dr32 = dsqrt(sum(ptpos**2.d0))
-                    if (dr32 .lt. sim_softenRadius) then
-                        dr32 = sim_softenRadius*sim_softenRadius*dr32
-                    else
-                        dr32 = dr32*dr32*dr32
-                    endif
-                    lsum(1) = lsum(1) + cell_mass
-                    lsum(2:4) = lsum(2:4) - cell_mass * newton*ptmass/dr32*ptpos
+                             cell_mass = (dtfac2*(solnData(DENS_VAR,i,j,k) - solnData(ODEN_VAR,i,j,k)) + &
+                                 solnData(DENS_VAR,i,j,k)) * dvol
+                             ptpos = (/ xx, yy, zz /) - hoffset
+                             ptmass = (dtfac2*(grv_ptmass - grv_optmass) + grv_ptmass)
+                             dr32 = dsqrt(sum(ptpos**2.d0))
+                             if (dr32 .lt. sim_softenRadius) then
+                                 dr32 = sim_softenRadius*sim_softenRadius*dr32
+                             else
+                                 dr32 = dr32*dr32*dr32
+                             endif
+                             lsum(5) = lsum(5) + cell_mass
+                             lsum(6:8) = lsum(6:8) - cell_mass * newton*ptmass/dr32*ptpos
 
-                    cell_mass = (dtfac2*((solnData(DENS_VAR,i,j,k) - solnData(ODEN_VAR,i,j,k)) + &
-                        solnData(DENS_VAR,i,j,k))) * dvol
-                    ptpos = (/ xCoord(i), yCoord(j), zCoord(k) /) - hoffset
-                    ptmass = (dtfac2*(grv_ptmass - grv_optmass) + grv_ptmass)
-                    dr32 = dsqrt(sum(ptpos**2.d0))
-                    if (dr32 .lt. sim_softenRadius) then
-                        dr32 = sim_softenRadius*sim_softenRadius*dr32
-                    else
-                        dr32 = dr32*dr32*dr32
-                    endif
-                    lsum(5) = lsum(5) + cell_mass
-                    lsum(6:8) = lsum(6:8) - cell_mass * newton*ptmass/dr32*ptpos
-
-                    cell_mass = (dtfac*((solnData(DENS_VAR,i,j,k) - solnData(ODEN_VAR,i,j,k)) + &
-                        solnData(DENS_VAR,i,j,k))) * dvol
-                    ptpos = (/ xCoord(i), yCoord(j), zCoord(k) /) - noffset
-                    ptmass = (dtfac*(grv_ptmass - grv_optmass) + grv_ptmass)
-                    dr32 = dsqrt(sum(ptpos**2.d0))
-                    if (dr32 .lt. sim_softenRadius) then
-                        dr32 = sim_softenRadius*sim_softenRadius*dr32
-                    else
-                        dr32 = dr32*dr32*dr32
-                    endif
-                    lsum(9) = lsum(9) + cell_mass
-                    lsum(10:12) = lsum(10:12) - cell_mass * newton*ptmass/dr32*ptpos
+                             cell_mass = (dtfac*(solnData(DENS_VAR,i,j,k) - solnData(ODEN_VAR,i,j,k)) + &
+                                 solnData(DENS_VAR,i,j,k)) * dvol
+                             ptpos = (/ xx, yy, zz /) - noffset
+                             ptmass = (dtfac*(grv_ptmass - grv_optmass) + grv_ptmass)
+                             dr32 = dsqrt(sum(ptpos**2.d0))
+                             if (dr32 .lt. sim_softenRadius) then
+                                 dr32 = sim_softenRadius*sim_softenRadius*dr32
+                             else
+                                 dr32 = dr32*dr32*dr32
+                             endif
+                             lsum(9) = lsum(9) + cell_mass
+                             lsum(10:12) = lsum(10:12) - cell_mass * newton*ptmass/dr32*ptpos
+                          enddo
+                       enddo
+                    enddo
                 enddo
             enddo
         enddo

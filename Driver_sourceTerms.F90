@@ -39,7 +39,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use Deleptonize_interface, ONLY : Deleptonize
     use Simulation_data, ONLY: sim_smallX, &
         sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_accRadius, sim_accCoeff, &
-        sim_fluidGamma
+        sim_fluidGamma, sim_softenRadius
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_findExtrema
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
@@ -47,6 +47,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec, grv_optmass, grv_momacc, &
         grv_angmomacc, grv_eneracc, grv_massacc, grv_comPeakCut, grv_totmass, grv_totmass
     use Grid_data, ONLY: gr_smalle, gr_meshMe
+    use Eos_interface, ONLY: Eos_wrapped
     implicit none
 
 #include "Eos.h"
@@ -63,7 +64,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     integer :: sizeX, sizeY, sizeZ
     real    :: xx, yy, zz, dist, y2, z2, tot_mass, gtot_mass, peak_mass, gpeak_mass
     real    :: relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
-    real    :: tinitial, vol, ldenscut, denscut, extrema
+    real    :: tinitial, vol, ldenscut, denscut, extrema, newton
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
@@ -93,7 +94,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     gpeak_mass = 0.d0
     gpeak_mom = 0.d0
 
+    call PhysicalConstants_get("Newton", newton)
     call RuntimeParameters_get('tinitial',tinitial)
+
     if (dr_simTime .lt. tinitial + sim_tRelax) then
         relax_rate = (dr_simTime - tinitial)/sim_tRelax*(1.0 - sim_relaxRate) + sim_relaxRate
         do lb = 1, blockCount
@@ -245,7 +248,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                             dist = dsqrt(y2 + (xx - (grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1)))**2)
                             if (dist .le. sim_accRadius) then
                                 vol = (xCoord(2) - xCoord(1))**3.d0
-                                mass_acc = vol*max(solnData(DENS_VAR,i,j,k) - sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_fluffDampCutoff)
+                                mass_acc = vol*(solnData(DENS_VAR,i,j,k) - max(sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_fluffDampCutoff))
                                 tot_com_acc = tot_com_acc + mass_acc*((/ xx, yy, zz /) - pt_pos(1:3))
                                 tot_mom_acc = tot_mom_acc + mass_acc*(solnData(VELX_VAR:VELZ_VAR,i,j,k) - pt_pos(4:6))
                                 tot_angmom_acc = tot_angmom_acc + mass_acc*&
@@ -257,10 +260,11 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                                         (yy-pt_pos(2))*(solnData(VELX_VAR,i,j,k)-pt_pos(4)) /)
                                 tot_mass_acc = tot_mass_acc + mass_acc
                                 tot_ener_acc = tot_ener_acc + mass_acc*(solnData(EINT_VAR,i,j,k) + &
-                                    0.5d0*sum((solnData(VELX_VAR:VELZ_VAR,i,j,k) - pt_pos(4:6))**2.d0))
+                                    0.5d0*sum((solnData(VELX_VAR:VELZ_VAR,i,j,k) - pt_pos(4:6))**2.d0) - &
+                                    newton*grv_ptmass/(max(dist, sim_softenRadius**2/dist)))
                                 solnData(DENS_VAR,i,j,k) = max(sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_fluffDampCutoff)
-                                solnData(EINT_VAR,i,j,k) = max(sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)**(sim_fluidGamma - 1.d0)*&
-                                    solnData(EINT_VAR,i,j,k), gr_smalle)
+                                !solnData(EINT_VAR,i,j,k) = max(sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)**(sim_fluidGamma - 1.d0)*&
+                                !    solnData(EINT_VAR,i,j,k), gr_smalle)
                                 !solnData(VELX_VAR:VELZ_VAR,i,j,k) = dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
                                 solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
                                     0.5d0*(solnData(VELX_VAR,i,j,k)**2.d0 + &
@@ -272,6 +276,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 enddo
             endif
   
+            call Eos_wrapped(MODE_DENS_EI, blkLimits, lb)
             call Grid_releaseBlkPtr(blockList(lb), solnData)
             deallocate(xCoord)
             deallocate(yCoord)
@@ -300,10 +305,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
 
             grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + gtot_com_acc) / (grv_ptmass + gtot_mass_acc)
             grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + gtot_mom_acc) / (grv_ptmass + gtot_mass_acc)
-            grv_obvec(1:3) = (grv_totmass*grv_obvec(1:3) - gtot_com_acc + &
-                gtot_mass_acc*(grv_exactvec(1:3) - pt_pos(1:3))) / (grv_totmass - gtot_mass_acc)
-            grv_obvec(4:6) = (grv_totmass*grv_obvec(4:6) - gtot_mom_acc + &
-                gtot_mass_acc*(grv_exactvec(4:6) - pt_pos(4:6))) / (grv_totmass - gtot_mass_acc)
+            grv_obvec(1:3) = (grv_totmass*grv_obvec(1:3) - gtot_com_acc) / (grv_totmass - gtot_mass_acc)
+            grv_obvec(4:6) = (grv_totmass*grv_obvec(4:6) - gtot_mom_acc) / (grv_totmass - gtot_mass_acc)
             grv_optmass = grv_ptmass
             grv_ptmass = grv_ptmass + gtot_mass_acc
             grv_massacc = grv_massacc + gtot_mass_acc
@@ -321,6 +324,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         call Deleptonize(blockCount, blockList, dt, dr_simTime)
         call Heat(blockCount, blockList, dt, dr_simTime) 
         call Cool(blockCount, blockList, dt, dr_simTime) 
+
     endif
   
     return

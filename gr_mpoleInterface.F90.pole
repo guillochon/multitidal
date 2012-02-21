@@ -144,33 +144,33 @@ module gr_mpoleInterface
      end subroutine gr_mpolePot3Dcartesian
   end interface
 
-  interface
-     subroutine gr_mpoleGradPot (coord,grad_phi)
-       real, dimension(3), intent (in)  :: coord
-       real, dimension(3), intent (out) :: grad_phi
-     end subroutine gr_mpoleGradPot
-  end interface
+  !interface
+  !   subroutine gr_mpoleGradPot (coord,grad_phi)
+  !     real, dimension(3), intent (in)  :: coord
+  !     real, dimension(3), intent (out) :: grad_phi
+  !   end subroutine gr_mpoleGradPot
+  !end interface
 
-  interface
-     subroutine gr_mpoleGradOldPot (coord,grad_phi)
-       real, dimension(3), intent (in)  :: coord
-       real, dimension(3), intent (out) :: grad_phi
-     end subroutine gr_mpoleGradOldPot
-  end interface
+  !interface
+  !   subroutine gr_mpoleGradOldPot (coord,grad_phi)
+  !     real, dimension(3), intent (in)  :: coord
+  !     real, dimension(3), intent (out) :: grad_phi
+  !   end subroutine gr_mpoleGradOldPot
+  !end interface
+  !
+  !interface
+  !   subroutine gr_mpoleGradTotPot (coord,grad_phi)
+  !     real, dimension(3), intent (in)  :: coord
+  !     real, dimension(3), intent (out) :: grad_phi
+  !   end subroutine gr_mpoleGradTotPot
+  !end interface
 
-  interface
-     subroutine gr_mpoleGradTotPot (coord,grad_phi)
-       real, dimension(3), intent (in)  :: coord
-       real, dimension(3), intent (out) :: grad_phi
-     end subroutine gr_mpoleGradTotPot
-  end interface
-
-  interface
-     subroutine gr_mpoleGradTotOldPot (coord,grad_phi)
-       real, dimension(3), intent (in)  :: coord
-       real, dimension(3), intent (out) :: grad_phi
-     end subroutine gr_mpoleGradTotOldPot
-  end interface
+  !interface
+  !   subroutine gr_mpoleGradTotOldPot (coord,grad_phi)
+  !     real, dimension(3), intent (in)  :: coord
+  !     real, dimension(3), intent (out) :: grad_phi
+  !   end subroutine gr_mpoleGradTotOldPot
+  !end interface
 
   interface
      subroutine gr_mpoleDeallocateTotMoments ()

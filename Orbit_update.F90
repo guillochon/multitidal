@@ -164,8 +164,8 @@ subroutine derivs(x,y,dydx)
         max_R, &
         zone_max_radius_fraction, max_radial_zones
     use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
-    use gr_mpoleInterface, ONLY: gr_mpoleGradPot, gr_mpoleGradOldPot
-    use Driver_data, ONLY: dr_simTime
+    !use gr_mpoleInterface, ONLY: gr_mpoleGradPot, gr_mpoleGradOldPot
+    use Driver_data, ONLY: dr_simTime, dr_dt, dr_dtOld
     use Grid_data, ONLY: gr_meshMe
 
     implicit none
@@ -274,11 +274,14 @@ subroutine derivs(x,y,dydx)
         !    dydx(7:8) = grad_pot(1:2)
         !    dydx(5:6) = -dydx(7:8)*grv_ptmass/grv_totmass
         !endif
+        fac = (x - orb_t)/dr_dtOld
         if (grv_orb3D) then
             dydx(7:9) = matmul(grv_rotMat,grv_ptaccel)
+            dydx(7:9) = dydx(7:9) + fac*matmul(grv_rotMat,grv_ptaccel - grv_optaccel)
             dydx(10:12) = -dydx(7:9)*grv_totmass/grv_ptmass
         else
             dydx(5:6) = grv_ptaccel(1:2)
+            dydx(5:6) = dydx(5:6) + fac*(grv_ptaccel(1:2) - grv_optaccel(1:2))
             dydx(7:8) = -dydx(5:6)*grv_totmass/grv_ptmass
         endif
     endif

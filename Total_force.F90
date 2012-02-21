@@ -11,7 +11,7 @@ subroutine Total_force(blockCount, blockList)
     use gr_mpoleData, ONLY: twelfth
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     use Grid_data, ONLY: gr_meshMe, gr_meshComm
-    use gr_mpoleInterface, ONLY: gr_mpoleGradPot, gr_mpoleGradOldPot
+    !use gr_mpoleInterface, ONLY: gr_mpoleGradPot, gr_mpoleGradOldPot
     use Driver_data, ONLY: dr_dt, dr_dtOld
 
     implicit none 

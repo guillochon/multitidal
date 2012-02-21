@@ -50,37 +50,37 @@ subroutine gr_mpoleInit()
   integer :: status_I_Moment
   integer :: status_Old_R_Moment
   integer :: status_Old_I_Moment
-  integer :: status_Tot_R_Moment
-  integer :: status_Tot_I_Moment
-  integer :: status_Old_Tot_R_Moment
-  integer :: status_Old_Tot_I_Moment
+  !integer :: status_Tot_R_Moment
+  !integer :: status_Tot_I_Moment
+  !integer :: status_Old_Tot_R_Moment
+  !integer :: status_Old_Tot_I_Moment
   integer :: status_D_Damper
   integer :: status_R_Damper
   integer :: status_I_Damper
   integer :: status_Old_R_Damper
   integer :: status_Old_I_Damper
-  integer :: status_Tot_R_Damper
-  integer :: status_Tot_I_Damper
-  integer :: status_Old_Tot_R_Damper
-  integer :: status_Old_Tot_I_Damper
+  !integer :: status_Tot_R_Damper
+  !integer :: status_Tot_I_Damper
+  !integer :: status_Old_Tot_R_Damper
+  !integer :: status_Old_Tot_I_Damper
   integer :: status_Denorm_D
   integer :: status_Denorm_R
   integer :: status_Denorm_I
   integer :: status_Old_Denorm_R
   integer :: status_Old_Denorm_I
-  integer :: status_Tot_Denorm_R
-  integer :: status_Tot_Denorm_I
-  integer :: status_Old_Tot_Denorm_R
-  integer :: status_Old_Tot_Denorm_I
+  !integer :: status_Tot_Denorm_R
+  !integer :: status_Tot_Denorm_I
+  !integer :: status_Old_Tot_Denorm_R
+  !integer :: status_Old_Tot_Denorm_I
   integer :: status_NumberInv
   integer :: status_old_zone_rmax
   integer :: status_old_zone_qmax
   integer :: status_zone_rmax
   integer :: status_zone_qmax
-  integer :: status_tot_zone_rmax
-  integer :: status_tot_zone_qmax
-  integer :: status_old_tot_zone_rmax
-  integer :: status_old_tot_zone_qmax
+  !integer :: status_tot_zone_rmax
+  !integer :: status_tot_zone_qmax
+  !integer :: status_old_tot_zone_rmax
+  !integer :: status_old_tot_zone_qmax
   integer :: status_zone_type
   integer :: status_zone_scalar
   integer :: status_zone_exponent
@@ -378,19 +378,19 @@ subroutine gr_mpoleInit()
   allocate (  I_Moment (1:max_LM), stat = status_I_Moment  )
   allocate (  Old_R_Moment (1:max_LM), stat = status_Old_R_Moment  )
   allocate (  Old_I_Moment (1:max_LM), stat = status_Old_I_Moment  )
-  allocate (  Tot_R_Moment (1:max_LM), stat = status_Tot_R_Moment  )
-  allocate (  Tot_I_Moment (1:max_LM), stat = status_Tot_I_Moment  )
-  allocate (  Old_Tot_R_Moment (1:max_LM), stat = status_Old_Tot_R_Moment  )
-  allocate (  Old_Tot_I_Moment (1:max_LM), stat = status_Old_Tot_I_Moment  )
+  !allocate (  Tot_R_Moment (1:max_LM), stat = status_Tot_R_Moment  )
+  !allocate (  Tot_I_Moment (1:max_LM), stat = status_Tot_I_Moment  )
+  !allocate (  Old_Tot_R_Moment (1:max_LM), stat = status_Old_Tot_R_Moment  )
+  !allocate (  Old_Tot_I_Moment (1:max_LM), stat = status_Old_Tot_I_Moment  )
   allocate (  D_Damper (1:max_LM), stat = status_D_Damper  )
   allocate (  R_Damper (1:max_LM), stat = status_R_Damper  )
   allocate (  I_Damper (1:max_LM), stat = status_I_Damper  )
   allocate (  Old_R_Damper (1:max_LM), stat = status_Old_R_Damper  )
   allocate (  Old_I_Damper (1:max_LM), stat = status_Old_I_Damper  )
-  allocate (  Tot_R_Damper (1:max_LM), stat = status_Tot_R_Damper  )
-  allocate (  Tot_I_Damper (1:max_LM), stat = status_Tot_I_Damper  )
-  allocate (  Old_Tot_R_Damper (1:max_LM), stat = status_Old_Tot_R_Damper  )
-  allocate (  Old_Tot_I_Damper (1:max_LM), stat = status_Old_Tot_I_Damper  )
+  !allocate (  Tot_R_Damper (1:max_LM), stat = status_Tot_R_Damper  )
+  !allocate (  Tot_I_Damper (1:max_LM), stat = status_Tot_I_Damper  )
+  !allocate (  Old_Tot_R_Damper (1:max_LM), stat = status_Old_Tot_R_Damper  )
+  !allocate (  Old_Tot_I_Damper (1:max_LM), stat = status_Old_Tot_I_Damper  )
 
   if (status_R_Moment > 0) then
       call Driver_abortFlash ('[gr_mpoleInit] ERROR: R_Moment () allocate failed')
@@ -408,21 +408,21 @@ subroutine gr_mpoleInit()
       call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_I_Moment () allocate failed')
   end if
 
-  if (status_Tot_R_Moment > 0) then
-      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_R_Moment () allocate failed')
-  end if
+  !if (status_Tot_R_Moment > 0) then
+  !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_R_Moment () allocate failed')
+  !end if
 
-  if (status_Tot_I_Moment > 0) then
-      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_I_Moment () allocate failed')
-  end if
+  !if (status_Tot_I_Moment > 0) then
+  !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_I_Moment () allocate failed')
+  !end if
 
-  if (status_Old_Tot_R_Moment > 0) then
-      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_R_Moment () allocate failed')
-  end if
+  !if (status_Old_Tot_R_Moment > 0) then
+  !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_R_Moment () allocate failed')
+  !end if
 
-  if (status_Old_Tot_I_Moment > 0) then
-      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_I_Moment () allocate failed')
-  end if
+  !if (status_Old_Tot_I_Moment > 0) then
+  !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_I_Moment () allocate failed')
+  !end if
 
   if (status_D_Damper > 0) then
       call Driver_abortFlash ('[gr_mpoleInit] ERROR: D_Damper () allocate failed')
@@ -440,25 +440,25 @@ subroutine gr_mpoleInit()
       call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_R_Damper () allocate failed')
   end if
 
-  if (status_Tot_R_Damper > 0) then
-      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_R_Damper () allocate failed')
-  end if
+  !if (status_Tot_R_Damper > 0) then
+  !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_R_Damper () allocate failed')
+  !end if
 
-  if (status_Old_Tot_R_Damper > 0) then
-      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_R_Damper () allocate failed')
-  end if
+  !if (status_Old_Tot_R_Damper > 0) then
+  !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_R_Damper () allocate failed')
+  !end if
 
   if (status_Old_I_Damper > 0) then
       call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_I_Damper () allocate failed')
   end if
 
-  if (status_Tot_I_Damper > 0) then
-      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_I_Damper () allocate failed')
-  end if
+  !if (status_Tot_I_Damper > 0) then
+  !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_I_Damper () allocate failed')
+  !end if
 
-  if (status_Old_Tot_I_Damper > 0) then
-      call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_I_Damper () allocate failed')
-  end if
+  !if (status_Old_Tot_I_Damper > 0) then
+  !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_I_Damper () allocate failed')
+  !end if
 
   if (max_L > 0) then
       allocate ( NumberInv (1:max_2L), stat = status_NumberInv )
@@ -467,10 +467,10 @@ subroutine gr_mpoleInit()
       allocate (  Denorm_I (1:max_L ), stat = status_Denorm_I  )
       allocate (  Old_Denorm_R (1:max_L ), stat = status_Old_Denorm_R  )
       allocate (  Old_Denorm_I (1:max_L ), stat = status_Old_Denorm_I  )
-      allocate (  Tot_Denorm_R (1:max_L ), stat = status_Tot_Denorm_R  )
-      allocate (  Tot_Denorm_I (1:max_L ), stat = status_Tot_Denorm_I  )
-      allocate (  Old_Tot_Denorm_R (1:max_L ), stat = status_Old_Tot_Denorm_R  )
-      allocate (  Old_Tot_Denorm_I (1:max_L ), stat = status_Old_Tot_Denorm_I  )
+      !allocate (  Tot_Denorm_R (1:max_L ), stat = status_Tot_Denorm_R  )
+      !allocate (  Tot_Denorm_I (1:max_L ), stat = status_Tot_Denorm_I  )
+      !allocate (  Old_Tot_Denorm_R (1:max_L ), stat = status_Old_Tot_Denorm_R  )
+      !allocate (  Old_Tot_Denorm_I (1:max_L ), stat = status_Old_Tot_Denorm_I  )
 
       if (status_NumberInv > 0) then
           call Driver_abortFlash ('[gr_mpoleInit] ERROR: NumberInv () allocate failed')
@@ -488,21 +488,21 @@ subroutine gr_mpoleInit()
           call Driver_abortFlash ('[gr_mpoleInit] ERROR: Denorm_I () allocate failed')
       end if
 
-      if (status_Tot_Denorm_R > 0) then
-          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_Denorm_R () allocate failed')
-      end if
+      !if (status_Tot_Denorm_R > 0) then
+      !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_Denorm_R () allocate failed')
+      !end if
 
-      if (status_Tot_Denorm_I > 0) then
-          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_Denorm_I () allocate failed')
-      end if
+      !if (status_Tot_Denorm_I > 0) then
+      !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Tot_Denorm_I () allocate failed')
+      !end if
 
-      if (status_Old_Tot_Denorm_R > 0) then
-          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_Denorm_R () allocate failed')
-      end if
+      !if (status_Old_Tot_Denorm_R > 0) then
+      !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_Denorm_R () allocate failed')
+      !end if
 
-      if (status_Old_Tot_Denorm_I > 0) then
-          call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_Denorm_I () allocate failed')
-      end if
+      !if (status_Old_Tot_Denorm_I > 0) then
+      !    call Driver_abortFlash ('[gr_mpoleInit] ERROR: Old_Tot_Denorm_I () allocate failed')
+      !end if
   end if
 !
 !
@@ -513,10 +513,10 @@ subroutine gr_mpoleInit()
   allocate (                zone_qmax (0:max_radial_zones), stat = status_zone_qmax                )
   allocate (            old_zone_rmax (0:max_radial_zones), stat = status_old_zone_rmax            )
   allocate (            old_zone_qmax (0:max_radial_zones), stat = status_old_zone_qmax            )
-  allocate (            tot_zone_rmax (0:max_radial_zones), stat = status_tot_zone_rmax            )
-  allocate (            tot_zone_qmax (0:max_radial_zones), stat = status_tot_zone_qmax            )
-  allocate (        old_tot_zone_rmax (0:max_radial_zones), stat = status_old_tot_zone_rmax        )
-  allocate (        old_tot_zone_qmax (0:max_radial_zones), stat = status_old_tot_zone_qmax        )
+  !allocate (            tot_zone_rmax (0:max_radial_zones), stat = status_tot_zone_rmax            )
+  !allocate (            tot_zone_qmax (0:max_radial_zones), stat = status_tot_zone_qmax            )
+  !allocate (        old_tot_zone_rmax (0:max_radial_zones), stat = status_old_tot_zone_rmax        )
+  !allocate (        old_tot_zone_qmax (0:max_radial_zones), stat = status_old_tot_zone_qmax        )
   allocate (                zone_type (1:max_radial_zones), stat = status_zone_type                )
   allocate (              zone_scalar (1:max_radial_zones), stat = status_zone_scalar              )
   allocate (             zone_lognorm (1:max_radial_zones), stat = status_zone_lognorm             )

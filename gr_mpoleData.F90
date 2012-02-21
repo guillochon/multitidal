@@ -206,53 +206,53 @@ module gr_mpoleData
   real,    allocatable, save  :: Old_Moment_R             (:,:)
   real,    allocatable, save  :: Old_Moment_I             (:,:)
 
-  integer, save :: tot_max_Q
-  integer, save :: tot_inner_zone_qmax
-  integer, save :: tot_min_radial_zone
-  integer, save :: tot_outer_zone_Qshift
-  real,    save :: tot_dr, tot_dr_inv, tot_dr_inner_zone, tot_dr_inner_zone_inv
-  real,    save :: tot_inner_zone_rmax
-  real,    save :: tot_max_R
-  integer, allocatable, save  :: tot_inner_zone_Qlower    (:)
-  integer, allocatable, save  :: tot_inner_zone_Qupper    (:)
-  real,    allocatable, save  :: tot_inner_zone_radii     (:)
-  integer, allocatable, save  :: tot_zone_qmax                (:)
-  real,    allocatable, save  :: tot_zone_rmax                (:)
+  !integer, save :: tot_max_Q
+  !integer, save :: tot_inner_zone_qmax
+  !integer, save :: tot_min_radial_zone
+  !integer, save :: tot_outer_zone_Qshift
+  !real,    save :: tot_dr, tot_dr_inv, tot_dr_inner_zone, tot_dr_inner_zone_inv
+  !real,    save :: tot_inner_zone_rmax
+  !real,    save :: tot_max_R
+  !integer, allocatable, save  :: tot_inner_zone_Qlower    (:)
+  !integer, allocatable, save  :: tot_inner_zone_Qupper    (:)
+  !real,    allocatable, save  :: tot_inner_zone_radii     (:)
+  !integer, allocatable, save  :: tot_zone_qmax                (:)
+  !real,    allocatable, save  :: tot_zone_rmax                (:)
 
-  real,    allocatable, save  :: Tot_R_Moment             (:)
-  real,    allocatable, save  :: Tot_I_Moment             (:)
-  real,    allocatable, save  :: Tot_R_Damper             (:)
-  real,    allocatable, save  :: Tot_I_Damper             (:)
-  real,    allocatable, save  :: Tot_Damping_R            (:)
-  real,    allocatable, save  :: Tot_Damping_I            (:)
-  real,    allocatable, save  :: Tot_Denorm_R             (:)
-  real,    allocatable, save  :: Tot_Denorm_I             (:)
-  real,    allocatable, save  :: Tot_Moment_R             (:,:)
-  real,    allocatable, save  :: Tot_Moment_I             (:,:)
+  !real,    allocatable, save  :: Tot_R_Moment             (:)
+  !real,    allocatable, save  :: Tot_I_Moment             (:)
+  !real,    allocatable, save  :: Tot_R_Damper             (:)
+  !real,    allocatable, save  :: Tot_I_Damper             (:)
+  !real,    allocatable, save  :: Tot_Damping_R            (:)
+  !real,    allocatable, save  :: Tot_Damping_I            (:)
+  !real,    allocatable, save  :: Tot_Denorm_R             (:)
+  !real,    allocatable, save  :: Tot_Denorm_I             (:)
+  !real,    allocatable, save  :: Tot_Moment_R             (:,:)
+  !real,    allocatable, save  :: Tot_Moment_I             (:,:)
 
-  integer, save :: old_tot_max_Q
-  integer, save :: old_tot_inner_zone_qmax
-  integer, save :: old_tot_min_radial_zone
-  integer, save :: old_tot_outer_zone_Qshift
-  real,    save :: old_tot_dr, old_tot_dr_inv, old_tot_dr_inner_zone, old_tot_dr_inner_zone_inv
-  real,    save :: old_tot_inner_zone_rmax
-  real,    save :: old_tot_max_R
-  integer, allocatable, save  :: old_tot_inner_zone_Qlower    (:)
-  integer, allocatable, save  :: old_tot_inner_zone_Qupper    (:)
-  real,    allocatable, save  :: old_tot_inner_zone_radii     (:)
-  integer, allocatable, save  :: old_tot_zone_qmax                (:)
-  real,    allocatable, save  :: old_tot_zone_rmax                (:)
+  !integer, save :: old_tot_max_Q
+  !integer, save :: old_tot_inner_zone_qmax
+  !integer, save :: old_tot_min_radial_zone
+  !integer, save :: old_tot_outer_zone_Qshift
+  !real,    save :: old_tot_dr, old_tot_dr_inv, old_tot_dr_inner_zone, old_tot_dr_inner_zone_inv
+  !real,    save :: old_tot_inner_zone_rmax
+  !real,    save :: old_tot_max_R
+  !integer, allocatable, save  :: old_tot_inner_zone_Qlower    (:)
+  !integer, allocatable, save  :: old_tot_inner_zone_Qupper    (:)
+  !real,    allocatable, save  :: old_tot_inner_zone_radii     (:)
+  !integer, allocatable, save  :: old_tot_zone_qmax                (:)
+  !real,    allocatable, save  :: old_tot_zone_rmax                (:)
 
-  real,    allocatable, save  :: Old_Tot_R_Moment             (:)
-  real,    allocatable, save  :: Old_Tot_I_Moment             (:)
-  real,    allocatable, save  :: Old_Tot_R_Damper             (:)
-  real,    allocatable, save  :: Old_Tot_I_Damper             (:)
-  real,    allocatable, save  :: Old_Tot_Damping_R            (:)
-  real,    allocatable, save  :: Old_Tot_Damping_I            (:)
-  real,    allocatable, save  :: Old_Tot_Denorm_R             (:)
-  real,    allocatable, save  :: Old_Tot_Denorm_I             (:)
-  real,    allocatable, save  :: Old_Tot_Moment_R             (:,:)
-  real,    allocatable, save  :: Old_Tot_Moment_I             (:,:)
+  !real,    allocatable, save  :: Old_Tot_R_Moment             (:)
+  !real,    allocatable, save  :: Old_Tot_I_Moment             (:)
+  !real,    allocatable, save  :: Old_Tot_R_Damper             (:)
+  !real,    allocatable, save  :: Old_Tot_I_Damper             (:)
+  !real,    allocatable, save  :: Old_Tot_Damping_R            (:)
+  !real,    allocatable, save  :: Old_Tot_Damping_I            (:)
+  !real,    allocatable, save  :: Old_Tot_Denorm_R             (:)
+  !real,    allocatable, save  :: Old_Tot_Denorm_I             (:)
+  !real,    allocatable, save  :: Old_Tot_Moment_R             (:,:)
+  !real,    allocatable, save  :: Old_Tot_Moment_I             (:,:)
 
   real,    allocatable, save  :: zone_scalar              (:)
   real,    allocatable, save  :: zone_exponent            (:)

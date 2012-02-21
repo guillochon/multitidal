@@ -46,18 +46,19 @@ subroutine Grid_solvePoisson (iSoln,             &
                                blockList,             &
                                dumpMoments,           &
                                printRadialInfo,       &
-                               Tot_Moment_R, Moment_R,&
+                               !Tot_Moment_R,          &
+                               Moment_R,              &
                                max_Q,max_LM,          &
-                               old_max_Q,             &
-                               tot_max_Q,             &
-                               old_tot_max_Q
+                               old_max_Q
+                               !tot_max_Q,             &
+                               !old_tot_max_Q
   use Gravity_data,      ONLY: grv_mode
-  use gr_mpoleInterface, ONLY: gr_mpoleCopyTotMoments,&
+  use gr_mpoleInterface, ONLY: & !gr_mpoleCopyTotMoments,&
                                gr_mpoleDeallocateRadialArrays,&
                                gr_mpoleAllocateRadialArrays,&
                                gr_mpoleCenterOfMass,&
                                gr_mpoleRadialSampling,&
-                               gr_mpoleDeallocateTotMoments,&
+                               !gr_mpoleDeallocateTotMoments,&
                                gr_mpolePrintRadialInfo,&
                                gr_mpolePotentials,&
                                gr_mpoleDumpMoments
@@ -109,9 +110,9 @@ subroutine Grid_solvePoisson (iSoln,             &
   call gr_mpoleAllocateRadialArrays   ()
   call gr_mpoleSetDampingFactors      ()
 
-  if (gr_meshMe .eq. MASTER_PE) then
-      print *, 'cur. tot, peak, old tot, peak Q', max_Q, tot_max_Q, old_max_Q, old_tot_max_Q
-  endif
+  !if (gr_meshMe .eq. MASTER_PE) then
+  !    print *, 'cur. tot, peak, old tot, peak Q', max_Q, tot_max_Q, old_max_Q, old_tot_max_Q
+  !endif
 
 !
 !

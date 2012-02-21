@@ -113,49 +113,49 @@ subroutine gr_mpoleSetOuterZoneGrid ()
   zone_qmax (0) = zero
 
   ! Must be done because Gravity_init is after this routine in Driver_initFlash.
-  call Grid_getMinCellSize(mcs)
+  !call Grid_getMinCellSize(mcs)
 
-  if (dr_simTime .eq. dr_initialSimTime) then
-      if (dr_restart) then
-          call IO_getScalar("ptxpos", ptvec(1))
-          call IO_getScalar("ptypos", ptvec(2))
-          call IO_getScalar("ptzpos", ptvec(3))
-          call IO_getScalar("ptxvel", ptvec(4))
-          call IO_getScalar("ptyvel", ptvec(5))
-          call IO_getScalar("ptzvel", ptvec(6))
-          call IO_getScalar("obxpos", obvec(1))
-          call IO_getScalar("obypos", obvec(2))
-          call IO_getScalar("obzpos", obvec(3))
-          call IO_getScalar("obxvel", obvec(4))
-          call IO_getScalar("obyvel", obvec(5))
-          call IO_getScalar("obzvel", obvec(6))
-          call IO_getScalar("grv_ompolevec_x",  mpolevec(1))
-          call IO_getScalar("grv_ompolevec_y",  mpolevec(2))
-          call IO_getScalar("grv_ompolevec_z",  mpolevec(3))
-          call IO_getScalar("grv_oexactvec_x",  exactvec(1))
-          call IO_getScalar("grv_oexactvec_y",  exactvec(2))
-          call IO_getScalar("grv_oexactvec_z",  exactvec(3))
-          pt_dist = dsqrt(sum((ptvec(1:3) - obvec(1:3))**2.d0))
-          pt_travel_dist = dsqrt(sum((ptvec(4:6) - obvec(4:6))**2.d0))*dr_dt*2.d0
-      else
-          pt_dist = sim_startDistance
-          pt_travel_dist = 4.d0*mcs
-      endif
-  else
-      pt_dist = dsqrt(sum((grv_ptvec(1:3) - grv_obvec(1:3))**2.d0))
-      pt_travel_dist = max(4.d0*mcs, dsqrt(sum((grv_obvec(4:6) - grv_ptvec(4:6))**2.d0))*dr_dt*2.d0)
-  endif
+  !if (dr_simTime .eq. dr_initialSimTime) then
+  !    if (dr_restart) then
+  !        call IO_getScalar("ptxpos", ptvec(1))
+  !        call IO_getScalar("ptypos", ptvec(2))
+  !        call IO_getScalar("ptzpos", ptvec(3))
+  !        call IO_getScalar("ptxvel", ptvec(4))
+  !        call IO_getScalar("ptyvel", ptvec(5))
+  !        call IO_getScalar("ptzvel", ptvec(6))
+  !        call IO_getScalar("obxpos", obvec(1))
+  !        call IO_getScalar("obypos", obvec(2))
+  !        call IO_getScalar("obzpos", obvec(3))
+  !        call IO_getScalar("obxvel", obvec(4))
+  !        call IO_getScalar("obyvel", obvec(5))
+  !        call IO_getScalar("obzvel", obvec(6))
+  !        call IO_getScalar("grv_ompolevec_x",  mpolevec(1))
+  !        call IO_getScalar("grv_ompolevec_y",  mpolevec(2))
+  !        call IO_getScalar("grv_ompolevec_z",  mpolevec(3))
+  !        call IO_getScalar("grv_oexactvec_x",  exactvec(1))
+  !        call IO_getScalar("grv_oexactvec_y",  exactvec(2))
+  !        call IO_getScalar("grv_oexactvec_z",  exactvec(3))
+  !        pt_dist = dsqrt(sum((ptvec(1:3) - obvec(1:3))**2.d0))
+  !        pt_travel_dist = dsqrt(sum((ptvec(4:6) - obvec(4:6))**2.d0))*dr_dt*2.d0
+  !    else
+  !        pt_dist = sim_startDistance
+  !        pt_travel_dist = 4.d0*mcs
+  !    endif
+  !else
+  !    pt_dist = dsqrt(sum((grv_ptvec(1:3) - grv_obvec(1:3))**2.d0))
+  !    pt_travel_dist = max(4.d0*mcs, dsqrt(sum((grv_obvec(4:6) - grv_ptvec(4:6))**2.d0))*dr_dt*2.d0)
+  !endif
 
   do zone = 1,max_radial_zones
 
      type     = zone_type         (zone)
      scl_inv  = zone_scalar_inv   (zone)
      exp_inv  = zone_exponent_inv (zone)
-     if (zone .eq. max_radial_zones - 2) then
-         r_global = pt_dist - pt_travel_dist
-     elseif (zone .eq. max_radial_zones - 1) then
-         r_global = pt_dist + pt_travel_dist
-     elseif (zone .eq. 1) then
+     !if (zone .eq. max_radial_zones - 2) then
+     !    r_global = pt_dist - pt_travel_dist
+     !elseif (zone .eq. max_radial_zones - 1) then
+     !    r_global = pt_dist + pt_travel_dist
+     if (zone .eq. 1) then
          r_global = max(zone_max_radius_fraction (zone) * max_R, &
              dsqrt(sum((grv_mpolevec(1:3) - grv_exactvec(1:3))**2.d0)))
      else

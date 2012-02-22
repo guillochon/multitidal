@@ -331,6 +331,7 @@ subroutine Driver_evolveFlash()
         print*, 'return from Gravity_potential '
 #endif
 
+        call Mass_Loss_Correction()
         call Bound_mass(blockCount, blockList)
         if (dr_simTime - dr_dt .ge. tinitial + sim_tRelax) then
             grv_mode = 3
@@ -403,6 +404,7 @@ subroutine Driver_evolveFlash()
         call gr_mpoleCopyMoments()
         call Gravity_potentialListOfBlocks(blockCount,blockList)
 
+        call Mass_Loss_Correction()
         call Bound_mass(blockCount, blockList)
         if (dr_simTime - dr_dt .ge. tinitial + sim_tRelax) then
             grv_mode = 3

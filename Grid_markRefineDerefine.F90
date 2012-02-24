@@ -103,8 +103,8 @@ subroutine Grid_markRefineDerefine()
 
   newchild(:) = .FALSE.
   refine(:)   = .FALSE.
-  derefine(:) = .FALSE.
-  stay(:)     = .FALSE.
+  derefine(:) = .TRUE.
+  stay(:)     = .TRUE.
 
   !do l = 1,gr_numRefineVars
   !   iref = gr_refine_var(l)
@@ -127,7 +127,7 @@ subroutine Grid_markRefineDerefine()
   zcenter = zcenter / 2.
 
   if (t .eq. 0.0) then
-      !write(*,*) 'entered sphere refine'
+      write(*,*) 'entered sphere refine', xcenter, ycenter, zcenter, obj_radius(obj_ipos), lrefine_max
       call gr_markInRadius(xcenter,ycenter,zcenter,1.2*obj_radius(obj_ipos),lrefine_max,0)
   else
       Call MPI_ALLREDUCE (lnblocks,max_blocks,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
@@ -142,98 +142,98 @@ subroutine Grid_markRefineDerefine()
           call gr_markVarThreshold(iref,ref_val_cut,0,ref_level)
       enddo
 
-      do l = 1,gr_numRefineVars
-          iref = gr_refine_var(l)
+      !do l = 1,gr_numRefineVars
+      !    iref = gr_refine_var(l)
 
-          do i = 1, blkCount
-             lb = gr_blkList(i)
-             call Grid_getBlkPtr(lb,solnData,CENTER)
-             maxvals(lb) = maxval(solnData(iref,:,:,:))
-             call Grid_releaseBlkPtr(lb,solnData)
-          end do
+      !    do i = 1, blkCount
+      !       lb = gr_blkList(i)
+      !       call Grid_getBlkPtr(lb,solnData,CENTER)
+      !       maxvals(lb) = maxval(solnData(iref,:,:,:))
+      !       call Grid_releaseBlkPtr(lb,solnData)
+      !    end do
 
-    !     Communicate maxvals of parents to their leaf children.
-    !     Maximally refined children collect messages from parents.
+    ! !    Communicate maxvals of parents to their leaf children.
+    ! !    Maximally refined children collect messages from parents.
 
-          maxvals_parent(:) = 0.0
-          nrecv = 0
-          do i = 1, blkCount
-             lb = gr_blkList(i)
-             if (nodetype(lb) == LEAF .AND. lrefine(lb) == prev_refmax) then
-                if(parent(1,lb).gt.-1) then
-                   if (parent(2,lb).ne.gr_meshMe) then
-                      nrecv = nrecv + 1
-                      call MPI_IRecv(maxvals_parent(lb),1, &
-                         FLASH_REAL, &
-                         parent(2,lb), &
-                         lb, &
-                         MPI_COMM_WORLD, &
-                         reqr(nrecv), &
-                         ierr)
-                   else
-                      maxvals_parent(lb) = maxvals(parent(1,lb))
-                   end if
-                end if
-             end if
-          end do
+      !    maxvals_parent(:) = 0.0
+      !    nrecv = 0
+      !    do i = 1, blkCount
+      !       lb = gr_blkList(i)
+      !       if (nodetype(lb) == LEAF .AND. lrefine(lb) == prev_refmax) then
+      !          if(parent(1,lb).gt.-1) then
+      !             if (parent(2,lb).ne.gr_meshMe) then
+      !                nrecv = nrecv + 1
+      !                call MPI_IRecv(maxvals_parent(lb),1, &
+      !                   FLASH_REAL, &
+      !                   parent(2,lb), &
+      !                   lb, &
+      !                   MPI_COMM_WORLD, &
+      !                   reqr(nrecv), &
+      !                   ierr)
+      !             else
+      !                maxvals_parent(lb) = maxvals(parent(1,lb))
+      !             end if
+      !          end if
+      !       end if
+      !    end do
 
-          ! parents send maxvals to children
+      !    ! parents send maxvals to children
 
-          nsend = 0
-          do i = 1, blkCount
-             lb = gr_blkList(i)
-             if (nodetype(lb) == PARENT_BLK .AND. lrefine(lb) == prev_refmax-1) then
-                do j = 1,nchild
-                   if(child(1,j,lb).gt.-1) then
-                      if (child(2,j,lb).ne.gr_meshMe) then
-                         nsend = nsend + 1
-                         call MPI_ISend(maxvals(lb), &
-                            1, &
-                            FLASH_REAL, &
-                            child(2,j,lb), &  ! PE TO SEND TO
-                            child(1,j,lb), &  ! THIS IS THE TAG
-                            MPI_COMM_WORLD, &
-                            reqs(nsend), &
-                            ierr)
-                      end if
-                   end if
-                end do
-             end if
-          end do
+      !    nsend = 0
+      !    do i = 1, blkCount
+      !       lb = gr_blkList(i)
+      !       if (nodetype(lb) == PARENT_BLK .AND. lrefine(lb) == prev_refmax-1) then
+      !          do j = 1,nchild
+      !             if(child(1,j,lb).gt.-1) then
+      !                if (child(2,j,lb).ne.gr_meshMe) then
+      !                   nsend = nsend + 1
+      !                   call MPI_ISend(maxvals(lb), &
+      !                      1, &
+      !                      FLASH_REAL, &
+      !                      child(2,j,lb), &  ! PE TO SEND TO
+      !                      child(1,j,lb), &  ! THIS IS THE TAG
+      !                      MPI_COMM_WORLD, &
+      !                      reqs(nsend), &
+      !                      ierr)
+      !                end if
+      !             end if
+      !          end do
+      !       end if
+      !    end do
 
-          if (nsend.gt.0) then
-             call MPI_Waitall (nsend, reqs, stats, ierr)
-          end if
-          if (nrecv.gt.0) then
-             call MPI_Waitall (nrecv, reqr, statr, ierr)
-          end if
+      !    if (nsend.gt.0) then
+      !       call MPI_Waitall (nsend, reqs, stats, ierr)
+      !    end if
+      !    if (nrecv.gt.0) then
+      !       call MPI_Waitall (nrecv, reqr, statr, ierr)
+      !    end if
 
-          nextref = 0
-          do i = 1, gr_numRefineVars
-              if (i .eq. l) cycle
-              if (iref .ne. gr_refine_var(i)) cycle
-              if (gr_refine_level(i) .gt. gr_refine_level(l)) cycle
-              if (gr_refine_level(i) .gt. nextref) then
-                  nextref = gr_refine_level(i)
-                  exit
-              endif
-          enddo
-    !!      maxvals_parent(:) = 0.0  ! <-- uncomment line for previous behavior
-          do i = 1, blkCount
-             lb = gr_blkList(i)
-             if (nodetype(lb) == LEAF) then
-                if (lrefine(lb) .gt. grv_dynRefineMax) then
-                    refine(lb) = .false.
-                    derefine(lb) = .true.
-                elseif (lrefine(lb) .gt. nextref) then
-                    if (maxvals(lb) < dens_cut*gr_refine_val_cutoff(l)) then
-                        refine(lb)   = .false.
-                        if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(l)) derefine(lb)   = .true.
-                    endif
-                endif
-             end if
-          enddo
-      enddo
+      !    nextref = 0
+      !    do i = 1, gr_numRefineVars
+      !        if (i .eq. l) cycle
+      !        if (iref .ne. gr_refine_var(i)) cycle
+      !        if (gr_refine_level(i) .gt. gr_refine_level(l)) cycle
+      !        if (gr_refine_level(i) .gt. nextref) then
+      !            nextref = gr_refine_level(i)
+      !            exit
+      !        endif
+      !    enddo
+    !!!      maxvals_parent(:) = 0.0  ! <-- uncomment line for previous behavior
+      !    do i = 1, blkCount
+      !       lb = gr_blkList(i)
+      !       if (nodetype(lb) == LEAF) then
+      !          if (lrefine(lb) .gt. grv_dynRefineMax) then
+      !              refine(lb) = .false.
+      !              derefine(lb) = .true.
+      !          elseif (lrefine(lb) .ge. gr_refine_level(l)) then
+      !              if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(l)) then
+      !                  derefine(lb) = .true.
+      !                  refine(lb) = .false.
+      !              endif
+      !          endif
+      !       end if
+      !    enddo
+      !enddo
 
   endif
 

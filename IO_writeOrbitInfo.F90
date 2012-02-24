@@ -147,12 +147,12 @@ subroutine IO_writeOrbitInfo (isFirst, simTime)
           endif
        endif
        
-       x  = grv_obvec(1) - grv_ptvec(1) + grv_boundvec(1) - grv_exactvec(1)
-       y  = grv_obvec(2) - grv_ptvec(2) + grv_boundvec(2) - grv_exactvec(2)
-       z  = grv_obvec(3) - grv_ptvec(3) + grv_boundvec(3) - grv_exactvec(3)
-       vx = grv_obvec(4) - grv_ptvec(4) + grv_boundvec(4) - grv_exactvec(4)
-       vy = grv_obvec(5) - grv_ptvec(5) + grv_boundvec(5) - grv_exactvec(5)
-       vz = grv_obvec(6) - grv_ptvec(6) + grv_boundvec(6) - grv_exactvec(6)
+       x  = grv_obvec(1) - grv_ptvec(1)
+       y  = grv_obvec(2) - grv_ptvec(2)
+       z  = grv_obvec(3) - grv_ptvec(3)
+       vx = grv_obvec(4) - grv_ptvec(4)
+       vy = grv_obvec(5) - grv_ptvec(5)
+       vz = grv_obvec(6) - grv_ptvec(6)
        r = dsqrt(x**2.d0 + y**2.d0 + z**2.d0)
        h1 = y*vz - z*vy
        h2 = z*vx - x*vz

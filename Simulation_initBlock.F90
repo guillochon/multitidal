@@ -145,16 +145,16 @@ subroutine Simulation_initBlock (blockId, myPE)
            !       the subzone values.
            ! 
 
-           do kk = 0, (sim_nSubZones-1)*K3D
-              zz    = zCoord(k) + (kk*sim_inSubzm1-.5)*dzz 
-              zDist = (zz - (sim_zMax - sim_zMin) / 2.d0) * K3D
+           do kk = 1, sim_nSubZones
+              zz    = zCoord(k) + dzz*((2*kk - 1)*sim_inSubInv - 0.5)
+              zDist = zz - (sim_zMax - sim_zMin) / 2.d0
               
-              do jj = 0, (sim_nSubZones-1)*K2D
-                 yy    = yCoord(j) + (jj*sim_inSubzm1-.5)*dyy
-                 yDist = (yy - (sim_yMax - sim_yMin) / 2.d0) * K2D
+              do jj = 1, sim_nSubZones
+                 yy    = yCoord(j) + dyy*((2*jj - 1)*sim_inSubInv - 0.5)
+                 yDist = yy - (sim_yMax - sim_yMin) / 2.d0
                  
-                 do ii = 0, (sim_nSubZones-1)
-                    xx    = xCoord(i) + (ii*sim_inSubzm1-.5)*dxx
+                 do ii = 1, sim_nSubZones
+                    xx    = xCoord(i) + dxx*((2*ii - 1)*sim_inSubInv - 0.5)
                     xDist = xx - (sim_xMax - sim_xMin) / 2.d0
                     
                     dist    = dsqrt( xDist**2 + yDist**2 + zDist**2 )

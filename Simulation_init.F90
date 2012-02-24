@@ -89,6 +89,8 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_orbEcc", sim_orbEcc)
     call RuntimeParameters_get("sim_useInitialPeakDensity", sim_useInitialPeakDensity)
     call RuntimeParameters_get("sim_ptMassRefine", sim_ptMassRefine)
+    call RuntimeParameters_get("sim_ptMassRefRad", sim_ptMassRefRad)
+    call RuntimeParameters_get("sim_totForceSub", sim_totForceSub)
     call RuntimeParameters_get("ptmass", sim_ptMass)
     call RuntimeParameters_get("cfl", cfl)
 
@@ -177,11 +179,11 @@ subroutine Simulation_init()
     write(logstr, fmt='(A30, ES15.8)') 'Sink radius:', sim_softenRadius
     call Logfile_stampMessage(logstr)
 
-    if (sim_nSubZones .le. 1) sim_nSubZones = 2
+    sim_inSubInv = 1.d0/2.d0**sim_nSubZones
+    sim_nSubZones = 2**(sim_nSubZones - 1)
+    sim_inszd      = (1.d0/sim_nSubZones)**NDIM
 
-    sim_inSubZones = 1./real(sim_nSubZones)
-    sim_inSubzm1   = 1./real(sim_nSubZones-1)
-    sim_inszd      = sim_inSubZones**NDIM
-
+    sim_totForceInv = 1.d0/2.d0**sim_totForceSub
+    sim_totForceSub = 2**(sim_totForceSub - 1)
 
 end subroutine Simulation_init

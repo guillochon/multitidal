@@ -135,14 +135,14 @@ subroutine gr_mpoleSetOuterZoneGrid ()
           call IO_getScalar("grv_oexactvec_x",  exactvec(1))
           call IO_getScalar("grv_oexactvec_y",  exactvec(2))
           call IO_getScalar("grv_oexactvec_z",  exactvec(3))
-          pt_dist = dsqrt(sum((ptvec(1:3) - obvec(1:3) + exactvec(1:3) - mpolevec(1:3))**2.d0))
+          pt_dist = dsqrt(sum((ptvec(1:3) - obvec(1:3))**2.d0))
           pt_travel_dist = dsqrt(sum((ptvec(4:6) - obvec(4:6))**2.d0))*dr_dt*2.d0
       else
           pt_dist = sim_startDistance
           pt_travel_dist = 4.d0*mcs
       endif
   else
-      pt_dist = dsqrt(sum((grv_ptvec(1:3) - grv_obvec(1:3) + grv_exactvec(1:3) - grv_mpolevec(1:3))**2.d0))
+      pt_dist = dsqrt(sum((grv_ptvec(1:3) - grv_obvec(1:3))**2.d0))
       pt_travel_dist = max(4.d0*mcs, dsqrt(sum((grv_obvec(4:6) - grv_ptvec(4:6))**2.d0))*dr_dt*2.d0)
   endif
 
@@ -155,6 +155,9 @@ subroutine gr_mpoleSetOuterZoneGrid ()
          r_global = pt_dist - pt_travel_dist
      elseif (zone .eq. max_radial_zones - 1) then
          r_global = pt_dist + pt_travel_dist
+     elseif (zone .eq. 1) then
+         r_global = max(zone_max_radius_fraction (zone) * max_R, &
+             dsqrt(sum((grv_mpolevec(1:3) - grv_exactvec(1:3))**2.d0)))
      else
          r_global = zone_max_radius_fraction (zone) * max_R
      endif

@@ -39,7 +39,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use Deleptonize_interface, ONLY : Deleptonize
     use Simulation_data, ONLY: sim_smallX, &
         sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_accRadius, sim_accCoeff, &
-        sim_fluidGammae
+        sim_fluidGammae, sim_softenRadius
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_findExtrema
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
@@ -47,6 +47,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec, grv_optmass, grv_momacc, &
         grv_angmomacc, grv_eneracc, grv_massacc, grv_comPeakCut, grv_totmass, grv_totmass
     use Grid_data, ONLY: gr_smalle, gr_meshMe
+    use Eos_interface, ONLY: Eos_wrapped
     implicit none
 
 #include "Eos.h"
@@ -63,7 +64,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     integer :: sizeX, sizeY, sizeZ
     real    :: xx, yy, zz, dist, y2, z2, tot_mass, gtot_mass, peak_mass, gpeak_mass
     real    :: relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
-    real    :: tinitial, vol, ldenscut, denscut, extrema
+    real    :: tinitial, vol, ldenscut, denscut, extrema, newton
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
@@ -93,7 +94,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     gpeak_mass = 0.d0
     gpeak_mom = 0.d0
 
+    call PhysicalConstants_get("Newton", newton)
     call RuntimeParameters_get('tinitial',tinitial)
+
     if (dr_simTime .lt. tinitial + sim_tRelax) then
         relax_rate = (dr_simTime - tinitial)/sim_tRelax*(1.0 - sim_relaxRate) + sim_relaxRate
         do lb = 1, blockCount
@@ -169,6 +172,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                        if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) cycle
                         tot_mass = tot_mass + vol*solnData(DENS_VAR,i,j,k)
                         tot_mom = tot_mom + vol*solnData(DENS_VAR,i,j,k)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
                         if (solnData(DENS_VAR,i,j,k) .lt. denscut) cycle
@@ -227,9 +231,10 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 enddo
             enddo
 
-            ! Add total center of mass velocity to object tracking point
-            !grv_obvec(4:6) = grv_obvec(4:6) + tot_avg_vel
-            !grv_ptvec(4:6) = grv_ptvec(4:6) + tot_avg_vel
+            !print *, 'before', grv_obvec(4:6)
+            !print *, 'peak_avg_vel', peak_avg_vel
+            !print *, 'after', grv_obvec(4:6)
+            !call Driver_abortFlash('done')
 
             if (sim_accRadius .ne. 0.d0) then
                 do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
@@ -243,7 +248,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                             dist = dsqrt(y2 + (xx - (grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1)))**2)
                             if (dist .le. sim_accRadius) then
                                 vol = (xCoord(2) - xCoord(1))**3.d0
-                                mass_acc = vol*(solnData(DENS_VAR,i,j,k) - max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_fluffDampCutoff))
+                                mass_acc = vol*(solnData(DENS_VAR,i,j,k) - max(sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_fluffDampCutoff))
                                 tot_com_acc = tot_com_acc + mass_acc*((/ xx, yy, zz /) - pt_pos(1:3))
                                 tot_mom_acc = tot_mom_acc + mass_acc*(solnData(VELX_VAR:VELZ_VAR,i,j,k) - pt_pos(4:6))
                                 tot_angmom_acc = tot_angmom_acc + mass_acc*&
@@ -255,12 +260,11 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                                         (yy-pt_pos(2))*(solnData(VELX_VAR,i,j,k)-pt_pos(4)) /)
                                 tot_mass_acc = tot_mass_acc + mass_acc
                                 tot_ener_acc = tot_ener_acc + mass_acc*(solnData(EINT_VAR,i,j,k) + &
-                                    0.5d0*sum((solnData(VELX_VAR:VELZ_VAR,i,j,k) - pt_pos(4:6))**2.d0))
-                                solnData(DENS_VAR,i,j,k) = max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_fluffDampCutoff)
-                                ! MM using Gammae here because presumably accreted material is mostly envelope
-                                ! however this should be cleaned up
-                                solnData(EINT_VAR,i,j,k) = max(dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)**(sim_fluidGammae - 1.d0)*&
-                                    solnData(EINT_VAR,i,j,k), gr_smalle)
+                                    0.5d0*sum((solnData(VELX_VAR:VELZ_VAR,i,j,k) - pt_pos(4:6))**2.d0) - &
+                                    newton*grv_ptmass/(max(dist, sim_softenRadius**2/dist)))
+                                solnData(DENS_VAR,i,j,k) = max(sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_fluffDampCutoff)
+                                !solnData(EINT_VAR,i,j,k) = max(sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)**(sim_fluidGamma - 1.d0)*&
+                                !    solnData(EINT_VAR,i,j,k), gr_smalle)
                                 !solnData(VELX_VAR:VELZ_VAR,i,j,k) = dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
                                 solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
                                     0.5d0*(solnData(VELX_VAR,i,j,k)**2.d0 + &
@@ -272,39 +276,46 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 enddo
             endif
   
+            call Eos_wrapped(MODE_DENS_EI, blkLimits, lb)
             call Grid_releaseBlkPtr(blockList(lb), solnData)
             deallocate(xCoord)
             deallocate(yCoord)
             deallocate(zCoord)
         enddo
 
-        call MPI_ALLREDUCE(tot_mass_acc, gtot_mass_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(tot_ener_acc, gtot_ener_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(tot_mom_acc, gtot_mom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(tot_angmom_acc, gtot_angmom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+        ! Add subtracted velocity to tracking point
+        !grv_obvec(4:6) = grv_obvec(4:6) + peak_avg_vel
 
-        !if (gr_meshMe .eq. MASTER_PE) then
-        !    print *, 'Mass accreted this step: ', gtot_mass_acc
-        !    print *, 'COM accreted mass: ', gtot_com_acc/gtot_mass_acc
-        !    print *, 'Mom accreted mass: ', gtot_mom_acc/gtot_mass_acc
-        !    print *, 'Net shift: ', grv_ptvec(1:3) - (grv_ptmass*grv_ptvec(1:3) + &
-        !        (gtot_com_acc/gtot_mass_acc - grv_exactvec(1:3) + grv_obvec(1:3) - grv_ptvec(1:3))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
-        !    print *, 'Net vel: ', grv_ptvec(4:6) - (grv_ptmass*grv_ptvec(4:6) + &
-        !        (gtot_mom_acc/gtot_mass_acc - grv_exactvec(4:6) + grv_obvec(4:6) - grv_ptvec(4:6))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
-        !endif
-        grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + gtot_com_acc) / (grv_ptmass + gtot_mass_acc)
-        grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + gtot_mom_acc) / (grv_ptmass + gtot_mass_acc)
-        grv_obvec(1:3) = (grv_totmass*grv_obvec(1:3) - gtot_com_acc + &
-            gtot_mass_acc*(grv_exactvec(1:3) - pt_pos(1:3))) / (grv_totmass - gtot_mass_acc)
-        grv_obvec(4:6) = (grv_totmass*grv_obvec(4:6) - gtot_mom_acc + &
-            gtot_mass_acc*(grv_exactvec(4:6) - pt_pos(4:6))) / (grv_totmass - gtot_mass_acc)
-        grv_optmass = grv_ptmass
-        grv_ptmass = grv_ptmass + gtot_mass_acc
-        grv_massacc = grv_massacc + gtot_mass_acc
-        grv_momacc = grv_momacc + gtot_mom_acc
-        grv_angmomacc = grv_angmomacc + gtot_angmom_acc
-        grv_eneracc = grv_eneracc + gtot_ener_acc
+        if (sim_accRadius .ne. 0.d0) then
+            call MPI_ALLREDUCE(tot_mass_acc, gtot_mass_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+            call MPI_ALLREDUCE(tot_ener_acc, gtot_ener_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+            call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+            call MPI_ALLREDUCE(tot_mom_acc, gtot_mom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+            call MPI_ALLREDUCE(tot_angmom_acc, gtot_angmom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
+
+            !if (gr_meshMe .eq. MASTER_PE) then
+            !    print *, 'Mass accreted this step: ', gtot_mass_acc
+            !    print *, 'COM accreted mass: ', gtot_com_acc/gtot_mass_acc
+            !    print *, 'Mom accreted mass: ', gtot_mom_acc/gtot_mass_acc
+            !    print *, 'Net shift: ', grv_ptvec(1:3) - (grv_ptmass*grv_ptvec(1:3) + &
+            !        (gtot_com_acc/gtot_mass_acc - grv_exactvec(1:3) + grv_obvec(1:3) - grv_ptvec(1:3))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
+            !    print *, 'Net vel: ', grv_ptvec(4:6) - (grv_ptmass*grv_ptvec(4:6) + &
+            !        (gtot_mom_acc/gtot_mass_acc - grv_exactvec(4:6) + grv_obvec(4:6) - grv_ptvec(4:6))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
+            !endif
+
+            grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + gtot_com_acc) / (grv_ptmass + gtot_mass_acc)
+            grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + gtot_mom_acc) / (grv_ptmass + gtot_mass_acc)
+            grv_obvec(1:3) = (grv_totmass*grv_obvec(1:3) - gtot_com_acc) / (grv_totmass - gtot_mass_acc)
+            grv_obvec(4:6) = (grv_totmass*grv_obvec(4:6) - gtot_mom_acc) / (grv_totmass - gtot_mass_acc)
+            grv_optmass = grv_ptmass
+            grv_ptmass = grv_ptmass + gtot_mass_acc
+            grv_massacc = grv_massacc + gtot_mass_acc
+            grv_momacc = grv_momacc + gtot_mom_acc
+            grv_angmomacc = grv_angmomacc + gtot_angmom_acc
+            grv_eneracc = grv_eneracc + gtot_ener_acc
+        else
+            grv_optmass = grv_ptmass
+        endif
 
         call Stir(blockCount, blockList, dt) 
         call Burn(blockCount, blockList, dt) 
@@ -313,6 +324,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         call Deleptonize(blockCount, blockList, dt, dr_simTime)
         call Heat(blockCount, blockList, dt, dr_simTime) 
         call Cool(blockCount, blockList, dt, dr_simTime) 
+
     endif
   
     return

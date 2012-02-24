@@ -50,7 +50,7 @@
 
 subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, potentialIndex)
 
-    use Driver_data, ONLY: dr_simTime
+    use Driver_data, ONLY: dr_simTime, dr_dt, dr_dtOld
     use Gravity_data, ONLY: grv_ptmass, grv_optmass, grv_thresh, grv_ptvec, &
         grv_obvec, grv_optvec, grv_oobvec, grv_mode, &
         grv_hptvec, grv_hobvec, grv_exactvec, grv_oexactvec, grv_mpoleaccel, &
@@ -89,7 +89,7 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
 #else
     double precision,allocatable,dimension(:) ::xCenter,yCenter,zCenter
 #endif
-    double precision :: dr32, tmpdr32, min_cell, newton, gm
+    double precision :: dr32, tmpdr32, min_cell, newton, gm, dtfac
 
     integer :: sizeX,sizeY,sizez
 
@@ -129,22 +129,24 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
     if (grv_mode .eq. 0) then
         mpoleaccel = grv_o2mpoleaccel
     elseif (grv_mode .eq. 1) then
-        ptx = grv_oexactvec(1) + (grv_optvec(1) - grv_oobvec(1))
-        pty = grv_oexactvec(2) + (grv_optvec(2) - grv_oobvec(2))
-        ptz = grv_oexactvec(3) + (grv_optvec(3) - grv_oobvec(3))
+        ptx = grv_exactvec(1) + (grv_optvec(1) - grv_oobvec(1))
+        pty = grv_exactvec(2) + (grv_optvec(2) - grv_oobvec(2))
+        ptz = grv_exactvec(3) + (grv_optvec(3) - grv_oobvec(3))
         mpoleaccel = grv_ompoleaccel
         ptaccel = grv_optaccel
         gm = -newton*grv_optmass
     elseif (grv_mode .eq. 2) then
-        ptx = (grv_oexactvec(1) + grv_exactvec(1))/2.d0 + (grv_hptvec(1) - grv_hobvec(1))
-        pty = (grv_oexactvec(2) + grv_exactvec(2))/2.d0 + (grv_hptvec(2) - grv_hobvec(2))
-        ptz = (grv_oexactvec(3) + grv_exactvec(3))/2.d0 + (grv_hptvec(3) - grv_hobvec(3))
+        dtfac = dr_dt/dr_dtOld/2.d0
+        ptx = dtfac*(grv_exactvec(1) - grv_oexactvec(1)) + grv_exactvec(1) + (grv_hptvec(1) - grv_hobvec(1))
+        pty = dtfac*(grv_exactvec(2) - grv_oexactvec(2)) + grv_exactvec(2) + (grv_hptvec(2) - grv_hobvec(2))
+        ptz = dtfac*(grv_exactvec(3) - grv_oexactvec(3)) + grv_exactvec(3) + (grv_hptvec(3) - grv_hobvec(3))
         ptaccel = grv_hptaccel
         gm = -newton*(grv_optmass + grv_ptmass)/2.d0
     elseif (grv_mode .eq. 3) then
-        ptx = grv_exactvec(1) + (grv_ptvec(1) - grv_obvec(1))
-        pty = grv_exactvec(2) + (grv_ptvec(2) - grv_obvec(2))
-        ptz = grv_exactvec(3) + (grv_ptvec(3) - grv_obvec(3))
+        dtfac = dr_dt/dr_dtOld
+        ptx = dtfac*(grv_exactvec(1) - grv_oexactvec(1)) + grv_exactvec(1) + (grv_ptvec(1) - grv_obvec(1))
+        pty = dtfac*(grv_exactvec(2) - grv_oexactvec(2)) + grv_exactvec(2) + (grv_ptvec(2) - grv_obvec(2))
+        ptz = dtfac*(grv_exactvec(3) - grv_oexactvec(3)) + grv_exactvec(3) + (grv_ptvec(3) - grv_obvec(3))
         mpoleaccel = grv_mpoleaccel
         ptaccel = grv_ptaccel
         gm = -newton*grv_ptmass

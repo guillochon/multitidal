@@ -42,7 +42,7 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
     use Grid_interface, ONLY : Grid_getListOfBlocks, &
       Grid_getBlkIndexLimits, Grid_getBlkPtr, &
       Grid_releaseBlkPtr, Grid_getDeltas, Grid_getBlkBoundBox
-    use Gravity_data, ONLY : grv_ptvec, grv_obvec, grv_ptmass, grv_boundvec, &
+    use Gravity_data, ONLY : grv_ptvec, grv_obvec, grv_ptmass, grv_boundvec, grv_bound, &
         grv_exactvec, grv_totmass, grv_thresh, grv_momacc, grv_angmomacc, grv_eneracc, grv_massacc
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use Simulation_data, ONLY : sim_fluffDampCutoff
@@ -194,6 +194,9 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
                     x = xx - grv_boundvec(1)
                     y = yy - grv_boundvec(2)
                     z = zz - grv_boundvec(3)
+                    if (dsqrt(x*x + y*y + z*z) .gt. &
+                        dsqrt(sum((grv_boundvec(1:3) - grv_exactvec(1:3) - grv_ptvec(1:3) + grv_obvec(1:3))**2.d0))*&
+                        (grv_bound/3.d0/grv_ptmass)**(1.d0/3.d0)) cycle
                     v2 = 0.5d0*(velx**2.d0 + vely**2.d0 + velz**2.d0)
                     lsum(12) = lsum(12) + 0.5d0*solnData(DENS_VAR,i,j,k) * dvol * v2
                     lsum(13) = lsum(13) + solnData(DENS_VAR,i,j,k) * solnData(EINT_VAR,i,j,k)*dvol

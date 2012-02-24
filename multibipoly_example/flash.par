@@ -54,16 +54,18 @@ sim_rhoAmbient = 1.0e-19
 sim_pAmbient   = 1.0e-5
 
 # Parameters of initial relaxation of object to grid.
-sim_tRelax    = 1.0e5
+sim_tRelax    = 1.0e4
 sim_relaxRate = 0.9
 dtinit        = 1e-2
 
 # Parameters determining behavior of fluid during simulation.
 sim_softenRadius    = 0.8     # Soften gravity next to pt. mass within this fraction of pericenter distance.
 sim_accRadius       = 0.0
-sim_fluidGamma      = 1.666666666667
+sim_accCoeff        = 0.0
+#sim_fluidGamma      = 1.666666666667
 sim_fluffDampCoeff  = 0.95
 sim_fluffDampCutoff = 1.e-18   # Should be slightly larger than sim_rhoAmbient
+sim_totForceSub     = 3
 
 # Parameters affecting the multipole gravity solver. Please read FLASH4 documentation before modifying.
 grv_comCutoff                = 1.0e-1
@@ -73,12 +75,12 @@ grv_orbMinForce              = 1.0e-12
 grv_orb3D                    = .true.
 mpole_lmax                   = 10
 mpole_max_radial_zones       = 4
-mpole_zone_radius_fraction_1 = 1.0E-3
-mpole_zone_exponent_2        = 1.1E0
-mpole_zone_scalar_3          = 1.0E-1
-mpole_zone_scalar_4          = 1.0E3
+mpole_zone_radius_fraction_1 = 5.0E-4
+mpole_zone_exponent_2        = 1.5E0
+mpole_zone_scalar_3          = 1.0E0
+mpole_zone_scalar_4          = 1.0E2
 mpole_zone_radius_fraction_4 = 10.0E0
-#mpole_inner_zone_grid        = 1.0E-3
+#mpole_inner_zone_grid        = 1.0E-1
 #mpole_inner_zone_size        = 32
 
 # Refinement parameters. Highest refinement levels should be specified first.
@@ -115,7 +117,8 @@ refine_level_9      = 7
 
 # Variables to include in plot files.
 plot_var_1 = "dens"
-plot_var_2 = "pres"
+plot_var_2 = "temp"
+plot_var_3 = "pres"
 
 
 # STATIC PARAMETERS
@@ -129,12 +132,12 @@ small              = 1.e-15
 eosmodeInit        = "dens_pres" 
 
 cfl                = 0.8
-grv_cfl            = 0.1
+grv_cfl            = 0.2
 eintSwitch         = 1.0e-4
 rieman_tol         = 1.0e-14
 nriem              = 10000
 
-sim_nsubzones      = 5
+sim_nsubzones      = 3
 
 xl_boundary_type    = "diode"
 xr_boundary_type    = "diode"

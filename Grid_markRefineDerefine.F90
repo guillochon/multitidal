@@ -116,7 +116,6 @@ subroutine Grid_markRefineDerefine()
   zcenter = zcenter / 2.
 
   if (t .eq. 0.0) then
-      write(*,*) 'entered sphere refine', xcenter, ycenter, zcenter, obj_radius(obj_ipos), lrefine_max
       call gr_markInRadius(xcenter,ycenter,zcenter,1.2*obj_radius(obj_ipos),lrefine_max,0)
   else
       Call MPI_ALLREDUCE (lnblocks,max_blocks,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)

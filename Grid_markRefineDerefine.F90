@@ -217,6 +217,10 @@ subroutine Grid_markRefineDerefine()
                         maxvals(lb) < dens_cut*gr_refine_val_cutoff(nextref)) then
                         derefine(lb) = .true.
                     endif
+                    if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref) .or. &
+                        maxvals(lb) < dens_cut*gr_refine_val_cutoff(nextref)) then
+                        refine(lb) = .false.
+                    endif
                 endif
              end if
           enddo

@@ -205,19 +205,17 @@ subroutine Grid_markRefineDerefine()
               endif
           enddo
 
-          if (nextref .eq. 0) cycle
-
     !!      maxvals_parent(:) = 0.0  ! <-- uncomment line for previous behavior
           do i = 1, blkCount
              lb = gr_blkList(i)
              if (nodetype(lb) == LEAF) then
                 if (lrefine(lb) .gt. grv_dynRefineMax) then
-                    refine(lb) = .false.
                     derefine(lb) = .true.
-                elseif (lrefine(lb) .ge. gr_refine_level(l)) then
-                    if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref)) then
+                    refine(lb) = .false.
+                elseif (lrefine(lb) .ge. gr_refine_level(l) .and. nextref .ne. 0) then
+                    if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref) .and. &
+                        maxvals(lb) < dens_cut*gr_refine_val_cutoff(nextref)) then
                         derefine(lb) = .true.
-                        refine(lb) = .false.
                     endif
                 endif
              end if

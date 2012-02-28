@@ -269,4 +269,12 @@ subroutine Total_force(blockCount, blockList)
         grv_hptaccel(3) = 0.d0
         grv_ptaccel(3) = 0.d0
     endif
+
+    !if (gr_meshMe .eq. MASTER_PE) then
+    !    print *, 'grv_optaccel', grv_optaccel
+    !    print *, 'grv_hptaccel', grv_hptaccel
+    !    print *, 'grv_ptaccel', grv_ptaccel
+    !    print *, 'grv_ompoleaccel', grv_ompoleaccel
+    !    print *, 'grv_mpoleaccel', grv_mpoleaccel
+    !endif
 end subroutine Total_force

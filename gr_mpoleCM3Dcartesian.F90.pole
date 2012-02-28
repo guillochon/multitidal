@@ -185,8 +185,8 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
 !        ...Prepare for a one-time all reduce call.
 !   
 !   
-     local_MXYZ_sum(1:7) = local_sum(1:7)
-     local_MXYZ_sum(8:14) = local_sum_cut(1:7)
+     local_MXYZ_sum(1:7)   = local_sum(1:7)
+     local_MXYZ_sum(8:14)  = local_sum_cut(1:7)
      local_MXYZ_sum(15:21) = local_sum_peak(1:7)
 !   
 !   
@@ -241,19 +241,36 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
       Y_centerofmass  = grv_exactvec(2)
       Z_centerofmass  = grv_exactvec(3)
   else
-      X_centerofmass = grv_mpolevec(1) + sign(max(0.1d0, dabs(grv_mpolevec(1)/mcs + half - &
-          anint(grv_mpolevec(1)/mcs + half)))*mcs, grv_mpolevec(1)/mcs + half - anint(grv_mpolevec(1)/mcs + half))
-      Y_centerofmass = grv_mpolevec(2) + sign(max(0.1d0, dabs(grv_mpolevec(2)/mcs + half - &
-          anint(grv_mpolevec(2)/mcs + half)))*mcs, grv_mpolevec(2)/mcs + half - anint(grv_mpolevec(2)/mcs + half))
-      Z_centerofmass = grv_mpolevec(3) + sign(max(0.1d0, dabs(grv_mpolevec(3)/mcs + half - &
-          anint(grv_mpolevec(3)/mcs + half)))*mcs, grv_mpolevec(3)/mcs + half - anint(grv_mpolevec(3)/mcs + half))
+      if (dabs(grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)) .lt. 0.02d0) then
+          grv_mpolevec(1) = grv_mpolevec(1) + mcs*sign(0.02d0, &
+              grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half))
+      endif
+      if (dabs(grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)) .lt. 0.02d0) then
+          grv_mpolevec(2) = grv_mpolevec(2) + mcs*sign(0.02d0, &
+              grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half))
+      endif
+      if (dabs(grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)) .lt. 0.02d0) then
+          grv_mpolevec(3) = grv_mpolevec(3) + mcs*sign(0.02d0, &
+              grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half))
+      endif
+
+      X_centerofmass = grv_mpolevec(1)
+      Y_centerofmass = grv_mpolevec(2)
+      Z_centerofmass = grv_mpolevec(3)
 
       peak_dist = sqrt((grv_peakvec(1) - X_centerofmass)**2.d0 + &
                        (grv_peakvec(2) - Y_centerofmass)**2.d0 + &
                        (grv_peakvec(3) - Z_centerofmass)**2.d0)
 
-      if (peak_dist*2.d0*PI/max_L .gt. mcs) then
-          print *, peak_dist, grv_peakvec, X_centerofmass, Y_centerofmass, Z_centerofmass
+      if (gr_meshMe .eq. MASTER_PE) print *, 'peak_dist', peak_dist/mcs
+
+      if (peak_dist*2.d0*PI/max_L .gt. mcs .and. gr_meshMe .eq. MASTER_PE) then
+          print *, 'peak_dist', peak_dist
+          print *, 'peak_vec', grv_peakvec
+          print *, 'COM', X_centerofmass, Y_centerofmass, Z_centerofmass
+          print *, 'xi', grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)
+          print *, 'yi', grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)
+          print *, 'zi', grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)
           call Driver_abortFlash('ERROR: Peak density location poorly resolved by multipole solver. Either increase ' // &
                                  'maximum multipole L or increase grv_comCutoff.')
       endif

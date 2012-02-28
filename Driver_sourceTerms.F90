@@ -196,6 +196,10 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         tot_avg_vel = gtot_mom/gtot_mass
         peak_avg_vel = gpeak_mom/gpeak_mass
 
+        !if (gr_meshMe .eq. MASTER_PE) then
+        !    print *, 'peak_avg_vel', peak_avg_vel
+        !endif
+
         do lb = 1, blockCount
             call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
             sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1

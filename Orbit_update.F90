@@ -218,11 +218,22 @@ subroutine derivs(x,y,dydx)
         endif
     endif
     last_zone_fraction = zone_max_radius_fraction (max_radial_zones)
-    if (sqrt(sum(dist**2.d0)) .gt. 0.99*max_R*last_zone_fraction) then
-        print *, grv_mode, grv_exactvec, grv_oexactvec
-        print *, x, orb_t, orb_dt
-        print *, y, dydx
-        print *, dist, sqrt(sum(dist**2.d0)), max_R*last_zone_fraction
+    if (sqrt(sum(dist**2.d0)) .gt. 0.99*max_R*last_zone_fraction .and. gr_meshMe .eq. MASTER_PE) then
+        print *, 'grv_mode', grv_mode
+        print *, 'grv_exactvec', grv_exactvec
+        print *, 'grv_oexactvec', grv_oexactvec
+        print *, 'grv_mpolevec', grv_exactvec
+        print *, 'grv_ompolevec', grv_oexactvec
+        print *, 'fac', fac
+        print *, 'x', x
+        print *, 'orb_t', orb_t
+        print *, 'orb_dt', orb_dt
+        print *, 'y', y
+        print *, 'dydx', dydx
+        print *, 'dist_comp', dist
+        print *, 'dist', sqrt(sum(dist**2.d0))
+        print *, 'max_R', max_R
+        print *, 'last_zone_fraction', last_zone_fraction
         call Driver_abortFlash('ERROR: Point mass is beyond outermost radial zone!')
     endif
     if (grv_mode .eq. 3) then
@@ -313,17 +324,17 @@ subroutine derivs(x,y,dydx)
     ! Make sure none of the forces are much smaller than the maximum force
     if (grv_orb3D) then
         max_dydx = maxval(abs(dydx(7:12)))
-        if (abs(dydx(7))  .lt. grv_orbMinForce*max_dydx) dydx(7)  = 0.d0
-        if (abs(dydx(8))  .lt. grv_orbMinForce*max_dydx) dydx(8)  = 0.d0
-        if (abs(dydx(9))  .lt. grv_orbMinForce*max_dydx) dydx(9)  = 0.d0
-        if (abs(dydx(10)) .lt. grv_orbMinForce*max_dydx) dydx(10) = 0.d0
-        if (abs(dydx(11)) .lt. grv_orbMinForce*max_dydx) dydx(11) = 0.d0
-        if (abs(dydx(12)) .lt. grv_orbMinForce*max_dydx) dydx(12) = 0.d0
+        if (abs(dydx(7))  .lt. grv_orbMinForce*max_dydx) dydx(7)  = grv_orbMinForce*max_dydx
+        if (abs(dydx(8))  .lt. grv_orbMinForce*max_dydx) dydx(8)  = grv_orbMinForce*max_dydx
+        if (abs(dydx(9))  .lt. grv_orbMinForce*max_dydx) dydx(9)  = grv_orbMinForce*max_dydx
+        if (abs(dydx(10)) .lt. grv_orbMinForce*max_dydx) dydx(10) = grv_orbMinForce*max_dydx
+        if (abs(dydx(11)) .lt. grv_orbMinForce*max_dydx) dydx(11) = grv_orbMinForce*max_dydx
+        if (abs(dydx(12)) .lt. grv_orbMinForce*max_dydx) dydx(12) = grv_orbMinForce*max_dydx
     else
         max_dydx = maxval(abs(dydx(5:8)))
-        if (abs(dydx(5))  .lt. grv_orbMinForce*max_dydx) dydx(5)  = 0.d0
-        if (abs(dydx(6))  .lt. grv_orbMinForce*max_dydx) dydx(6)  = 0.d0
-        if (abs(dydx(7))  .lt. grv_orbMinForce*max_dydx) dydx(7)  = 0.d0
-        if (abs(dydx(8))  .lt. grv_orbMinForce*max_dydx) dydx(8)  = 0.d0
+        if (abs(dydx(5))  .lt. grv_orbMinForce*max_dydx) dydx(5)  = grv_orbMinForce*max_dydx
+        if (abs(dydx(6))  .lt. grv_orbMinForce*max_dydx) dydx(6)  = grv_orbMinForce*max_dydx
+        if (abs(dydx(7))  .lt. grv_orbMinForce*max_dydx) dydx(7)  = grv_orbMinForce*max_dydx
+        if (abs(dydx(8))  .lt. grv_orbMinForce*max_dydx) dydx(8)  = grv_orbMinForce*max_dydx
     endif
 end subroutine derivs

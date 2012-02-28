@@ -214,11 +214,11 @@ subroutine Grid_markRefineDerefine()
                     refine(lb) = .false.
                 elseif (lrefine(lb) .ge. gr_refine_level(l) .and. nextref .ne. 0) then
                     if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref) .and. &
-                        maxvals(lb) < dens_cut*gr_refine_val_cutoff(nextref)) then
+                        maxvals(lb) < dens_cut*gr_refine_val_cutoff(l)) then
                         derefine(lb) = .true.
                     endif
                     if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref) .or. &
-                        maxvals(lb) < dens_cut*gr_refine_val_cutoff(nextref)) then
+                        maxvals(lb) < dens_cut*gr_refine_val_cutoff(l)) then
                         refine(lb) = .false.
                     endif
                 endif

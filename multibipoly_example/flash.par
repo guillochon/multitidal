@@ -86,6 +86,8 @@ mpole_zone_radius_fraction_4 = 10.0E0
 # Refinement parameters. Highest refinement levels should be specified first.
 lrefine_min         = 1
 lrefine_max         = 16
+sim_ptmassrefine    = 11
+sim_ptmassrefrad    = 50.e0
 sim_maxBlocks       = 40000   # Maximum total number of blocks in simulation. Derefines by 1 level if number is exceeded.
 refine_var_1        = "core"
 refine_val_cutoff_1 = 1.e-2
@@ -119,7 +121,6 @@ refine_level_9      = 7
 plot_var_1 = "dens"
 plot_var_2 = "temp"
 plot_var_3 = "pres"
-
 
 # STATIC PARAMETERS
 # These parameters should almost always be left alone.

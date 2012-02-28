@@ -45,7 +45,8 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
                                 blockCount,            &
                                 blockList,bndBox,      &
                                 blkLimits,blkLimitsGC, &
-                                delta,max_L
+                                delta,max_L,           &
+                                inner_zone_grid
   use Driver_data,       ONLY : dr_initialSimTime, dr_simTime, dr_restart, dr_initialSimTime
   use Gravity_data,      ONLY : grv_densCut, grv_exactvec, grv_peakvec, grv_mpolevec, &
                                 grv_totmass, grv_comCutoff, grv_comPeakCut, grv_mode, &
@@ -240,9 +241,12 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
       Y_centerofmass  = grv_exactvec(2)
       Z_centerofmass  = grv_exactvec(3)
   else
-      X_centerofmass = grv_mpolevec(1)
-      Y_centerofmass = grv_mpolevec(2)
-      Z_centerofmass = grv_mpolevec(3)
+      X_centerofmass = grv_mpolevec(1) + sign(max(0.1d0, dabs(grv_mpolevec(1)/mcs + half - &
+          anint(grv_mpolevec(1)/mcs + half)))*mcs, grv_mpolevec(1)/mcs + half - anint(grv_mpolevec(1)/mcs + half))
+      Y_centerofmass = grv_mpolevec(2) + sign(max(0.1d0, dabs(grv_mpolevec(2)/mcs + half - &
+          anint(grv_mpolevec(2)/mcs + half)))*mcs, grv_mpolevec(2)/mcs + half - anint(grv_mpolevec(2)/mcs + half))
+      Z_centerofmass = grv_mpolevec(3) + sign(max(0.1d0, dabs(grv_mpolevec(3)/mcs + half - &
+          anint(grv_mpolevec(3)/mcs + half)))*mcs, grv_mpolevec(3)/mcs + half - anint(grv_mpolevec(3)/mcs + half))
 
       peak_dist = sqrt((grv_peakvec(1) - X_centerofmass)**2.d0 + &
                        (grv_peakvec(2) - Y_centerofmass)**2.d0 + &

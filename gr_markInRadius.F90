@@ -132,7 +132,6 @@ subroutine gr_markInRadius(ic, jc, kc, radius, lref, unmark)
            if (dist2 <= radius**2) then
               
               if (unmark == 0) then
-                  print *, 'hi'
                  if (lrefine(b) < lref ) then
                     refine(b)   = .true.
                     derefine(b) = .false.

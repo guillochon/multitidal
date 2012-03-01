@@ -201,7 +201,8 @@ subroutine Grid_markRefineDerefine()
              lb = gr_blkList(i)
              if (nodetype(lb) == LEAF) then
                 if (maxvals_parent(lb) .le. dens_cut*gr_derefine_cutoff(l) .and. &
-                    maxvals(lb) .le. dens_cut*gr_derefine_cutoff(l)) then
+                    maxvals(lb) .le. dens_cut*gr_derefine_cutoff(l) .and. &
+                    lrefine(lb) .ge. gr_refine_level(l)) then
                     derefine(lb) = .true.
                 endif
                 if (maxvals(lb) .gt. dens_cut*gr_refine_cutoff(l) .and. &

@@ -24,7 +24,7 @@ zmax = 4.e14
 # orders of magnitude less than typical simulation values.
 smalle = 1.e10
 smallt = 1.e-15
-smlrho = 1.e-20
+smlrho = 1.e-18
 smallp = 1.e-4
 
 # Maximum time to run simulation.
@@ -44,7 +44,7 @@ sim_startBeta = 0.1
 sim_orbEcc    = 0.99999
 
 # Background fluff parameters.
-sim_rhoAmbient = 1.0e-19
+sim_rhoAmbient = 1.0e-17
 sim_pAmbient   = 1.0e-4
 
 # Parameters of initial relaxation of object to grid.
@@ -59,7 +59,7 @@ sim_accRadius       = 0.0
 sim_accCoeff        = 0.0
 sim_fluidGamma      = 1.6666666666666667
 sim_fluffDampCoeff  = 0.95
-sim_fluffDampCutoff = 1.e-18   # Should be slightly larger than sim_rhoAmbient
+sim_fluffDampCutoff = 1.e-16   # Should be slightly larger than sim_rhoAmbient
 sim_totForceSub     = 3
 
 # Parameters affecting the multipole gravity solver. Please read FLASH4 documentation before modifying.
@@ -118,7 +118,7 @@ refine_level_8    = 8
 refine_var_9      = "dens"
 refine_cutoff_9   = 1.00e-10
 derefine_cutoff_9 = 5.00e-11
-refine_level_9        = 7
+refine_level_9    = 7
 
 # Variables to include in plot files.
 plot_var_1 = "dens"

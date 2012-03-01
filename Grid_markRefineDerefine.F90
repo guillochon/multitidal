@@ -31,7 +31,7 @@
 subroutine Grid_markRefineDerefine()
 
   use Grid_data, ONLY : gr_refine_cutoff, gr_derefine_cutoff,&
-                        gr_refine_filter,gr_refine_val_cutoff,&
+                        gr_refine_filter,&
                         gr_numRefineVars,gr_refine_var,gr_refineOnParticleCount,&
                         gr_blkList, gr_refine_level, gr_meshMe
   use tree, ONLY : newchild, refine, derefine, stay, nodetype,&
@@ -100,7 +100,7 @@ subroutine Grid_markRefineDerefine()
   !   ref_cut = gr_refine_cutoff(l)
   !   deref_cut = gr_derefine_cutoff(l)
   !   ref_filter = gr_refine_filter(l)
-  !   ref_val_cut = gr_refine_val_cutoff(l)
+  !   ref_val_cut = gr_refine_cutoff(l)
   !   call gr_markRefineDerefine(iref,ref_cut,deref_cut,ref_filter,&
   !       ref_val_cut)
   !end do
@@ -123,15 +123,14 @@ subroutine Grid_markRefineDerefine()
       if (max_blocks .gt. sim_maxBlocks) then
           grv_dynRefineMax = grv_dynRefineMax - 1
       endif
-      ! The last refinement level is ignored, it is only used to derefine the second to last level.
-      do l = 1,gr_numRefineVars-1
-          iref = gr_refine_var(l)
-          ref_val_cut = dens_cut*gr_refine_val_cutoff(l)
-          ref_level = min(gr_refine_level(l), grv_dynRefineMax)
-          call gr_markVarThreshold(iref,ref_val_cut,0,ref_level)
-      enddo
+      !do l = 1,gr_numRefineVars-1
+      !    iref = gr_refine_var(l)
+      !    ref_val_cut = dens_cut*gr_refine_cutoff(l)
+      !    ref_level = min(gr_refine_level(l), grv_dynRefineMax)
+      !    call gr_markVarThreshold(iref,ref_val_cut,0,ref_level)
+      !enddo
 
-      do l = 1,gr_numRefineVars-1
+      do l = 1,gr_numRefineVars
           iref = gr_refine_var(l)
 
           do i = 1, blkCount
@@ -197,37 +196,25 @@ subroutine Grid_markRefineDerefine()
              call MPI_Waitall (nrecv, reqr, statr, ierr)
           end if
 
-          nextref = 0
-          do i = 1, gr_numRefineVars
-              if (iref .ne. gr_refine_var(i)) cycle
-              if (gr_refine_level(i) .lt. gr_refine_level(l)) then
-                  nextref = i
-                  exit
-              endif
-          enddo
-
     !!      maxvals_parent(:) = 0.0  ! <-- uncomment line for previous behavior
           do i = 1, blkCount
              lb = gr_blkList(i)
              if (nodetype(lb) == LEAF) then
+                if (maxvals_parent(lb) .le. dens_cut*gr_derefine_cutoff(l) .and. &
+                    maxvals(lb) .le. dens_cut*gr_derefine_cutoff(l)) then
+                    derefine(lb) = .true.
+                else
+                    derefine(lb) = .false.
+                endif
+                if (maxvals(lb) > dens_cut*gr_refine_cutoff(l)) then
+                    derefine(lb) = .false.
+                    refine(lb) = .true.
+                endif
+                if (lrefine(lb) .ge. grv_dynRefineMax) then
+                    refine(lb) = .false.
+                endif
                 if (lrefine(lb) .gt. grv_dynRefineMax) then
                     derefine(lb) = .true.
-                    refine(lb) = .false.
-                elseif (lrefine(lb) .ge. gr_refine_level(l)) then
-                    if (nextref .ne. 0) then
-                        if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref) .and. &
-                            maxvals(lb) < dens_cut*gr_refine_val_cutoff(l)) then
-                            derefine(lb) = .true.
-                        endif
-                        if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref) .or. &
-                            maxvals(lb) < dens_cut*gr_refine_val_cutoff(l)) then
-                            refine(lb) = .false.
-                        endif
-                    else
-                        print *, gr_refine_level
-                        print *, iref, gr_refine_level(l), gr_refine_level(l+1), l, nextref
-                        call Driver_abortFlash('Error: Last refinment level is only used for derefinement.')
-                    endif
                 endif
              endif
           enddo

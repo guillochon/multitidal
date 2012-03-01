@@ -91,15 +91,6 @@ PARAMETER mpole_zone_radius_fraction_3 REAL 1.0 [ 0.0 ... 1000000.0 ]
 PARAMETER mpole_zone_radius_fraction_4 REAL 1.0 [ 0.0 ... 1000000.0 ]
 
 # Add some new refinement parameters
-PARAMETER refine_val_cutoff_1 REAL    0.E0
-PARAMETER refine_val_cutoff_2 REAL    0.E0
-PARAMETER refine_val_cutoff_3 REAL    0.E0
-PARAMETER refine_val_cutoff_4 REAL    0.E0
-PARAMETER refine_val_cutoff_5 REAL    0.E0
-PARAMETER refine_val_cutoff_6 REAL    0.E0
-PARAMETER refine_val_cutoff_7 REAL    0.E0
-PARAMETER refine_val_cutoff_8 REAL    0.E0
-PARAMETER refine_val_cutoff_9 REAL    0.E0
 PARAMETER refine_level_1      INTEGER 0
 PARAMETER refine_level_2      INTEGER 0
 PARAMETER refine_level_3      INTEGER 0

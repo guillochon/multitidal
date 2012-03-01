@@ -139,7 +139,6 @@ subroutine Grid_init()
   character(len=MAX_STRING_LENGTH),save :: refVarname,refVarString,paramString
   character(len=MAX_STRING_LENGTH),save :: refCutoffName,refCutOffString
   character(len=MAX_STRING_LENGTH),save :: derefCutoffName,derefCutOffString
-  character(len=MAX_STRING_LENGTH),save :: refValCutoffName,refValCutOffString
   character(len=MAX_STRING_LENGTH),save :: refLevelName,refLevelString
   character(len=MAX_STRING_LENGTH),save :: refFiltername,refFilterString
   character(len=MAX_STRING_LENGTH) :: xl_bcString,xr_bcString
@@ -327,7 +326,6 @@ subroutine Grid_init()
   refVarName='refine_var_'
   refCutoffName='refine_cutoff_'
   derefCutoffName='derefine_cutoff_'
-  refValCutoffName='refine_val_cutoff_'
   refLevelName='refine_level_'
   refFilterName='refine_filter_'
 
@@ -345,12 +343,10 @@ subroutine Grid_init()
            gr_refine_var(gr_numRefineVars)=refVar
            call concatStringWithInt(refCutoffName,gr_numRefineVars,refCutoffString)
            call concatStringWithInt(derefCutoffName,gr_numRefineVars,derefCutOffString)
-           call concatStringWithInt(refValCutoffName,gr_numRefineVars,refValCutoffString)
            call concatStringWithInt(refLevelName,gr_numRefineVars,refLevelString)
            call concatStringWithInt(refFilterName,gr_numRefineVars,refFilterString)
            call RuntimeParameters_get( refCutoffString, gr_refine_cutoff(gr_numRefineVars)  )
            call RuntimeParameters_get( derefCutoffString, gr_derefine_cutoff(gr_numRefineVars) )
-           call RuntimeParameters_get( refValCutoffString,  gr_refine_val_cutoff(gr_numRefineVars) )
            call RuntimeParameters_get( refLevelString,  gr_refine_level(gr_numRefineVars) )
            call RuntimeParameters_get( refFilterString,  gr_refine_filter(gr_numRefineVars) )
            exit ! told you it wasnt a real loop

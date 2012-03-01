@@ -41,7 +41,7 @@ subroutine Grid_markRefineDerefine()
   use Driver_interface, ONLY: Driver_getSimTime
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   use Simulation_data, ONLY: sim_objMass, sim_objPolyN, sim_objCentDen, np, obj_radius, &
-      obj_ipos, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity, sim_ptMassRefine
+      obj_ipos, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity, sim_ptMassRefine, sim_fluffDampCutoff
   use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
   use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_dynRefineMax, &
       grv_exactvec, grv_mpolevec, grv_periDist
@@ -123,14 +123,15 @@ subroutine Grid_markRefineDerefine()
       if (max_blocks .gt. sim_maxBlocks) then
           grv_dynRefineMax = grv_dynRefineMax - 1
       endif
-      do l = 1,gr_numRefineVars
+      ! The last refinement level is ignored, it is only used to derefine the second to last level.
+      do l = 1,gr_numRefineVars-1
           iref = gr_refine_var(l)
           ref_val_cut = dens_cut*gr_refine_val_cutoff(l)
           ref_level = min(gr_refine_level(l), grv_dynRefineMax)
           call gr_markVarThreshold(iref,ref_val_cut,0,ref_level)
       enddo
 
-      do l = 1,gr_numRefineVars
+      do l = 1,gr_numRefineVars-1
           iref = gr_refine_var(l)
 
           do i = 1, blkCount
@@ -212,17 +213,23 @@ subroutine Grid_markRefineDerefine()
                 if (lrefine(lb) .gt. grv_dynRefineMax) then
                     derefine(lb) = .true.
                     refine(lb) = .false.
-                elseif (lrefine(lb) .ge. gr_refine_level(l) .and. nextref .ne. 0) then
-                    if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref) .and. &
-                        maxvals(lb) < dens_cut*gr_refine_val_cutoff(l)) then
-                        derefine(lb) = .true.
-                    endif
-                    if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref) .or. &
-                        maxvals(lb) < dens_cut*gr_refine_val_cutoff(l)) then
-                        refine(lb) = .false.
+                elseif (lrefine(lb) .ge. gr_refine_level(l)) then
+                    if (nextref .ne. 0) then
+                        if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref) .and. &
+                            maxvals(lb) < dens_cut*gr_refine_val_cutoff(l)) then
+                            derefine(lb) = .true.
+                        endif
+                        if (maxvals_parent(lb) < dens_cut*gr_refine_val_cutoff(nextref) .or. &
+                            maxvals(lb) < dens_cut*gr_refine_val_cutoff(l)) then
+                            refine(lb) = .false.
+                        endif
+                    else
+                        print *, gr_refine_level
+                        print *, iref, gr_refine_level(l), gr_refine_level(l+1), l, nextref
+                        call Driver_abortFlash('Error: Last refinment level is only used for derefinement.')
                     endif
                 endif
-             end if
+             endif
           enddo
       enddo
 

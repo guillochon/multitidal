@@ -156,8 +156,16 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
 
                  cell_density = solnData (idensvar,i,j,k)
 
-                 if (cell_density .ge. sim_fluffDampCutoff) then !Don't include any mass below the damping cutoff
+                 if (cell_density .gt. sim_fluffDampCutoff) then !Don't include any mass below the damping cutoff
                     cell_mass = cell_density * cell_vol
+
+                    if (cell_mass .gt. 1.d33) then
+                        print *, cell_mass, gr_meshMe
+                        print *, cell_vol, cell_density
+                        print *, x, y, z
+                        print *, 'uh oh'
+                        call Driver_abortFlash('uh oh')
+                    endif
                     local_sum = local_sum + cell_mass * (/ 1.d0, x, y, z, solnData(VELX_VAR:VELZ_VAR,i,j,k) /)
 
                     if (cell_density .ge. grv_densCut*grv_comCutoff) then
@@ -241,16 +249,24 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
       Y_centerofmass  = grv_exactvec(2)
       Z_centerofmass  = grv_exactvec(3)
   else
-      if (dabs(grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)) .lt. 0.02d0) then
-          grv_mpolevec(1) = grv_mpolevec(1) + mcs*sign(0.02d0, &
+      if (dabs(grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)) .lt. 0.01d0) then
+          print *, 'x too close!', grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)
+          grv_mpolevec(1) = grv_mpolevec(1) + mcs*sign(0.01d0, &
               grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half))
       endif
-      if (dabs(grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)) .lt. 0.02d0) then
-          grv_mpolevec(2) = grv_mpolevec(2) + mcs*sign(0.02d0, &
+      if (dabs(grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)) .lt. 0.01d0) then
+          print *, 'y too close!', grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)
+          grv_mpolevec(2) = grv_mpolevec(2) + mcs*sign(0.01d0, &
               grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half))
       endif
-      if (dabs(grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)) .lt. 0.02d0) then
-          grv_mpolevec(3) = grv_mpolevec(3) + mcs*sign(0.02d0, &
+      if (dabs(grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)) .lt. 0.01d0) then
+          if (gr_meshMe .eq. MASTER_PE) then
+              print *, 'z too close!', grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)
+              print *, 'grv_mpolevec', grv_mpolevec
+              print *, 'total_MXYZ_sum', total_MXYZ_sum
+              call Driver_abortFlash('done')
+          endif
+          grv_mpolevec(3) = grv_mpolevec(3) + mcs*sign(0.01d0, &
               grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half))
       endif
 

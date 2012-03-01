@@ -130,6 +130,10 @@ subroutine Total_force(blockCount, blockList)
                                 (solnData(potVar,i,j-1,k) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j+1,k)), &
                             solnData(potVar,i,j,k-1) - solnData(potVar,i,j,k+1) + deld(3)/solnData(denVar,i,j,k)*twelfth*&
                                 (solnData(potVar,i,j,k-1) - 2.d0*solnData(potVar,i,j,k) + solnData(potVar,i,j,k+1)) /)
+                        !lsum(2:4) = lsum(2:4) + cell_mass * delxinv * (/ &
+                        !    solnData(potVar,i-1,j,k) - solnData(potVar,i+1,j,k), &
+                        !    solnData(potVar,i,j-1,k) - solnData(potVar,i,j+1,k), &
+                        !    solnData(potVar,i,j,k-1) - solnData(potVar,i,j,k+1) /)
                     enddo
                 enddo
             enddo

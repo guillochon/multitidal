@@ -20,14 +20,14 @@ subroutine Bound_mass(blockCount, blockList)
     logical :: gcell = .true.
     double precision, dimension(:,:,:,:),pointer :: solnData
     double precision, dimension(7) :: lsum, gsum
-    double precision, dimension(3) :: bndvel, bndpos, relvel
+    double precision, dimension(3) :: bndvel, bndpos
     double precision :: dvol, delm, xx, yy, zz, bndv2, ptv2, ptrad
     double precision :: G, tinitial, dx, delxinv
 
     call PhysicalConstants_get("Newton", G)
     call RuntimeParameters_get('tinitial',tinitial)
 
-    do it = 1, 1 !Converges quite quickly
+    do it = 1, 5 !Converges quite quickly
         lsum = 0.d0
         gsum = 0.d0
 
@@ -57,11 +57,11 @@ subroutine Bound_mass(blockCount, blockList)
 
                         if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) cycle !Don't include any mass below the damping cutoff
 
-                        !if (it .eq. 1) then
+                        if (it .eq. 1) then
                             bndvel = solnData(VELX_VAR:VELZ_VAR,i,j,k) - grv_peakvec(4:6)
-                        !else
-                        !    bndvel = solnData(VELX_VAR:VELZ_VAR,i,j,k) - relvel
-                        !endif
+                        else
+                            bndvel = solnData(VELX_VAR:VELZ_VAR,i,j,k) - grv_boundvec(4:6)
+                        endif
                         bndv2 = 0.5d0*sum(bndvel**2.d0)
                         if (-solnData(GPOT_VAR,i,j,k) .ge. bndv2) then
                             xx = xCoord(i)

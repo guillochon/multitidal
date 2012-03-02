@@ -1,7 +1,8 @@
 subroutine Bound_mass(blockCount, blockList)
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
-    use Gravity_data, ONLY: grv_thresh, grv_bound, grv_boundvec, grv_ptmass, grv_obvec, grv_ptvec, grv_peakvec
+    use Gravity_data, ONLY: grv_thresh, grv_bound, grv_boundvec, grv_ptmass, grv_obvec, &
+        grv_ptvec, grv_peakvec, grv_bndMassIters
     use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass
     use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
     use Driver_data, ONLY: dr_simTime, dr_globalMe
@@ -27,7 +28,7 @@ subroutine Bound_mass(blockCount, blockList)
     call PhysicalConstants_get("Newton", G)
     call RuntimeParameters_get('tinitial',tinitial)
 
-    do it = 1, 5 !Converges quite quickly
+    do it = 1, grv_bndMassIters !Converges quite quickly
         lsum = 0.d0
         gsum = 0.d0
 
@@ -96,7 +97,11 @@ subroutine Bound_mass(blockCount, blockList)
 
         call MPI_ALLREDUCE(lsum, gsum, 7, FLASH_REAL, MPI_SUM, MPI_COMM_WORLD, ierr)
         grv_bound = gsum(1)
-        grv_boundvec = gsum(2:7) / gsum(1)
+        if (grv_bound .eq. 0.d0) then
+            grv_boundvec = grv_peakvec
+        else
+            grv_boundvec = gsum(2:7) / gsum(1)
+        endif
     enddo
 
 end subroutine Bound_mass

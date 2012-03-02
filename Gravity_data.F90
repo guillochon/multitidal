@@ -23,7 +23,7 @@ module Gravity_data
 
   integer, save :: grav_geometry  !mesh geometry
   integer, save :: grv_dynRefineMax
-  integer, save :: grv_meshMe, grv_meshNumProcs, grv_meshComm
+  integer, save :: grv_meshMe, grv_meshNumProcs, grv_meshComm, grv_bndMassIters
   integer, save :: grv_commSize=1
 
   logical, save :: useGravity, updateGravity

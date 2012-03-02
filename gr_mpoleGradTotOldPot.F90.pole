@@ -1,0 +1,830 @@
+!!****if* source/Grid/GridSolvers/Multipole_experimental/gr_mpoleGradTotOldPot
+!!
+!! NAME
+!!
+!!  gr_mpoleGradTotOldPot
+!!
+!! SYNOPSIS
+!!
+!!  gr_mpoleGradTotOldPot  (real, intent(in) :: coord,
+!!               real, intent(out) :: grad_phi)
+!!
+!! DESCRIPTION
+!!
+!!  Computes the potential gradiant at a given point using the previous
+!!  time-step's moments.
+!!
+!! ARGUMENTS
+!!
+!!  idensvar       - index to variable containing the density
+!!  ipotvar        - index to variable containing the potential
+!!
+!!***
+
+!!REORDER(4): solnData
+
+subroutine gr_mpoleGradTotOldPot (coord, grad_phi)
+
+    use Driver_interface,  ONLY : Driver_abortFlash
+    use Logfile_interface, ONLY : Logfile_stamp
+    use gr_mpoleData,      ONLY : G_constant,                 &
+                                  symmetry_axis_3D,           &
+                                  one,two,three,              &
+                                  zero,half,                  &
+                                  NumberInv,                  &
+                                  n_cosine_moments,           &
+                                  max_L,max_2L,               &
+                                  max_radial_zones,           &
+                                  ZONE_EXP,                   &
+                                  ZONE_LOG,                   &
+                                  zone_type,                  &
+                                  zone_scalar_inv,            &
+                                  zone_lognorm_inv,           &
+                                  zone_exponent_inv,          &
+                                  inner_zone_grid,            &
+                                  inner_zone_grid_inv,        &
+                                  inner_zone_size,            &
+                                  D_Damper,Denorm_D,          &
+                                  ! All the old variables here.
+                                  old_tot_inner_zone_rmax,        &
+                                  old_tot_inner_zone_radii,       &
+                                  old_tot_inner_zone_Qlower,      &
+                                  old_tot_inner_zone_Qupper,      &
+                                  old_tot_dr_inv,                 &
+                                  old_tot_dr_inner_zone,          &
+                                  old_tot_dr_inner_zone_inv,      &
+                                  old_tot_min_radial_zone,        &
+                                  old_tot_zone_rmax,              &
+                                  old_tot_zone_qmax,              &
+                                  old_tot_outer_zone_Qshift,      &
+                                  Old_Tot_R_Moment,Old_Tot_I_Moment,  &
+                                  Old_Tot_R_Damper,Old_Tot_I_Damper,  &
+                                  Old_Tot_Denorm_R,Old_Tot_Denorm_I,  &
+                                  Old_Tot_Damping_R,Old_Tot_Damping_I,&
+                                  Old_Tot_Moment_R,Old_Tot_Moment_I
+
+
+    implicit none
+    
+#include "constants.h"
+#include "Flash.h"
+    
+    double precision, dimension(3), intent(IN) :: coord 
+    double precision, dimension(3), intent(OUT) :: grad_phi
+
+    real    :: damping_factor_D
+    real    :: damping_factor_R
+    real    :: damping_factor_I
+    real    :: f,g,h
+    real    :: I_c00,R_c00,I_cLL,I_sLL,R_cLL,R_sLL
+    real    :: Q_float,Q_Ifrac,Q_Rfrac
+    real    :: R_damping,I_damping,D_damping
+    real    :: r_local
+    real    :: rsqR,rinvI,rsqinvI,rscaled
+    real    :: R_dot_I,I_dot_R
+    real    :: scl_inv,lgn_inv,exp_inv
+    real    :: total_potential
+    real    :: x,y,z,r
+    real    :: xI,yI,zI,rI
+    real    :: xR,yR,zR,rR,del
+    real, dimension(3) :: dx
+
+    integer :: i,j
+    integer :: c,s
+    integer :: old_tot_dr_unit
+    integer :: M,MM,L
+    integer :: Q,Q_local,Q_lower,Q_upper
+    integer :: type
+    integer :: zone
+
+    del = old_tot_dr_inner_zone
+    dx = del
+    grad_phi = 0.d0
+
+    if (del + dx(1) .gt. sqrt(sum(coord**2.d0))) return
+
+    !print *, 'coord', coord, dx(1)
+!  
+!
+!     ...Sum quantities over all locally held leaf blocks.
+!
+!
+!          ...The general asymmetric 3D cartesian case. The full set of regular and
+!             irregular solid harmonics:
+!
+!                          0 =< L =< max_L
+!                          0 =< M =< L       (cosine part)
+!                          1 =< M =< L       (sine part)
+!
+!             are calculated and the scalar products are formed with the corresponding
+!             moments. Special versions are supplied for the L = 0 and L = 1 cases to
+!             avoid 'if' inside the i,j,k loops.
+!
+!             If an axisymmetric symmetry has been specified, one enforces
+!             computationally an axial symmetry on the problem, i.e. the problem
+!             is treated as if axisymmetry is present (which in the real simulation
+!             is never the case due to the finite resolution of the grid).
+!             Axisymmetry means rotational invariance around the z-axis and hence
+!             we evaluate only the M = 0 cosine components:
+!
+!                               0 =< L =< max_L
+!                                    M = 0       (cosine part)
+!
+!
+!
+     if (max_L == 0) then
+!
+!
+!        ...The spherical L = 0 case. No axisymmetric distinction necessary here!
+!
+         do i = 1,3
+            do j = -1,1,2
+               select case (i)
+                  case (1)
+                      x = coord(1) + j*dx(1)
+                      y = coord(2)
+                      z = coord(3)
+                  case (2)
+                      x = coord(1)
+                      y = coord(2) + j*dx(2)
+                      z = coord(3)
+                  case (3)
+                      x = coord(1)
+                      y = coord(2)
+                      z = coord(3) + j*dx(3)
+               end select
+
+               r = sqrt(x*x + y*y + z*z)
+
+               if (r <= old_tot_inner_zone_rmax) then
+                   rscaled = r * old_tot_dr_inner_zone_inv
+                   old_tot_dr_unit = int (ceiling (rscaled * inner_zone_grid_inv) * inner_zone_grid)
+                   Q_lower = old_tot_inner_zone_Qlower (old_tot_dr_unit)
+                   Q_upper = old_tot_inner_zone_Qupper (old_tot_dr_unit)
+                   Q_Ifrac = zero
+                   Q_Rfrac = one
+
+                   do Q = Q_lower,Q_upper
+                      if (rscaled <= old_tot_inner_zone_radii (Q)) exit
+                   end do
+               else
+                   do zone = old_tot_min_radial_zone, max_radial_zones
+                      if (r - old_tot_zone_rmax (zone) <= zero) exit
+                   end do
+
+                   r_local = r - old_tot_zone_rmax (zone - 1)
+                   type    = zone_type         (zone)
+                   scl_inv = zone_scalar_inv   (zone)
+                   exp_inv = zone_exponent_inv (zone)
+
+                   if (type == ZONE_EXP) then
+                       Q_float = (r_local * scl_inv * old_tot_dr_inv) ** exp_inv
+                   else if (type == ZONE_LOG) then
+                       lgn_inv = zone_lognorm_inv (zone)
+                       Q_float = exp_inv * log (r_local * scl_inv * old_tot_dr_inv * lgn_inv + one)
+                   end if
+
+                   Q_local = ceiling (Q_float)
+                   Q_Ifrac = real (Q_local) - Q_float
+                   Q_Rfrac = one - Q_Ifrac
+                   Q       = old_tot_zone_qmax (zone - 1) + Q_local + old_tot_outer_zone_Qshift
+               end if
+
+               rinvI = one / r
+
+               R_dot_I =   Q_Ifrac * (Old_Tot_Damping_I (Q)   * Old_Tot_Moment_I (1,Q))   &
+                         + Q_Rfrac *  Old_Tot_Damping_I (Q+1) * Old_Tot_Moment_I (1,Q+1)
+               I_dot_R = rinvI * (Q_Ifrac * Old_Tot_Moment_R (1,Q-1) + Q_Rfrac * Old_Tot_Moment_R (1,Q))
+
+               total_potential = - G_constant * (R_dot_I + I_dot_R)
+
+               grad_phi(i) = grad_phi(i) + j*total_potential
+            enddo
+         enddo
+                      
+     else if (max_L == 1) then
+!
+!
+!        ...The L = 1 case.
+!
+!
+         if (symmetry_axis_3D) then
+             do i = 1,3
+                do j = -1,1,2
+                   select case (i)
+                      case (1)
+                          x = coord(1) + j*dx(1)
+                          y = coord(2)
+                          z = coord(3)
+                      case (2)
+                          x = coord(1)
+                          y = coord(2) + j*dx(2)
+                          z = coord(3)
+                      case (3)
+                          x = coord(1)
+                          y = coord(2)
+                          z = coord(3) + j*dx(3)
+                   end select
+
+                   r = sqrt(x*x + y*y + z*z)
+
+                   if (r <= old_tot_inner_zone_rmax) then
+                       rscaled = r * old_tot_dr_inner_zone_inv
+                       old_tot_dr_unit = int (ceiling (rscaled * inner_zone_grid_inv) * inner_zone_grid)
+                       Q_lower = old_tot_inner_zone_Qlower (old_tot_dr_unit)
+                       Q_upper = old_tot_inner_zone_Qupper (old_tot_dr_unit)
+                       Q_Ifrac = zero
+                       Q_Rfrac = one
+
+                       do Q = Q_lower,Q_upper
+                          if (rscaled <= old_tot_inner_zone_radii (Q)) exit
+                       end do
+                   else
+                       do zone = old_tot_min_radial_zone, max_radial_zones
+                          if (r - old_tot_zone_rmax (zone) <= zero) exit
+                       end do
+
+                       r_local = r - old_tot_zone_rmax (zone - 1)
+                       type    = zone_type         (zone)
+                       scl_inv = zone_scalar_inv   (zone)
+                       exp_inv = zone_exponent_inv (zone)
+
+                       if (type == ZONE_EXP) then
+                           Q_float = (r_local * scl_inv * old_tot_dr_inv) ** exp_inv
+                       else if (type == ZONE_LOG) then
+                           lgn_inv = zone_lognorm_inv (zone)
+                           Q_float = exp_inv * log (r_local * scl_inv * old_tot_dr_inv * lgn_inv + one)
+                       end if
+
+                       Q_local = ceiling (Q_float)
+                       Q_Ifrac = real (Q_local) - Q_float
+                       Q_Rfrac = one - Q_Ifrac
+                       Q       = old_tot_zone_qmax (zone - 1) + Q_local + old_tot_outer_zone_Qshift
+                   end if
+ 
+                   R_damping = Old_Tot_Damping_R (Q)
+                   I_damping = Old_Tot_Damping_I (Q)
+                   damping_factor_D =       I_damping / R_damping
+                   damping_factor_I = Old_Tot_Damping_I (Q+1) / Old_Tot_Damping_I (Q)
+                   damping_factor_R = Old_Tot_Damping_R (Q)   / Old_Tot_Damping_R (Q-1)
+                   D_Damper (1) = I_damping
+                   D_Damper (2) = I_damping * damping_factor_D
+                   Old_Tot_I_Damper (1) = damping_factor_I
+                   Old_Tot_I_Damper (2) = damping_factor_I * damping_factor_I
+                   Old_Tot_R_Damper (1) = one
+                   Old_Tot_R_Damper (2) = damping_factor_R
+
+                   zR = z * R_damping
+                   zI = z * I_damping
+                   rinvI = one / (r * I_damping)
+
+                   R_c00 = one
+                   I_c00 = rinvI
+
+                   Old_Tot_R_Moment (1) = R_c00                        ! cos 00
+                   Old_Tot_R_Moment (2) = R_c00 * zR                   ! cos 10
+                   Old_Tot_I_Moment (1) = I_c00                        ! cos 00
+                   Old_Tot_I_Moment (2) = I_c00 * zI * rinvI * rinvI   ! cos 10
+
+                   R_dot_I  = dot_product (D_Damper * Old_Tot_R_Moment ,                              &
+                                            Q_Ifrac * (Old_Tot_Moment_I (:,Q)) &
+                                          + Q_Rfrac * Old_Tot_I_Damper * Old_Tot_Moment_I (:,Q+1))
+
+                   I_dot_R  = dot_product (D_Damper * Old_Tot_I_Moment ,                              &
+                                            Q_Ifrac * Old_Tot_R_Damper * Old_Tot_Moment_R (:,Q-1)             &
+                                          + Q_Rfrac * (Old_Tot_Moment_R (:,Q)))
+
+                   total_potential = - G_constant * (R_dot_I + I_dot_R)
+                   grad_phi(i) = grad_phi(i) + j*total_potential
+                enddo
+             enddo
+
+         else
+
+             do i = 1,3
+                do j = -1,1,2
+                   select case (i)
+                      case (1)
+                          x = coord(1) + j*dx(1)
+                          y = coord(2)
+                          z = coord(3)
+                      case (2)
+                          x = coord(1)
+                          y = coord(2) + j*dx(2)
+                          z = coord(3)
+                      case (3)
+                          x = coord(1)
+                          y = coord(2)
+                          z = coord(3) + j*dx(3)
+                   end select
+                   r = sqrt(x*x + y*y + z*z)
+
+                   if (r <= old_tot_inner_zone_rmax) then
+                       rscaled = r * old_tot_dr_inner_zone_inv
+                       old_tot_dr_unit = int (ceiling (rscaled * inner_zone_grid_inv) * inner_zone_grid)
+                       Q_lower = old_tot_inner_zone_Qlower (old_tot_dr_unit)
+                       Q_upper = old_tot_inner_zone_Qupper (old_tot_dr_unit)
+                       Q_Ifrac = zero
+                       Q_Rfrac = one
+
+                       do Q = Q_lower,Q_upper
+                          if (rscaled <= old_tot_inner_zone_radii (Q)) exit
+                       end do
+                   else
+                       do zone = old_tot_min_radial_zone, max_radial_zones
+                          if (r - old_tot_zone_rmax (zone) <= zero) exit
+                       end do
+
+                       r_local = r - old_tot_zone_rmax (zone - 1)
+                       type    = zone_type         (zone)
+                       scl_inv = zone_scalar_inv   (zone)
+                       exp_inv = zone_exponent_inv (zone)
+
+                       if (type == ZONE_EXP) then
+                           Q_float = (r_local * scl_inv * old_tot_dr_inv) ** exp_inv
+                       else if (type == ZONE_LOG) then
+                           lgn_inv = zone_lognorm_inv (zone)
+                           Q_float = exp_inv * log (r_local * scl_inv * old_tot_dr_inv * lgn_inv + one)
+                       end if
+
+                       Q_local = ceiling (Q_float)
+                       Q_Ifrac = real (Q_local) - Q_float
+                       Q_Rfrac = one - Q_Ifrac
+                       Q       = old_tot_zone_qmax (zone - 1) + Q_local + old_tot_outer_zone_Qshift
+                   end if
+
+                   R_damping = Old_Tot_Damping_R (Q)
+                   I_damping = Old_Tot_Damping_I (Q)
+                   damping_factor_D =       I_damping / R_damping
+                   damping_factor_I = Old_Tot_Damping_I (Q+1) / Old_Tot_Damping_I (Q)
+                   damping_factor_R = Old_Tot_Damping_R (Q)   / Old_Tot_Damping_R (Q-1)
+                   D_Damper (1) = I_damping
+                   D_Damper (2) = I_damping * damping_factor_D
+                   D_Damper (3) = D_Damper (2) + D_Damper (2)
+                   D_Damper (4) = D_Damper (3)
+                   Old_Tot_I_Damper (1) = damping_factor_I
+                   Old_Tot_I_Damper (2) = damping_factor_I * damping_factor_I
+                   Old_Tot_I_Damper (3) = Old_Tot_I_Damper (2)
+                   Old_Tot_I_Damper (4) = Old_Tot_I_Damper (2)
+                   Old_Tot_R_Damper (1) = one
+                   Old_Tot_R_Damper (2) = damping_factor_R
+                   Old_Tot_R_Damper (3) = damping_factor_R
+                   Old_Tot_R_Damper (4) = damping_factor_R
+
+                   xR = x * R_damping
+                   yR = y * R_damping
+                   zR = z * R_damping
+                   xI = x * I_damping
+                   yI = y * I_damping
+                   zI = z * I_damping
+                   rI = r * I_damping
+                   rinvI = one / rI
+                   rsqinvI = rinvI * rinvI
+
+                   R_c00 = one
+                   I_c00 = rinvI
+
+                   Old_Tot_R_Moment (1) =   R_c00                     ! cos 00
+                   Old_Tot_R_Moment (2) =   R_c00 * zR                ! cos 10
+                   Old_Tot_R_Moment (3) = - R_c00 * xR * half         ! cos 11
+                   Old_Tot_R_Moment (4) = - R_c00 * yR * half         ! sin 11
+                   Old_Tot_I_Moment (1) =   I_c00                     ! cos 00
+                   Old_Tot_I_Moment (2) =   I_c00 * zI * rsqinvI      ! cos 10
+                   Old_Tot_I_Moment (3) = - I_c00 * xI * rsqinvI      ! cos 11
+                   Old_Tot_I_Moment (4) = - I_c00 * yI * rsqinvI      ! sin 11
+
+                   R_dot_I  = dot_product (D_Damper * Old_Tot_R_Moment ,                              &
+                                            Q_Ifrac * (Old_Tot_Moment_I (:,Q)) &
+                                          + Q_Rfrac * Old_Tot_I_Damper * Old_Tot_Moment_I (:,Q+1))
+
+                   I_dot_R  = dot_product (D_Damper * Old_Tot_I_Moment ,                              &
+                                            Q_Ifrac * Old_Tot_R_Damper * Old_Tot_Moment_R (:,Q-1)             &
+                                          + Q_Rfrac * (Old_Tot_Moment_R (:,Q)))
+
+                   total_potential = - G_constant * (R_dot_I + I_dot_R)
+                   grad_phi(i) = grad_phi(i) + j*total_potential
+                enddo
+             enddo
+
+         end if
+
+     else
+!
+!
+!        ...The general L >= 2 cases.
+!
+!
+         if (symmetry_axis_3D) then
+
+             do i = 1,3
+                do j = -1,1,2
+                   select case (i)
+                      case (1)
+                          x = coord(1) + j*dx(1)
+                          y = coord(2)
+                          z = coord(3)
+                      case (2)
+                          x = coord(1)
+                          y = coord(2) + j*dx(2)
+                          z = coord(3)
+                      case (3)
+                          x = coord(1)
+                          y = coord(2)
+                          z = coord(3) + j*dx(3)
+                   end select
+                   r = sqrt(x*x + y*y + z*z)
+
+                   if (r <= old_tot_inner_zone_rmax) then
+                       rscaled = r * old_tot_dr_inner_zone_inv
+                       old_tot_dr_unit = int (ceiling (rscaled * inner_zone_grid_inv) * inner_zone_grid)
+                       Q_lower = old_tot_inner_zone_Qlower (old_tot_dr_unit)
+                       Q_upper = old_tot_inner_zone_Qupper (old_tot_dr_unit)
+                       Q_Ifrac = zero
+                       Q_Rfrac = one
+
+                       do Q = Q_lower,Q_upper
+                          if (rscaled <= old_tot_inner_zone_radii (Q)) exit
+                       end do
+                   else
+                       do zone = old_tot_min_radial_zone, max_radial_zones
+                          if (r - old_tot_zone_rmax (zone) <= zero) exit
+                       end do
+
+                       r_local = r - old_tot_zone_rmax (zone - 1)
+                       type    = zone_type         (zone)
+                       scl_inv = zone_scalar_inv   (zone)
+                       exp_inv = zone_exponent_inv (zone)
+
+                       if (type == ZONE_EXP) then
+                           Q_float = (r_local * scl_inv * old_tot_dr_inv) ** exp_inv
+                       else if (type == ZONE_LOG) then
+                           lgn_inv = zone_lognorm_inv (zone)
+                           Q_float = exp_inv * log (r_local * scl_inv * old_tot_dr_inv * lgn_inv + one)
+                       end if
+
+                       Q_local = ceiling (Q_float)
+                       Q_Ifrac = real (Q_local) - Q_float
+                       Q_Rfrac = one - Q_Ifrac
+                       Q       = old_tot_zone_qmax (zone - 1) + Q_local + old_tot_outer_zone_Qshift
+                   end if
+
+                   R_damping = Old_Tot_Damping_R (Q)
+                   I_damping = Old_Tot_Damping_I (Q)
+                   damping_factor_D =       I_damping / R_damping
+                   damping_factor_I = Old_Tot_Damping_I (Q+1) / Old_Tot_Damping_I (Q)
+                   damping_factor_R = Old_Tot_Damping_R (Q)   / Old_Tot_Damping_R (Q-1)
+                   D_Damper (1) = I_damping
+                   D_Damper (2) = I_damping * damping_factor_D
+                   Old_Tot_I_Damper (1) = damping_factor_I
+                   Old_Tot_I_Damper (2) = damping_factor_I * damping_factor_I
+                   Old_Tot_R_Damper (1) = one
+                   Old_Tot_R_Damper (2) = damping_factor_R
+
+                   zR = z * R_damping
+                   rR = r * R_damping
+                   zI = z * I_damping
+                   rI = r * I_damping
+                   rsqR = rR * rR
+                   rinvI = one / rI
+                   rsqinvI = rinvI * rinvI
+
+                   R_c00 = one
+                   I_c00 = rinvI
+
+                   Old_Tot_R_Moment (1) = R_c00                      ! cos 00
+                   Old_Tot_R_Moment (2) = R_c00 * zR                 ! cos 10
+                   Old_Tot_I_Moment (1) = I_c00                      ! cos 00
+                   Old_Tot_I_Moment (2) = I_c00 * zI * rsqinvI       ! cos 10
+
+                   D_damping = D_Damper (2)
+                   R_damping = Old_Tot_R_Damper (2)
+                   I_Damping = Old_Tot_I_Damper (2)
+
+                   do L = 2,max_L                            ! cos L0
+                      h = real (L + L - 1)
+                      g = real ((L - 1) * (L - 1))
+                      f = NumberInv (L) * NumberInv (L)
+                      D_damping = D_damping * damping_factor_D
+                      R_damping = R_damping * damping_factor_R
+                      I_damping = I_damping * damping_factor_I
+                      Old_Tot_R_Moment (L+1) = (h * zR * Old_Tot_R_Moment (L) - rsqR * Old_Tot_R_Moment (L-1)) * f
+                      Old_Tot_I_Moment (L+1) = (h * zI * Old_Tot_I_Moment (L) -    g * Old_Tot_I_Moment (L-1)) * rsqinvI
+                      D_Damper (L+1) =  D_damping
+                      Old_Tot_R_Damper (L+1) =  R_damping
+                      Old_Tot_I_Damper (L+1) =  I_damping
+                   end do
+
+                   R_dot_I  = dot_product (D_Damper * Old_Tot_R_Moment ,                              &
+                                            Q_Ifrac * (Old_Tot_Moment_I (:,Q)) &
+                                          + Q_Rfrac * Old_Tot_I_Damper * Old_Tot_Moment_I (:,Q+1))
+
+                   I_dot_R  = dot_product (D_Damper * Old_Tot_I_Moment ,                              &
+                                            Q_Ifrac * Old_Tot_R_Damper * Old_Tot_Moment_R (:,Q-1)             &
+                                          + Q_Rfrac * (Old_Tot_Moment_R (:,Q)))
+
+                   total_potential = - G_constant * (R_dot_I + I_dot_R)
+                   grad_phi(i) = grad_phi(i) + j*total_potential
+                enddo
+             enddo
+
+         else
+
+             do i = 1,3
+                do j = -1,1,2
+                   select case (i)
+                      case (1)
+                          x = coord(1) + j*dx(1)
+                          y = coord(2)
+                          z = coord(3)
+                      case (2)
+                          x = coord(1)
+                          y = coord(2) + j*dx(2)
+                          z = coord(3)
+                      case (3)
+                          x = coord(1)
+                          y = coord(2)
+                          z = coord(3) + j*dx(3)
+                   end select
+                   r = sqrt(x*x + y*y + z*z)
+
+                   if (r <= old_tot_inner_zone_rmax) then
+                       rscaled = r * old_tot_dr_inner_zone_inv
+                       old_tot_dr_unit = int (ceiling (rscaled * inner_zone_grid_inv) * inner_zone_grid)
+                       Q_lower = old_tot_inner_zone_Qlower (old_tot_dr_unit)
+                       Q_upper = old_tot_inner_zone_Qupper (old_tot_dr_unit)
+                       Q_Ifrac = zero
+                       Q_Rfrac = one
+
+                       do Q = Q_lower,Q_upper
+                          if (rscaled <= old_tot_inner_zone_radii (Q)) exit
+                       end do
+                   else
+                       do zone = old_tot_min_radial_zone, max_radial_zones
+                          if (r - old_tot_zone_rmax (zone) <= zero) exit
+                       end do
+
+                       r_local = r - old_tot_zone_rmax (zone - 1)
+                       type    = zone_type         (zone)
+                       scl_inv = zone_scalar_inv   (zone)
+                       exp_inv = zone_exponent_inv (zone)
+
+                       if (type == ZONE_EXP) then
+                           Q_float = (r_local * scl_inv * old_tot_dr_inv) ** exp_inv
+                       else if (type == ZONE_LOG) then
+                           lgn_inv = zone_lognorm_inv (zone)
+                           Q_float = exp_inv * log (r_local * scl_inv * old_tot_dr_inv * lgn_inv + one)
+                       end if
+
+                       Q_local = ceiling (Q_float)
+                       Q_Ifrac = real (Q_local) - Q_float
+                       Q_Rfrac = one - Q_Ifrac
+                       Q       = old_tot_zone_qmax (zone - 1) + Q_local + old_tot_outer_zone_Qshift
+                   end if
+
+                   R_damping = Old_Tot_Damping_R (Q)
+                   I_damping = Old_Tot_Damping_I (Q)
+                   damping_factor_D =       I_damping / R_damping
+                   damping_factor_I = Old_Tot_Damping_I (Q+1) / Old_Tot_Damping_I (Q)
+                   damping_factor_R = Old_Tot_Damping_R (Q)   / Old_Tot_Damping_R (Q-1)
+                   D_Damper (1) = I_damping
+                   D_Damper (2) = I_damping * damping_factor_D
+                   Old_Tot_I_Damper (1) = damping_factor_I
+                   Old_Tot_I_Damper (2) = damping_factor_I * damping_factor_I
+                   Old_Tot_R_Damper (1) = one
+                   Old_Tot_R_Damper (2) = damping_factor_R
+
+                   xR = x * R_damping
+                   yR = y * R_damping
+                   zR = z * R_damping
+                   rR = r * R_damping
+                   xI = x * I_damping
+                   yI = y * I_damping
+                   zI = z * I_damping
+                   rI = r * I_damping
+                   rsqR = rR * rR
+                   rinvI = one / rI
+                   rsqinvI = rinvI * rinvI
+
+                   R_c00 = one
+                   I_c00 = rinvI
+
+                   Old_Tot_R_Moment (1) = R_c00                               ! cos 00
+                   Old_Tot_R_Moment (2) = R_c00 * zR                          ! cos 10
+                   Old_Tot_I_Moment (1) = I_c00                               ! cos 00
+                   Old_Tot_I_Moment (2) = I_c00 * zI * rsqinvI                ! cos 10
+
+                   Denorm_D (1) = D_Damper (2)
+                   Old_Tot_Denorm_R (1) = Old_Tot_R_Damper (2)
+                   Old_Tot_Denorm_I (1) = Old_Tot_I_Damper (2)
+
+                   do L = 2,max_L                                     ! cos L0
+                      h = real (L + L - 1)
+                      g = real ((L - 1) * (L - 1))
+                      f = NumberInv (L) * NumberInv (L)
+                      Denorm_D (L)   =  Denorm_D (L-1) * damping_factor_D
+                      Old_Tot_Denorm_R (L)   =  Old_Tot_Denorm_R (L-1) * damping_factor_R
+                      Old_Tot_Denorm_I (L)   =  Old_Tot_Denorm_I (L-1) * damping_factor_I
+                      Old_Tot_R_Moment (L+1) = (h * zR * Old_Tot_R_Moment (L) - rsqR * Old_Tot_R_Moment (L-1)) * f
+                      Old_Tot_I_Moment (L+1) = (h * zI * Old_Tot_I_Moment (L) -    g * Old_Tot_I_Moment (L-1)) * rsqinvI
+                      D_Damper (L+1) =  Denorm_D (L)
+                      Old_Tot_R_Damper (L+1) =  Old_Tot_Denorm_R (L)
+                      Old_Tot_I_Damper (L+1) =  Old_Tot_Denorm_I (L)
+                   end do
+
+                   Denorm_D = two * Denorm_D                          ! include x2 for M /= 0 cases
+
+                   c = max_L + 2
+                   s = n_cosine_moments + 1
+
+                   Old_Tot_R_Moment (c) = - R_c00 * xR * half                 ! cos 11
+                   Old_Tot_R_Moment (s) = - R_c00 * yR * half                 ! sin 11
+                   Old_Tot_I_Moment (c) = - I_c00 * xI * rsqinvI              ! cos 11
+                   Old_Tot_I_Moment (s) = - I_c00 * yI * rsqinvI              ! sin 11
+                   D_Damper (c) =   Denorm_D (1)
+                   D_Damper (s) =   Denorm_D (1)
+                   Old_Tot_R_Damper (c) =   Old_Tot_Denorm_R (1)
+                   Old_Tot_R_Damper (s) =   Old_Tot_Denorm_R (1)
+                   Old_Tot_I_Damper (c) =   Old_Tot_Denorm_I (1)
+                   Old_Tot_I_Damper (s) =   Old_Tot_Denorm_I (1)
+
+                   R_cLL = Old_Tot_R_Moment (c)                               ! store 11 for 22 case (avoid cache miss)
+                   R_sLL = Old_Tot_R_Moment (s)                               ! store 11 for 22 case
+                   I_cLL = Old_Tot_I_Moment (c)                               ! store 11 for 22 case
+                   I_sLL = Old_Tot_I_Moment (s)                               ! store 11 for 22 case
+
+                   Old_Tot_R_Moment (c+1) =         zR * R_cLL                ! cos 21
+                   Old_Tot_R_Moment (s+1) =         zR * R_sLL                ! sin 21
+                   Old_Tot_I_Moment (c+1) = three * zI * I_cLL * rsqinvI      ! cos 21
+                   Old_Tot_I_Moment (s+1) = three * zI * I_sLL * rsqinvI      ! sin 21
+                   D_Damper (c+1) = Denorm_D (2)
+                   D_Damper (s+1) = Denorm_D (2)
+                   Old_Tot_R_Damper (c+1) = Old_Tot_Denorm_R (2)
+                   Old_Tot_R_Damper (s+1) = Old_Tot_Denorm_R (2)
+                   Old_Tot_I_Damper (c+1) = Old_Tot_Denorm_I (2)
+                   Old_Tot_I_Damper (s+1) = Old_Tot_Denorm_I (2)
+
+                   do L = 2,max_L-1                                   ! M=1,L=3,max_L (shifted L-loop!)
+                      h = real (L + L + 1)
+                      g = real ((L + 1) * (L - 1))
+                      f = NumberInv (L + 2) * NumberInv (L)
+                      Old_Tot_R_Moment (c+L) = (h * zR * Old_Tot_R_Moment (c+L-1) - rsqR * Old_Tot_R_Moment (c+L-2)) * f
+                      Old_Tot_R_Moment (s+L) = (h * zR * Old_Tot_R_Moment (s+L-1) - rsqR * Old_Tot_R_Moment (s+L-2)) * f
+                      Old_Tot_I_Moment (c+L) = (h * zI * Old_Tot_I_Moment (c+L-1) -    g * Old_Tot_I_Moment (c+L-2)) * rsqinvI
+                      Old_Tot_I_Moment (s+L) = (h * zI * Old_Tot_I_Moment (s+L-1) -    g * Old_Tot_I_Moment (s+L-2)) * rsqinvI
+                      D_Damper (c+L) = Denorm_D (L+1)
+                      D_Damper (s+L) = Denorm_D (L+1)
+                      Old_Tot_R_Damper (c+L) = Old_Tot_Denorm_R (L+1)
+                      Old_Tot_R_Damper (s+L) = Old_Tot_Denorm_R (L+1)
+                      Old_Tot_I_Damper (c+L) = Old_Tot_Denorm_I (L+1)
+                      Old_Tot_I_Damper (s+L) = Old_Tot_Denorm_I (L+1)
+                   end do
+
+                   c = c + max_L
+                   s = s + max_L
+
+                   do M = 2,max_L-1                                              ! M=2,max_L-1 cases
+                      MM = M + M
+                      h = real (MM + 1)
+                      g = real (MM - 1)
+                      f = NumberInv (MM)
+
+                      Old_Tot_R_Moment (c) =       (yR * R_sLL - xR * R_cLL) * f         ! cos MM
+                      Old_Tot_R_Moment (s) =     - (yR * R_cLL + xR * R_sLL) * f         ! sin MM
+                      Old_Tot_I_Moment (c) =   g * (yI * I_sLL - xI * I_cLL) * rsqinvI   ! cos MM
+                      Old_Tot_I_Moment (s) = - g * (yI * I_cLL + xI * I_sLL) * rsqinvI   ! sin MM
+                      D_Damper (c) =   Denorm_D (M)
+                      D_Damper (s) =   Denorm_D (M)
+                      Old_Tot_R_Damper (c) =   Old_Tot_Denorm_R (M)
+                      Old_Tot_R_Damper (s) =   Old_Tot_Denorm_R (M)
+                      Old_Tot_I_Damper (c) =   Old_Tot_Denorm_I (M)
+                      Old_Tot_I_Damper (s) =   Old_Tot_Denorm_I (M)
+
+                      R_cLL = Old_Tot_R_Moment (c)                                       ! store MM for M+1,M+1
+                      R_sLL = Old_Tot_R_Moment (s)                                       ! store MM for M+1,M+1
+                      I_cLL = Old_Tot_I_Moment (c)                                       ! store MM for M+1,M+1
+                      I_sLL = Old_Tot_I_Moment (s)                                       ! store MM for M+1,M+1
+
+                      Old_Tot_R_Moment (c+1) =     zR * R_cLL                            ! cos L=M+1,M
+                      Old_Tot_R_Moment (s+1) =     zR * R_sLL                            ! sin L=M+1,M
+                      Old_Tot_I_Moment (c+1) = h * zI * I_cLL * rsqinvI                  ! cos L=M+1,M
+                      Old_Tot_I_Moment (s+1) = h * zI * I_sLL * rsqinvI                  ! sin L=M+1,M
+                      D_Damper (c+1) = Denorm_D (M+1)
+                      D_Damper (s+1) = Denorm_D (M+1)
+                      Old_Tot_R_Damper (c+1) = Old_Tot_Denorm_R (M+1)
+                      Old_Tot_R_Damper (s+1) = Old_Tot_Denorm_R (M+1)
+                      Old_Tot_I_Damper (c+1) = Old_Tot_Denorm_I (M+1)
+                      Old_Tot_I_Damper (s+1) = Old_Tot_Denorm_I (M+1)
+
+                      do L = 2,max_L-M                                           ! L=M+2,max_L (shifted L-loop!)
+                         h = real (L + L + MM - 1)
+                         g = real (L + MM - 1) * (L - 1)
+                         f = NumberInv (L + MM) * NumberInv (L)
+                         Old_Tot_R_Moment (c+L) = (h * zR * Old_Tot_R_Moment (c+L-1) - rsqR * Old_Tot_R_Moment (c+L-2)) * f
+                         Old_Tot_R_Moment (s+L) = (h * zR * Old_Tot_R_Moment (s+L-1) - rsqR * Old_Tot_R_Moment (s+L-2)) * f
+                         Old_Tot_I_Moment (c+L) = (h * zI * Old_Tot_I_Moment (c+L-1) -    g * Old_Tot_I_Moment (c+L-2)) * rsqinvI
+                         Old_Tot_I_Moment (s+L) = (h * zI * Old_Tot_I_Moment (s+L-1) -    g * Old_Tot_I_Moment (s+L-2)) * rsqinvI
+                         D_Damper (c+L) = Denorm_D (L+M)
+                         D_Damper (s+L) = Denorm_D (L+M)
+                         Old_Tot_R_Damper (c+L) = Old_Tot_Denorm_R (L+M)
+                         Old_Tot_R_Damper (s+L) = Old_Tot_Denorm_R (L+M)
+                         Old_Tot_I_Damper (c+L) = Old_Tot_Denorm_I (L+M)
+                         Old_Tot_I_Damper (s+L) = Old_Tot_Denorm_I (L+M)
+                      end do
+
+                      c = c + max_L - M + 1
+                      s = s + max_L - M + 1
+
+                   end do
+
+                   g = real (max_2L - 1)
+                   f = NumberInv (max_2L)
+
+                   Old_Tot_R_Moment (c) =       (yR * R_sLL - xR * R_cLL) * f             ! cos  max_L,max_L
+                   Old_Tot_R_Moment (s) =     - (yR * R_cLL + xR * R_sLL) * f             ! sin  max_L,max_L
+                   Old_Tot_I_Moment (c) =   g * (yI * I_sLL - xI * I_cLL) * rsqinvI       ! cos  max_L,max_L
+                   Old_Tot_I_Moment (s) = - g * (yI * I_cLL + xI * I_sLL) * rsqinvI       ! sin  max_L,max_L
+                   D_Damper (c) =   Denorm_D (max_L)
+                   D_Damper (s) =   Denorm_D (max_L)
+                   Old_Tot_R_Damper (c) =   Old_Tot_Denorm_R (max_L)
+                   Old_Tot_R_Damper (s) =   Old_Tot_Denorm_R (max_L)
+                   Old_Tot_I_Damper (c) =   Old_Tot_Denorm_I (max_L)
+                   Old_Tot_I_Damper (s) =   Old_Tot_Denorm_I (max_L)
+!
+!
+!            ...Both current regular and irregular solid harmonic functions are
+!               readx(2). Combine them in proper form with the Moments to create the
+!               potential at the present cell. The following picture, showing the
+!               cell radial bin, clarifies what is being done:
+!
+!
+!
+!                                               Q-th bin
+!
+!                 ----- MR(Q-1) ---- | ---- MR(Q)----- MI(Q) -----| ------ MI(Q+1)----
+!                                                    |
+!                                            Q_Rfrac | Q_Ifrac
+!                                                    |
+!                                                 Q_float
+!
+!
+!               Here 'Q_float' is the value obtained by the cell's radial position
+!               and from 'Q_float' we determined the bin number 'Q'. The values of
+!               'Q_Rfrac' and 'Q_Ifrac' denote the fractional location of 'Q_float'
+!               within the Q-th bin. Hence we always have: Q_Rfrac + Q_Ifrac = 1.
+!               When forming the dot products between the current Q-th bin solid
+!               harmonics and the Moments, we take only the relevant fraction of
+!               the Moments in Q. This sees the Moments in Q as a kind of statistical
+!               average in terms of the radii comprised within the Q-th bin. As an
+!               example, we take the dot product between the regular solid harmonics
+!               in the Q-th bin R(Q) with all the necessary irregular Moments MI.
+!               We have:
+!
+!
+!                 R_dot_I = R(Q) dot { MI(Q+1) + Q_Ifrac * [MI(Q) - MI(Q+1)] }
+!
+!                         = R(Q) dot { [Q_Rfrac + Q_Ifrac] * MI(Q+1) + Q_Ifrac * [MI(Q) - MI(Q+1)] }
+!
+!                         = R(Q) dot { Q_Rfrac * I(Q+1) + Q_Ifrac * I(Q) }
+!
+!
+!               The same applies for the dot product between the irregular solid
+!               harmonics in the Q-th bin I(Q) and the regular Moments MR. We get:
+!
+!
+!                 I_dot_R = I(Q) dot { Q_Ifrac * MR(Q-1) + Q_Rfrac * MR(Q) }
+!
+!
+!               The regular and irregular Moments for the Q-th radial bin are adjusted
+!               to avoid self gravity contribution (the current radial Moment component
+!               is removed from the radial bin Moments). The extra factor of x2 for
+!               the M /= 0 cases has alreadx(2) been introduced into the damping arrays.
+!
+!
+                   R_dot_I  = dot_product (D_Damper * Old_Tot_R_Moment ,                              &
+                                            Q_Ifrac * (Old_Tot_Moment_I (:,Q)) &
+                                          + Q_Rfrac * Old_Tot_I_Damper * Old_Tot_Moment_I (:,Q+1))
+
+                   I_dot_R  = dot_product (D_Damper * Old_Tot_I_Moment ,                              &
+                                            Q_Ifrac * Old_Tot_R_Damper * Old_Tot_Moment_R (:,Q-1)             &
+                                          + Q_Rfrac * (Old_Tot_Moment_R (:,Q)))
+
+                   total_potential = - G_constant * (R_dot_I + I_dot_R)
+
+                   !if (abs(total_potential) .gt. 1.d30) then
+                   !   print *, 'IN OLD: I_dot_R/R_dot_I', I_dot_R, R_dot_I
+                   !   print *, 'Q stuff', Q_Ifrac, Q_Rfrac, Q_local, Q, rscaled, old_tot_dr_unit, inner_zone_grid_inv, inner_zone_grid
+                   !   print *, ceiling (rscaled * inner_zone_grid_inv)
+                   !   print *, 'More Q stuff', r_local, old_tot_zone_qmax(zone), old_tot_zone_rmax(zone), zone
+                   !endif
+
+                   grad_phi(i) = grad_phi(i) + j*total_potential
+                enddo
+             enddo
+
+         end if
+
+      end if
+    grad_phi = -grad_phi / (2.d0 * dx)
+    return
+end subroutine gr_mpoleGradTotOldPot
+

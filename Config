@@ -1,0 +1,129 @@
+#       Configuration file for MultiTidalPoly
+#       MultiTidalPoly is originally written by James Guillochon
+
+DATAFILES *.dat
+DATAFILES *.dek
+DATAFILES *.h
+
+REQUIRES Driver
+REQUIRES physics/Hydro
+REQUIRES physics/Eos/EosMain/Multigamma
+REQUIRES Simulation/SimulationComposition
+REQUIRES Multispecies/MultispeciesMain
+
+LINKIF gr_isoFindMassCenter.F90.grid  physics/Gravity/GravityMain/Poisson/Multigrid
+LINKIF gr_isoSumLocal.F90.grid        physics/Gravity/GravityMain/Poisson/Multigrid
+
+LINKIF Gravity_init.F90.pole                 Grid/GridSolvers/Multipole_experimental
+LINKIF gr_mpoleCM3Dcartesian.F90.pole        Grid/GridSolvers/Multipole_experimental
+LINKIF gr_mpoleInit.F90.pole                 Grid/GridSolvers/Multipole_experimental
+#LINKIF gr_mpoleGradPot.F90.pole              Grid/GridSolvers/Multipole_experimental
+#LINKIF gr_mpoleGradOldPot.F90.pole           Grid/GridSolvers/Multipole_experimental
+#LINKIF gr_mpoleGradTotPot.F90.pole           Grid/GridSolvers/Multipole_experimental
+#LINKIF gr_mpoleGradTotOldPot.F90.pole        Grid/GridSolvers/Multipole_experimental
+#LINKIF gr_mpoleCopyTotMoments.F90.pole       Grid/GridSolvers/Multipole_experimental
+LINKIF gr_mpoleCopyMoments.F90.pole          Grid/GridSolvers/Multipole_experimental
+#LINKIF gr_mpoleDeallocateTotMoments.F90.pole Grid/GridSolvers/Multipole_experimental
+LINKIF gr_mpoleDeallocateOldMoments.F90.pole Grid/GridSolvers/Multipole_experimental
+LINKIF gr_mpoleFinalize.F90.pole             Grid/GridSolvers/Multipole_experimental
+LINKIF gr_mpoleInterface.F90.pole            Grid/GridSolvers/Multipole_experimental
+LINKIF gr_mpoleRad3Dcartesian.F90.pole       Grid/GridSolvers/Multipole_experimental
+LINKIF gr_mpoleMom3Dcartesian.F90.pole       Grid/GridSolvers/Multipole_experimental
+
+SPECIES H1
+SPECIES HE4
+
+PARAMETER sim_periDist              REAL    0.E0
+PARAMETER sim_periBeta              REAL    0.E0
+PARAMETER sim_periodFac             REAL    0.E0
+PARAMETER sim_orbEcc                REAL    0.E0
+PARAMETER sim_startBeta             REAL    0.1E0
+PARAMETER ptmass                    REAL    2.E33
+PARAMETER sim_rhoAmbient            REAL    1.E-15
+PARAMETER sim_pAmbient              REAL    1.E-4
+PARAMETER sim_tRelax                REAL    1.E3
+PARAMETER sim_relaxRate             REAL    0.99E0
+PARAMETER larget                    REAL    1.E10
+PARAMETER sim_softenRadius          REAL    0.E0
+PARAMETER sim_accRadius             REAL    0.E0
+PARAMETER sim_accCoeff              REAL    0.95E0
+PARAMETER sim_objMass               REAL    2.E30
+PARAMETER sim_objPolyN              REAL    3.E0
+PARAMETER sim_objCentDen            REAL    1.E2
+PARAMETER sim_fluidGamma            REAL    1.666666667E0
+PARAMETER sim_fluffDampCoeff        REAL    0.95E0
+PARAMETER sim_fluffDampCutoff       REAL    0.E0
+PARAMETER sim_maxBlocks             INTEGER 40000
+PARAMETER sim_useInitialPeakDensity BOOLEAN TRUE
+PARAMETER sim_ptMassRefine          INTEGER 1
+PARAMETER sim_totForceSub           INTEGER 1
+PARAMETER sim_ptMassRefRad          REAL    1.E0
+
+PARAMETER grv_orbTol          REAL    1.E-12
+PARAMETER grv_orbMinForce     REAL    1.E-12
+PARAMETER grv_comCutoff       REAL    0.E0
+PARAMETER grv_comPeakCut      REAL    0.E0
+PARAMETER grv_orb3D           BOOLEAN TRUE
+PARAMETER grv_cfl             REAL    0.1E0
+PARAMETER grv_orbStepFrac     REAL    1.0E-4
+
+D sim_nsubzones       Number of `sub-zones' in cells for applying 1d profile
+PARAMETER sim_nsubzones     INTEGER 7
+
+PARAMETER plot_var_13 STRING "none"
+PARAMETER plot_var_14 STRING "none"
+PARAMETER plot_var_15 STRING "none"
+PARAMETER plot_var_16 STRING "none"
+PARAMETER plot_var_17 STRING "none"
+PARAMETER plot_var_18 STRING "none"
+PARAMETER plot_var_19 STRING "none"
+PARAMETER plot_var_20 STRING "none"
+PARAMETER plot_var_21 STRING "none"
+PARAMETER plot_var_22 STRING "none"
+PARAMETER plot_var_23 STRING "none"
+
+PPDEFINE HIDE_SANITIZE
+
+# Overrule default radius fraction limits
+PARAMETER mpole_zone_radius_fraction_1 REAL 1.0 [ 0.0 ... 1000000.0 ]
+PARAMETER mpole_zone_radius_fraction_2 REAL 1.0 [ 0.0 ... 1000000.0 ]
+PARAMETER mpole_zone_radius_fraction_3 REAL 1.0 [ 0.0 ... 1000000.0 ]
+PARAMETER mpole_zone_radius_fraction_4 REAL 1.0 [ 0.0 ... 1000000.0 ]
+
+# Add some new refinement parameters
+PARAMETER refine_level_1      INTEGER 0
+PARAMETER refine_level_2      INTEGER 0
+PARAMETER refine_level_3      INTEGER 0
+PARAMETER refine_level_4      INTEGER 0
+PARAMETER refine_level_5      INTEGER 0
+PARAMETER refine_level_6      INTEGER 0
+PARAMETER refine_level_7      INTEGER 0
+PARAMETER refine_level_8      INTEGER 0
+PARAMETER refine_level_9      INTEGER 0
+
+# Add parameters corresponding to extra refinement levels
+PARAMETER refine_var_5 STRING "none"
+PARAMETER refine_cutoff_5 REAL 0.8
+PARAMETER derefine_cutoff_5 REAL 0.2
+PARAMETER refine_filter_5 REAL 0.01
+PARAMETER refine_var_6 STRING "none"
+PARAMETER refine_cutoff_6 REAL 0.8
+PARAMETER derefine_cutoff_6 REAL 0.2
+PARAMETER refine_filter_6 REAL 0.01
+PARAMETER refine_var_7 STRING "none"
+PARAMETER refine_cutoff_7 REAL 0.8
+PARAMETER derefine_cutoff_7 REAL 0.2
+PARAMETER refine_filter_7 REAL 0.01
+PARAMETER refine_var_8 STRING "none"
+PARAMETER refine_cutoff_8 REAL 0.8
+PARAMETER derefine_cutoff_8 REAL 0.2
+PARAMETER refine_filter_8 REAL 0.01
+PARAMETER refine_var_9 STRING "none"
+PARAMETER refine_cutoff_9 REAL 0.8
+PARAMETER derefine_cutoff_9 REAL 0.2
+PARAMETER refine_filter_9 REAL 0.01
+
+VARIABLE oden
+# Uncomment these parameters to do 2nd order gravity derivative in time
+#VARIABLE gpo2
+#VARIABLE ode2

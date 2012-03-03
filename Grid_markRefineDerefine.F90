@@ -41,7 +41,7 @@ subroutine Grid_markRefineDerefine()
   use Driver_interface, ONLY: Driver_getSimTime
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   use Simulation_data, ONLY: sim_objMass, sim_objPolyN, sim_objCentDen, np, obj_radius, &
-      obj_ipos, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity, sim_ptMassRefine, sim_fluffDampCutoff
+      obj_ipos, obj_ipoi, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity, sim_ptMassRefine, sim_fluffDampCutoff
   use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
   use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_dynRefineMax, &
       grv_exactvec, grv_mpolevec, grv_periDist
@@ -68,9 +68,13 @@ subroutine Grid_markRefineDerefine()
   integer :: reqr(MAXBLOCKS),reqs(MAXBLOCKS)
   integer :: statr(MPI_STATUS_SIZE,MAXBLOCKS)
   integer :: stats(MPI_STATUS_SIZE,MAXBLOCKS)
-
-  double precision :: min_cell
-  integer :: ref_level,max_blocks
+  double precision :: polyk,mu, &
+          x(np),y(np),yp(np),radius(np),rhop(np), &
+          mass(np),prss(np),ebind(np),zopac(np), &
+          rhom(np),zbeta(np),ztemp(np),exact(np), &
+          xsurf,ypsurf,combo,min_cell
+  double precision, dimension(NSPECIES) :: xn
+  integer :: mode,iend,ipos,ipoi,ref_level,max_blocks
 
   ! that are implemented in this file need values in guardcells
 
@@ -116,7 +120,9 @@ subroutine Grid_markRefineDerefine()
   zcenter = zcenter / 2.
 
   if (t .eq. 0.0) then
-      call gr_markInRadius(xcenter,ycenter,zcenter,1.2*obj_radius(obj_ipos),lrefine_max,0)
+      !write(*,*) 'entered sphere refine'
+      call gr_markInRadius(xcenter,ycenter,zcenter,1.2*obj_radius(obj_ipos),lrefine_max-2,0)
+      call gr_markInRadius(xcenter,ycenter,zcenter,1.2*obj_radius(obj_ipoi),lrefine_max,0)
   else
       Call MPI_ALLREDUCE (lnblocks,max_blocks,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
       prev_refmax = grv_dynRefineMax

@@ -50,7 +50,7 @@ subroutine Simulation_initSpecies()
   use Multispecies_interface, ONLY : Multispecies_setProperty
   use Simulation_interface, ONLY : Simulation_mapStrToInt
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
-  use Simulation_data, ONLY : sim_fluidGamma
+  use Simulation_data, ONLY : sim_fluidGammac,sim_fluidGammae, sim_objAbarCore
   implicit none
 
 #include "constants.h"
@@ -58,33 +58,54 @@ subroutine Simulation_initSpecies()
 #ifdef FLASH_MULTISPECIES
 #include "Multispecies.h"
   
-  integer, parameter :: SPEC_UNIT=2,SPEC_NUM=238
-  character(len=4)::isotopeName
-  real :: abar,zbar,bindEnergy,neutrons, electrons
-  integer :: i, isotope,count
+!  integer, parameter :: SPEC_UNIT=2,SPEC_NUM=239
+!  character(len=4)::isotopeName
+!  real :: abar,zbar,bindEnergy,neutrons, electrons
+!  integer :: i, isotope,count
   
-  call RuntimeParameters_get('sim_fluidGamma',sim_fluidGamma)
+  call RuntimeParameters_get('sim_fluidGammac',sim_fluidGammac)
+  call RuntimeParameters_get('sim_fluidGammae',sim_fluidGammae)
+  call RuntimeParameters_get('sim_objAbarCore',sim_objAbarCore)
 
-  open(unit=SPEC_UNIT,file="SpeciesList.txt")
-  count=0
-  i=0
+!  open(unit=SPEC_UNIT,file="SpeciesList.txt")
+!  count=0
+!  i=0
 
-  do while((count<NSPECIES).and.(i<=SPEC_NUM))
-     i=i+1
-     read(SPEC_UNIT,*)isotopeName,zbar,abar,neutrons,bindEnergy
-     electrons = zbar
+!  do while((count<NSPECIES).and.(i<=SPEC_NUM))
+!     i=i+1
+!     read(SPEC_UNIT,*)isotopeName,zbar,abar,neutrons,bindEnergy
+!     electrons = zbar
+!
+!     call Simulation_mapStrToInt(isotopeName,isotope,MAPBLOCK_UNK)
+!     if(isotope /= NONEXISTENT) then
+!        count=count+1
+!        call Multispecies_setProperty(isotope, A, abar)
+!        call Multispecies_setProperty(isotope, Z, zbar)
+!        call Multispecies_setProperty(isotope, N, neutrons)
+!        call Multispecies_setProperty(isotope, E, electrons)
+!        call Multispecies_setProperty(isotope, EB, bindEnergy)
+!        if(isotope .eq. CORE_SPEC) then
+!           call Multispecies_setProperty(isotope, GAMMA, sim_fluidGammac)
+!        else
+!           call Multispecies_setProperty(isotope, GAMMA, sim_fluidGammae)
+!        endif
+!     end if
+!  end do
+!  close(SPEC_UNIT)
+      call Multispecies_setProperty(H1_SPEC, A, 1.)
+!      call Multispecies_setProperty(H1_SPEC, Z, 1.)
+!      call Multispecies_setProperty(H1_SPEC, N, 0.)
+!      call Multispecies_setProperty(H1_SPEC, E, 1.)
+      
+      call Multispecies_setProperty(HE4_SPEC, A, 4.)
+!      call Multispecies_setProperty(HE4_SPEC, Z, 2.)
+!      call Multispecies_setProperty(HE4_SPEC, N, 2.)
+!      call Multispecies_setProperty(HE4_SPEC, E, 2.)
+     
+      call Multispecies_setProperty(H1_SPEC, GAMMA, sim_fluidGammae)
+      call Multispecies_setProperty(HE4_SPEC, GAMMA, sim_fluidGammae)
 
-     call Simulation_mapStrToInt(isotopeName,isotope,MAPBLOCK_UNK)
-     if(isotope /= NONEXISTENT) then
-        count=count+1
-        call Multispecies_setProperty(isotope, A, abar)
-        call Multispecies_setProperty(isotope, Z, zbar)
-        call Multispecies_setProperty(isotope, N, neutrons)
-        call Multispecies_setProperty(isotope, E, electrons)
-        call Multispecies_setProperty(isotope, EB, bindEnergy)
-        call Multispecies_setProperty(isotope, GAMMA, sim_fluidGamma)
-     end if
-  end do
-  close(SPEC_UNIT)
+      call Multispecies_setProperty(CORE_SPEC, A, sim_objAbarCore)
+      call Multispecies_setProperty(CORE_SPEC, GAMMA, sim_fluidGammac)
 #endif
 end subroutine Simulation_initSpecies

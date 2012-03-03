@@ -1,0 +1,302 @@
+!!****if* source/Grid/GridSolvers/Multipole_experimental/gr_mpoleCM3Dcartesian
+!!
+!! NAME
+!!
+!!  gr_mpoleCM3Dcartesian
+!!
+!! SYNOPSIS
+!!
+!!  gr_mpoleCM3Dcartesian (integer, intent(in) :: idensvar)
+!!
+!! DESCRIPTION
+!!
+!!  Computes the centroid of the specified variable for three-dimensional
+!!  (3D) cartesian geometries and returns its location in the variables
+!!  X_centerofmass, Y_centerofmass and Z_centerofmass. Also computes the
+!!  total value of the quantity and leaves it in the variable Mtot.
+!!  If Mtot=0, the routine aborts.
+!!
+!! ARGUMENTS
+!!
+!!  idensvar -- the index of the density variable
+!!
+!!***
+
+!!REORDER(4): solnData
+
+subroutine gr_mpoleCM3Dcartesian (idensvar)
+
+  use Grid_data,         ONLY : gr_meshMe, gr_meshComm
+  use Driver_interface,  ONLY : Driver_abortFlash
+  use Logfile_interface, ONLY : Logfile_stamp
+  use Grid_interface,    ONLY : Grid_getBlkPtr,        &
+                                Grid_releaseBlkPtr,    &
+                                Grid_getBlkBoundBox,   &
+                                Grid_getDeltas,        &
+                                Grid_getBlkIndexLimits,&
+                                Grid_getMinCellSize
+  use gr_mpoleData,      ONLY : xmin,ymin,zmin,        &
+                                xmax,ymax,zmax,        &
+                                zero,half,             &
+                                X_centerofmass,        &
+                                Y_centerofmass,        &
+                                Z_centerofmass,        &
+                                Mtot,                  &
+                                blockCount,            &
+                                blockList,bndBox,      &
+                                blkLimits,blkLimitsGC, &
+                                delta,max_L,           &
+                                inner_zone_grid
+  use Driver_data,       ONLY : dr_initialSimTime, dr_simTime, dr_restart, dr_initialSimTime
+  use Gravity_data,      ONLY : grv_densCut, grv_exactvec, grv_peakvec, grv_mpolevec, &
+                                grv_totmass, grv_comCutoff, grv_comPeakCut, grv_mode, &
+                                grv_oexactvec, grv_ompolevec, grv_ototmass
+  use Simulation_data,   ONLY : sim_fluffDampCutoff
+
+  implicit none
+  
+#include "constants.h"
+#include "Flash.h"
+
+  include "Flash_mpi.h"
+  
+  integer, intent(IN)  :: idensvar
+
+  real    :: bndBox_i_low
+  real    :: bndBox_j_low
+  real    :: bndBox_k_low
+  real    :: cell_density
+  real    :: cell_mass
+  real    :: cell_vol
+  real    :: delta_i
+  real    :: delta_j
+  real    :: delta_k
+  real    :: delta_i_half
+  real    :: delta_j_half
+  real    :: delta_k_half
+  real, dimension(7) :: local_sum, local_sum_cut, local_sum_peak
+  real    :: x,y,z
+
+  real, dimension(21) :: local_MXYZ_sum, total_MXYZ_sum
+
+  real, pointer :: solnData (:,:,:,:)
+
+  real    :: extrema, ldenscut, peak_dist, mcs
+
+  integer :: block_nr
+  integer :: blockID
+  integer :: error
+  integer :: i,j,k
+  integer :: imax, jmax, kmax
+  integer :: imin, jmin, kmin
+
+  character(len=124) :: str_buffer 
+!
+!
+!     ...Sum quantities over all locally held leaf blocks.
+!
+!
+  call Grid_getMinCellSize(mcs)
+
+  !if (grv_mode .eq. 1) then
+     if (.not. dr_restart .or. dr_simTime .ne. dr_initialSimTime) then
+         grv_ototmass = grv_totmass
+         grv_oexactvec = grv_exactvec
+         grv_ompolevec = grv_mpolevec
+     endif
+
+     local_sum = 0.d0
+     local_sum_cut = 0.d0
+     local_sum_peak = 0.d0
+
+     ldenscut = -huge(0.d0)
+     do block_nr = 1,blockCount
+        call Grid_findExtrema (blockList(block_nr), idensvar, 1, extrema)
+        if (extrema .gt. ldenscut) ldenscut = extrema
+     enddo
+
+     call MPI_AllReduce (ldenscut, grv_densCut, 1, FLASH_REAL, & 
+                         MPI_Max, gr_meshComm, error)
+
+     do block_nr = 1,blockCount
+        blockID = blockList (block_nr)
+
+        call Grid_getBlkBoundBox     (blockID,  bndBox)
+        call Grid_getDeltas          (blockID,  delta )
+        call Grid_getBlkPtr          (blockID,  solnData)
+        call Grid_getBlkIndexLimits  (blockID,  blkLimits, blkLimitsGC)
+
+        imin = blkLimits (LOW, IAXIS)
+        jmin = blkLimits (LOW, JAXIS)
+        kmin = blkLimits (LOW, KAXIS)  
+        imax = blkLimits (HIGH,IAXIS)
+        jmax = blkLimits (HIGH,JAXIS)
+        kmax = blkLimits (HIGH,KAXIS)
+
+        delta_i = delta (IAXIS)
+        delta_j = delta (JAXIS)
+        delta_k = delta (KAXIS)
+
+        delta_i_half = delta_i * half
+        delta_j_half = delta_j * half
+        delta_k_half = delta_k * half
+
+        bndBox_i_low = bndBox (LOW,IAXIS)
+        bndBox_j_low = bndBox (LOW,JAXIS)
+        bndBox_k_low = bndBox (LOW,KAXIS)
+
+        cell_vol = delta_i * delta_j * delta_k
+
+        z = bndBox_k_low + delta_k_half
+        do k = kmin,kmax
+           y = bndBox_j_low + delta_j_half
+           do j = jmin,jmax
+              x = bndBox_i_low + delta_i_half
+              do i = imin,imax
+
+                 cell_density = solnData (idensvar,i,j,k)
+
+                 if (cell_density .gt. sim_fluffDampCutoff) then !Don't include any mass below the damping cutoff
+                    cell_mass = cell_density * cell_vol
+
+                    if (cell_mass .gt. 1.d33) then
+                        print *, cell_mass, gr_meshMe
+                        print *, cell_vol, cell_density
+                        print *, x, y, z
+                        print *, 'uh oh'
+                        call Driver_abortFlash('uh oh')
+                    endif
+                    local_sum = local_sum + cell_mass * (/ 1.d0, x, y, z, solnData(VELX_VAR:VELZ_VAR,i,j,k) /)
+
+                    if (cell_density .ge. grv_densCut*grv_comCutoff) then
+                        local_sum_cut = local_sum_cut + cell_mass * (/ 1.d0, x, y, z, solnData(VELX_VAR:VELZ_VAR,i,j,k) /)
+                    endif
+
+                    !Find position of peak in desnity
+                    if (cell_density .ge. grv_densCut*grv_comPeakCut) then
+                        local_sum_peak = local_sum_peak + cell_mass * (/ 1.d0, x, y, z, solnData(VELX_VAR:VELZ_VAR,i,j,k) /)
+                    endif
+                 endif
+
+                 x = x + delta_i
+              end do
+              y = y + delta_j
+           end do
+           z = z + delta_k
+        end do
+
+        call Grid_releaseBlkPtr (blockID, solnData)
+
+     end do
+!   
+!   
+!        ...Prepare for a one-time all reduce call.
+!   
+!   
+     local_MXYZ_sum(1:7)   = local_sum(1:7)
+     local_MXYZ_sum(8:14)  = local_sum_cut(1:7)
+     local_MXYZ_sum(15:21) = local_sum_peak(1:7)
+!   
+!   
+!        ...Calculate the total sums and give a copy to each processor.
+!   
+!   
+     call  MPI_AllReduce (local_MXYZ_sum, &
+                          total_MXYZ_sum, &
+                          21,              &
+                          FLASH_REAL,     & 
+                          MPI_Sum,        &
+                          gr_meshComm, &
+                          error           )
+!   
+!   
+!        ...Analyze total mass obtained. If nonsense, stamp a message or abort.
+!   
+!   
+     !if (grv_mode .eq. 1) then
+         Mtot = total_MXYZ_sum (1)
+     !else
+     !    Mtot = total_MXYZ_sum (8)
+     !endif
+        
+     if (abs (Mtot) < TINY (Mtot)) then
+         call Driver_abortFlash ('FATAL ERROR: mpole_centerOfMass:  Mtot = 0')
+     end if
+        
+     if (Mtot < zero) then
+         write (str_buffer,*) 'mpole_centerOfMass:  Mtot = ', Mtot
+         call Logfile_stamp( str_buffer, 'warning')
+     endif
+!   
+!   
+!        ...Get normalized center of mass coordinates.
+!   
+!   
+     grv_totmass = total_MXYZ_sum(1)
+     grv_exactvec = total_MXYZ_sum(2:7) / total_MXYZ_sum(1)
+     grv_mpolevec = total_MXYZ_sum(9:14) / total_MXYZ_sum(8)
+     grv_peakvec = total_MXYZ_sum(16:21) / total_MXYZ_sum(15)
+     !if (.not. dr_restart .and. dr_simTime .eq. dr_initialSimTime) then
+     if (dr_simTime .eq. dr_initialSimTime) then
+         grv_ototmass = grv_totmass
+         grv_oexactvec = grv_exactvec
+         grv_ompolevec = grv_mpolevec
+     endif
+  !endif
+
+  if (grv_mode .eq. 1) then
+      X_centerofmass  = grv_exactvec(1)
+      Y_centerofmass  = grv_exactvec(2)
+      Z_centerofmass  = grv_exactvec(3)
+  else
+      if (dabs(grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)) .lt. 0.01d0) then
+          print *, 'x too close!', grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)
+          grv_mpolevec(1) = grv_mpolevec(1) + mcs*sign(0.01d0, &
+              grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half))
+      endif
+      if (dabs(grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)) .lt. 0.01d0) then
+          print *, 'y too close!', grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)
+          grv_mpolevec(2) = grv_mpolevec(2) + mcs*sign(0.01d0, &
+              grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half))
+      endif
+      if (dabs(grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)) .lt. 0.01d0) then
+          if (gr_meshMe .eq. MASTER_PE) then
+              print *, 'z too close!', grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)
+              print *, 'grv_mpolevec', grv_mpolevec
+              print *, 'total_MXYZ_sum', total_MXYZ_sum
+              call Driver_abortFlash('done')
+          endif
+          grv_mpolevec(3) = grv_mpolevec(3) + mcs*sign(0.01d0, &
+              grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half))
+      endif
+
+      X_centerofmass = grv_mpolevec(1)
+      Y_centerofmass = grv_mpolevec(2)
+      Z_centerofmass = grv_mpolevec(3)
+
+      peak_dist = sqrt((grv_peakvec(1) - X_centerofmass)**2.d0 + &
+                       (grv_peakvec(2) - Y_centerofmass)**2.d0 + &
+                       (grv_peakvec(3) - Z_centerofmass)**2.d0)
+
+      if (gr_meshMe .eq. MASTER_PE) print *, 'peak_dist', peak_dist/mcs
+
+      if (peak_dist*2.d0*PI/max_L .gt. mcs .and. gr_meshMe .eq. MASTER_PE) then
+          print *, 'peak_dist', peak_dist
+          print *, 'peak_vec', grv_peakvec
+          print *, 'COM', X_centerofmass, Y_centerofmass, Z_centerofmass
+          print *, 'xi', grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)
+          print *, 'yi', grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)
+          print *, 'zi', grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)
+          call Driver_abortFlash('ERROR: Peak density location poorly resolved by multipole solver. Either increase ' // &
+                                 'maximum multipole L or increase grv_comCutoff.')
+      endif
+  endif
+
+
+!
+!
+!     ...Ready!
+!
+!
+  return
+end subroutine gr_mpoleCM3Dcartesian

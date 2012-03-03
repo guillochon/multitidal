@@ -1,0 +1,439 @@
+!!****if* source/Grid/GridSolvers/Multipole_experimental/gr_mpoleRad3Dcartesian
+!!
+!! NAME
+!!
+!!  gr_mpoleRad3Dcartesian
+!!
+!! 
+!! SYNOPSIS
+!!
+!!  gr_mpoleRad3Dcartesian()
+!!
+!!
+!! DESCRIPTION
+!!
+!!  This routine determines the radial sampling for accumulating the Moments
+!!  for the three-dimensional (3D) cartesian case.
+!!
+!!
+!!***
+
+subroutine gr_mpoleRad3Dcartesian()
+
+  use Driver_interface,  ONLY : Driver_abortFlash
+  use Grid_data,         ONLY : gr_meshMe, gr_meshComm
+  use Grid_interface,    ONLY : Grid_getBlkPtr,           &
+                                Grid_releaseBlkPtr,       &
+                                Grid_getBlkBoundBox,      &
+                                Grid_getDeltas,           &
+                                Grid_getBlkIndexLimits,   &
+                                Grid_getMinCellSizes
+  use gr_mpoleData,      ONLY : one,two,zero,             &
+                                half,third,hundredth,     &
+                                dr,dr_inv,                &
+                                dr_inner_zone,            &
+                                dr_inner_zone_inv,        &
+                                max_R,                    &
+                                ignore_inner_zone,        &
+                                inner_zone_rmax,          &
+                                inner_zone_qmax,          &
+                                inner_zone_radii,         &
+                                inner_zone_size,          &
+                                xmin,xmax,                &
+                                ymin,ymax,                &
+                                zmin,zmax,                &
+                                X_centerofmass,           &
+                                Y_centerofmass,           &
+                                Z_centerofmass,           &
+                                blockCount,               &
+                                blockList,bndBox,         &
+                                blkLimits,blkLimitsGC,    &
+                                delta
+
+  implicit none
+
+#include "Flash.h"
+#include "constants.h"
+
+  include "Flash_mpi.h"
+
+  logical :: inside
+  logical :: invoke_recv
+  logical :: invoke_send
+
+  integer :: blockID
+  integer :: block_nr
+  integer :: error
+  integer :: i,j,k
+  integer :: imax, jmax, kmax
+  integer :: imin, jmin, kmin
+  integer :: message_tag
+  integer :: nP_inner_zone
+  integer :: nR_inner_zone
+  integer :: nB_local
+  integer :: nP_local
+  integer :: nR_local
+  integer :: nR_local_prev
+
+  integer :: status (MPI_STATUS_SIZE)
+
+  real    :: bndBox_i_low
+  real    :: bndBox_j_low
+  real    :: bndBox_k_low
+  real    :: delta_i
+  real    :: delta_j
+  real    :: delta_k
+  real    :: delta_i_half
+  real    :: delta_j_half
+  real    :: delta_k_half
+  real    :: dr_critical
+  real    :: dxmin,dymin,dzmin
+  real    :: inner_zone_rmax_sqr
+  real    :: r1,r2,r3,r4,r5,r6,r7,r8
+  real    :: rmin,rsqr
+  real    :: x,y,z,r
+
+  integer :: local_data  (1:2)
+  integer :: global_data (1:2)
+
+  integer, allocatable  :: blockList_inner_zone (:)
+  real,    allocatable  :: R_inner_zone         (:)
+  real, dimension(MDIM) :: dxs
+!
+!
+!       ...Calculate the maximum radial distance that can possibly
+!          arise within the domain. Also compute minimum cell spacings
+!          at the maximum refinement level. Assume the domain is a
+!          Cartesian box.
+!
+!
+  call Grid_getMinCellSizes(dxs)
+  dxmin = dxs(IAXIS)
+  dymin = dxs(JAXIS)
+  dzmin = dxs(KAXIS)
+
+!
+!
+!       ...Determine the radial distance from the center of mass to
+!          the corners of the computational domain. Take the largest
+!          of these distances as the largest possible radial distance
+!          that can arise.
+!
+!          Determine also the 'atomic' radial spacing. This is the
+!          smallest possible size of one radial bin. Half the Geometric
+!          mean (n-th root of product of n samples) is used to determine
+!          the atomic spacing from the minimum cell spacings in each
+!          x,y,z direction. The inverse is also calculated for further
+!          reference and a critical radial value is determined, which
+!          is used to check if the center of mass became too close to
+!          a cell midpoint.
+!
+!
+  r1 =   (xmax - xmin) * (xmax - xmin) &
+       + (ymax - ymin) * (ymax - ymin) &
+       + (zmax - zmin) * (zmax - zmin)
+
+  max_R        = sqrt (r1)
+  dr           = half * (dxmin * dymin * dzmin) ** third
+  dr_inv       = one / dr
+  dr_critical  = dr * hundredth
+!
+!
+!     ...Proceed with establishing the inner zone.
+!        Find the local blockID to which the center of mass belongs
+!        and calculate the inner zone atomic length. Send that length
+!        from whatever process calculated it to the master processor,
+!        which broadcasts the length to all the other processors.
+!
+!
+  message_tag = 1
+  invoke_recv = .true.
+
+  do block_nr = 1,blockCount
+     blockID = blockList (block_nr)
+
+     call Grid_getBlkBoundBox (blockID, bndBox)
+
+     inside =       (X_centerofmass >= bndBox (LOW ,IAXIS)) &
+              .and. (Y_centerofmass >= bndBox (LOW ,JAXIS)) &
+              .and. (Z_centerofmass >= bndBox (LOW ,KAXIS)) &
+              .and. (X_centerofmass <  bndBox (HIGH,IAXIS)) &
+              .and. (Y_centerofmass <  bndBox (HIGH,JAXIS)) &
+              .and. (Z_centerofmass <  bndBox (HIGH,KAXIS))
+
+     if (inside) then
+
+         call Grid_getDeltas (blockID, delta)
+
+         delta_i = delta (IAXIS)
+         delta_j = delta (JAXIS)
+         delta_k = delta (KAXIS)
+
+         dr_inner_zone = half * (delta_i * delta_j * delta_k) ** third
+
+         if (gr_meshMe /= MASTER_PE) then
+
+             call MPI_Send (dr_inner_zone,  &
+                            1,              &
+                            FLASH_REAL,     &
+                            MASTER_PE,      &
+                            message_tag,    &
+                            gr_meshComm, &
+                            error           )
+         else
+             invoke_recv = .false.
+         end if
+
+         exit
+     end if
+  end do
+
+  if ((gr_meshMe == MASTER_PE) .and. invoke_recv) then
+
+      call MPI_Recv (dr_inner_zone,  &
+                     1,              &
+                     FLASH_REAL,     &
+                     MPI_ANY_SOURCE, &
+                     message_tag,    &
+                     gr_meshComm, &
+                     status,         &
+                     error           )
+  end if
+
+  call MPI_Bcast (dr_inner_zone,  &
+                  1,              &
+                  FLASH_REAL,     &
+                  MASTER_PE,      &
+                  gr_meshComm, &
+                  error           )
+
+  dr_inner_zone_inv = one / dr_inner_zone
+!
+!
+!     ...From the determined inner zone atomic length and the previously
+!        found maximal radial domain distance, readjust the inner zone size
+!        variable. Two cases can happen:
+!
+!          i) inner_zone_size * dr_inner_zone =< max_R  (no adjustment needed)
+!         ii) inner_zone_size * dr_inner_zone  > max_R  (do adjustment)
+!
+!
+  if ( inner_zone_size * dr_inner_zone > max_R ) then
+       inner_zone_size = int (ceiling (max_R * dr_inner_zone_inv))
+  end if
+!
+!
+!     ...Determine the number of radii to be expected in the inner zone.
+!        For each processor, store those local blockID's that actually
+!        have radii in the inner zone.
+!
+!
+  allocate (blockList_inner_zone (1:MAXBLOCKS))
+
+  inner_zone_rmax     = real (inner_zone_size) * dr_inner_zone
+  inner_zone_rmax_sqr = inner_zone_rmax * inner_zone_rmax
+
+  nB_local = 0
+  nR_local = 0
+  nR_local_prev = 0
+
+  do block_nr = 1,blockCount
+     blockID = blockList (block_nr)
+
+     call Grid_getBlkBoundBox     (blockID,  bndBox)
+     call Grid_getDeltas          (blockID,  delta )
+     call Grid_getBlkIndexLimits  (blockID,  blkLimits, blkLimitsGC)
+
+     imin         = blkLimits (LOW, IAXIS)
+     jmin         = blkLimits (LOW, JAXIS)
+     kmin         = blkLimits (LOW, KAXIS)  
+     imax         = blkLimits (HIGH,IAXIS)
+     jmax         = blkLimits (HIGH,JAXIS)
+     kmax         = blkLimits (HIGH,KAXIS)
+     delta_i      = delta (IAXIS)
+     delta_j      = delta (JAXIS)
+     delta_k      = delta (KAXIS)
+     delta_i_half = delta_i * half
+     delta_j_half = delta_j * half
+     delta_k_half = delta_k * half
+     bndBox_i_low = bndBox (LOW,IAXIS)
+     bndBox_j_low = bndBox (LOW,JAXIS)
+     bndBox_k_low = bndBox (LOW,KAXIS)
+
+     z = bndBox_k_low + delta_k_half - Z_centerofmass
+     do k = kmin,kmax
+        y = bndBox_j_low + delta_j_half - Y_centerofmass
+        do j = jmin,jmax
+           x = bndBox_i_low + delta_i_half - X_centerofmass
+           do i = imin,imax
+
+              rsqr = x * x + y * y + z * z
+
+              if (rsqr <= inner_zone_rmax_sqr) then
+                  nR_local = nR_local + 1
+              end if
+
+              x = x + delta_i
+           end do
+           y = y + delta_j
+        end do
+        z = z + delta_k
+     end do
+
+     if (nR_local > nR_local_prev) then
+         nB_local = nB_local + 1
+         blockList_inner_zone (nB_local) = blockID
+     end if
+
+     nR_local_prev = nR_local
+
+  end do
+!
+!
+!     ...Calculate the total number of processors contributing to the inner
+!        zone radii and the overall total number of inner zone radii to be
+!        expected. Allocate the array that will contain all inner zone radii
+!        on all processors. If no inner zone radii are found globally, there
+!        is something wrong and the program has to stop.
+!
+!
+  invoke_send = (nR_local > 0)
+
+  if (invoke_send) then
+      nP_local = 1
+  else
+      nP_local = 0
+  end if
+
+  local_data (1) = nP_local
+  local_data (2) = nR_local
+
+  call MPI_AllReduce (local_data,     &
+                      global_data,    &
+                      2,              &
+                      FLASH_INTEGER,  &
+                      MPI_SUM,        &
+                      gr_meshComm, &
+                      error           )
+
+  nP_inner_zone = global_data (1)
+  nR_inner_zone = global_data (2)
+
+  if (nR_inner_zone == 0) then
+      call Driver_abortFlash ('[gr_mpoleRad3Dcartesian] ERROR: no inner zone radii found')
+  end if
+
+  allocate (R_inner_zone (1:nR_inner_zone))
+!
+!
+!     ...Calculate and store now all inner zone radii on each processor.
+!        Loop only over those local blocks which actually contribute to the
+!        inner zone (skip, if no blocks).
+!
+!
+  nR_local = 0
+
+  if (nB_local > 0) then
+
+      do block_nr = 1,nB_local
+         blockID = blockList_inner_zone (block_nr)
+
+         call Grid_getBlkBoundBox     (blockID,  bndBox)
+         call Grid_getDeltas          (blockID,  delta )
+         call Grid_getBlkIndexLimits  (blockID,  blkLimits, blkLimitsGC)
+
+         imin         = blkLimits (LOW, IAXIS)
+         jmin         = blkLimits (LOW, JAXIS)
+         kmin         = blkLimits (LOW, KAXIS)  
+         imax         = blkLimits (HIGH,IAXIS)
+         jmax         = blkLimits (HIGH,JAXIS)
+         kmax         = blkLimits (HIGH,KAXIS)
+         delta_i      = delta (IAXIS)
+         delta_j      = delta (JAXIS)
+         delta_k      = delta (KAXIS)
+         delta_i_half = delta_i * half
+         delta_j_half = delta_j * half
+         delta_k_half = delta_k * half
+         bndBox_i_low = bndBox (LOW,IAXIS)
+         bndBox_j_low = bndBox (LOW,JAXIS)
+         bndBox_k_low = bndBox (LOW,KAXIS)
+
+         z = bndBox_k_low + delta_k_half - Z_centerofmass
+         do k = kmin,kmax
+            y = bndBox_j_low + delta_j_half - Y_centerofmass
+            do j = jmin,jmax
+               x = bndBox_i_low + delta_i_half - X_centerofmass
+               do i = imin,imax
+
+                  r = sqrt (x * x + y * y + z * z)
+
+                  if (r <= inner_zone_rmax) then
+                      nR_local = nR_local + 1
+                      R_inner_zone (nR_local) = r
+                  end if
+
+                  x = x + delta_i
+               end do
+               y = y + delta_j
+            end do
+            z = z + delta_k
+         end do
+
+      end do
+
+  end if
+
+  deallocate (blockList_inner_zone)
+!
+!
+!       ...Set up the inner zone radial grid.
+!
+!
+  call gr_mpoleSetInnerZoneGrid (nR_local,      &
+                                 nR_inner_zone, &
+                                 nP_inner_zone, &
+                                 R_inner_zone   )
+
+  rmin = inner_zone_radii (1) * dr_inner_zone
+
+  if (rmin < dr_critical) then
+      print *, rmin/dr_critical
+      print *, 'R_inner_zone(1)', R_inner_zone(1)
+      print *, 'inner_zone_radii(1)', inner_zone_radii(1)
+      call Driver_abortFlash ('[gr_mpoleRad3Dcartesian] ERROR: Center of Mass close to cell midpoint')
+  end if
+
+  deallocate (R_inner_zone)
+!
+!
+!       ...The inner zone is done.
+!          Check if the center of mass became too close to a cell midpoint.
+!          To determine this, we use the first inner zone radius, which is
+!          based on its distance from the center of mass in units of the
+!          inner zone atomic distance.
+!
+!
+!
+!
+!       ...If the user has specified to use no inner zone, override the
+!          variables that control usage of inner zone.
+!
+!
+  if (ignore_inner_zone) then
+      inner_zone_rmax = zero
+      inner_zone_qmax = 0
+  end if
+!
+!
+!       ...Complete the radial grid picture by setting up the outer (statistical)
+!          zone radial grid.
+!
+!
+  call gr_mpoleSetOuterZoneGrid ()
+!
+!
+!       ...Ready!
+!
+!
+  return
+end subroutine gr_mpoleRad3Dcartesian

@@ -134,11 +134,6 @@ refine_cutoff_9     = 1.00e-9
 derefine_cutoff_9   = 5.00e-10
 refine_level_9      = 8
 
-refine_var_10        = "dens"
-refine_cutoff_10     = 1.00e-10
-derefine_cutoff_10   = 5.00e-11
-refine_level_10      = 7
-
 
 # Variables to include in plot files.
 plot_var_1 = "dens"

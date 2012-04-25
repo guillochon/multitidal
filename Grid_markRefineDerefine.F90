@@ -40,8 +40,8 @@ subroutine Grid_markRefineDerefine()
       Grid_releaseBlkPtr,Grid_fillGuardCells,Grid_getMinCellSize
   use Driver_interface, ONLY: Driver_getSimTime
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
-  use Simulation_data, ONLY: sim_objMass, sim_objPolyN, sim_objCentDen, np, obj_radius, &
-      obj_ipos, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity, sim_ptMassRefine, sim_fluffDampCutoff
+  use Simulation_data, ONLY: sim_objRadius, sim_objCentDens, &
+      sim_maxBlocks, sim_useInitialPeakDensity, sim_ptMassRefine, sim_fluffDampCutoff
   use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
   use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_dynRefineMax, &
       grv_exactvec, grv_mpolevec, grv_periDist
@@ -75,7 +75,7 @@ subroutine Grid_markRefineDerefine()
   ! that are implemented in this file need values in guardcells
 
   if (sim_useInitialPeakDensity) then
-      dens_cut = obj_rhop(1)
+      dens_cut = sim_objCentDens
   else
       dens_cut = grv_densCut
   endif
@@ -116,7 +116,7 @@ subroutine Grid_markRefineDerefine()
   zcenter = zcenter / 2.
 
   if (t .eq. 0.0) then
-      call gr_markInRadius(xcenter,ycenter,zcenter,1.2*obj_radius(obj_ipos),lrefine_max,0)
+      call gr_markInRadius(xcenter,ycenter,zcenter,1.2*sim_objRadius,lrefine_max,0)
   else
       Call MPI_ALLREDUCE (lnblocks,max_blocks,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
       prev_refmax = grv_dynRefineMax

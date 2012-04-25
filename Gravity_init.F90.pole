@@ -24,7 +24,7 @@
 subroutine Gravity_init()
 
   use Gravity_data
-  use Simulation_data, ONLY: sim_objMass, obj_radius, obj_ipos, sim_tRelax, sim_periBeta, &
+  use Simulation_data, ONLY: sim_objRadius, sim_tRelax, sim_periBeta, &
       sim_startBeta, sim_periodFac, sim_orbEcc, sim_xMax, sim_xMin, sim_msun, sim_tInitial
   use Grid_interface, ONLY: Grid_getListOfBlocks
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get, &
@@ -158,7 +158,7 @@ subroutine Gravity_init()
   if (sim_periBeta .eq. 0.d0) then
       call RuntimeParameters_get("sim_periDist", grv_periDist)
   else
-      grv_periDist = obj_radius(obj_ipos)/sim_periBeta*(grv_ptmass/grv_totmass)**(1.d0/3.d0)
+      grv_periDist = sim_objRadius/sim_periBeta*(grv_ptmass/grv_totmass)**(1.d0/3.d0)
   endif
   if (sim_periodFac .gt. 0.d0) then
       a = grv_periDist/(1.d0 - sim_orbEcc)
@@ -168,7 +168,7 @@ subroutine Gravity_init()
   if (sim_startBeta .gt. 0.d0) then
       a = grv_periDist/(1.d0 - sim_orbEcc)
       period = dsqrt(4.d0*PI**2.d0/newton/(grv_ptmass + grv_totmass)*a**3.d0)
-      start_dist = obj_radius(obj_ipos)/sim_startBeta*(grv_ptmass/grv_totmass)**(1.d0/3.d0)
+      start_dist = sim_objRadius/sim_startBeta*(grv_ptmass/grv_totmass)**(1.d0/3.d0)
       if (start_dist .gt. 2.d0*a - grv_periDist) call Driver_abortFlash('start_dist too large!')
       ecc_anom = dacos((a - start_dist)/a/sim_orbEcc)
       grv_periTime = abs(ecc_anom - sim_orbEcc*dsin(ecc_anom))*period/2.d0/PI + sim_tRelax
@@ -192,7 +192,7 @@ subroutine Gravity_init()
       call Logfile_stampMessage(logstr)
       write(logstr, fmt='(A30, 2ES15.8)') 'Period, pericenter time:', period, grv_periTime
       call Logfile_stampMessage(logstr)
-      write(logstr, fmt='(A30, 2ES15.8)') 'Obj. radius, pericenter dist:', obj_radius(obj_ipos), grv_periDist
+      write(logstr, fmt='(A30, 2ES15.8)') 'Obj. radius, pericenter dist:', sim_objRadius, grv_periDist
       call Logfile_stampMessage(logstr)
   endif
 
@@ -201,7 +201,7 @@ subroutine Gravity_init()
       write(11, fmt='(ES21.15)') sim_periBeta
       write(11, fmt='(ES21.15)') period
       write(11, fmt='(ES21.15)') grv_periTime
-      write(11, fmt='(ES21.15)') obj_radius(obj_ipos)
+      write(11, fmt='(ES21.15)') sim_objRadius
       write(11, fmt='(ES21.15)') grv_bound/sim_msun
       write(11, fmt='(ES21.15)') sim_orbEcc
       write(11, fmt='(ES21.15)') grv_ptmass

@@ -31,19 +31,20 @@ LINKIF gr_mpoleMom3Dcartesian.F90.pole       Grid/GridSolvers/Multipole_experime
 
 USESETUPVARS loadProfile
 
+SPECIES H1
+SPECIES HE4
+SPECIES C12
+SPECIES O16
+
 IF loadProfile
 
 REQUIRES physics/Eos/EosMain/Helmholtz
 PPDEFINE LOADPROFILE
-SPECIES H1
-SPECIES HE4
 PARAMETER sim_profFile          STRING  "sm.dat"
 
 ELSE
 
 REQUIRES physics/Eos/EosMain/Multigamma
-SPECIES H1
-SPECIES HE4
 PARAMETER sim_objMass           REAL    2.E30
 PARAMETER sim_objPolyN          REAL    3.E0
 PARAMETER sim_objCentDen        REAL    1.E2

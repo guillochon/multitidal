@@ -113,7 +113,7 @@ subroutine Simulation_init()
     sim_objRadius = sim_table(sim_tableRows,R_PROF)
     sim_objMass = sum(PI*(sim_table(2:sim_tableRows,R_PROF) + sim_table(1:sim_tableRows-1,R_PROF))**2.d0*&
                       (sim_table(2:sim_tableRows,R_PROF) - sim_table(1:sim_tableRows-1,R_PROF))*&
-                      sim_table(:,RHO_PROF))
+                      sim_table(:,RHO_PROF))/sim_msun
     sim_objCentDens = sim_table(1,RHO_PROF)
 #else
     call RuntimeParameters_get('sim_pAmbient', sim_pAmbient)

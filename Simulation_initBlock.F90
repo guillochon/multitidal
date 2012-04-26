@@ -171,14 +171,13 @@ subroutine Simulation_initBlock (blockId, myPE)
                     ! 
 #ifdef LOADPROFILE
                     call sim_find (sim_table(:,R_PROF), sim_tableRows, dist, jLo)
+                    frac = 0.
                     if (jLo .eq. 0) then
                        jLo = 1
                        jHi = 1
-                       frac = 0.
-                    else if (jLo .eq. sim_tableRows) then
+                    else if (jLo .ge. sim_tableRows) then
                        jLo = sim_tableRows
                        jHi = sim_tableRows
-                       frac = 0.
                     else
                        jHi = jLo + 1
                        frac = (dist - sim_table(jLo,R_PROF)) / & 
@@ -191,7 +190,7 @@ subroutine Simulation_initBlock (blockId, myPE)
                        jLo = 1
                        jHi = 1
                        frac = 0.
-                    else if (jLo .eq. obj_ipos) then
+                    else if (jLo .ge. obj_ipos) then
                        jLo = obj_ipos
                        jHi = obj_ipos
                        frac = 0.
@@ -215,17 +214,35 @@ subroutine Simulation_initBlock (blockId, myPE)
            yy = yCoord(j) - sim_yCenter
            zz = zCoord(k) - sim_zCenter
            dist = sqrt(xx**2 + yy**2 + zz**2)
-           if (dist .le. sim_table(sim_tableRows, R_PROF)) then
+           if (dist .le. sim_objRadius) then
               sumVars(RHO_PROF) = max (sumVars(RHO_PROF), sim_rhoAmbient)
+#ifdef H1_SPEC
               xn(H1_SPEC) = sumVars(H1_PROF)
-              !xn(HE3_SPEC) = sumVars(HE3_PROF)
+#endif
+#ifdef HE3_SPEC
+              xn(HE3_SPEC) = sumVars(HE3_PROF)
+#endif
+#ifdef HE4_SPEC
               xn(HE4_SPEC) = sumVars(HE4_PROF)
-              !xn(C12_SPEC) = sumVars(C12_PROF)
-              !xn(N14_SPEC) = sumVars(N14_PROF)
-              !xn(O16_SPEC) = sumVars(O16_PROF)
-              !xn(NE20_SPEC) = sumVars(NE20_PROF)
-              !xn(MG24_SPEC) = sumVars(MG24_PROF)
-              !xn(SI28_SPEC) = sumVars(SI28_PROF)
+#endif
+#ifdef C12_SPEC
+              xn(C12_SPEC) = sumVars(C12_PROF)
+#endif
+#ifdef N14_SPEC
+              xn(N14_SPEC) = sumVars(N14_PROF)
+#endif
+#ifdef O16_SPEC
+              xn(O16_SPEC) = sumVars(O16_PROF)
+#endif
+#ifdef NE20_SPEC
+              xn(NE20_SPEC) = sumVars(NE20_PROF)
+#endif
+#ifdef MG24_SPEC
+              xn(MG24_SPEC) = sumVars(MG24_PROF)
+#endif
+#ifdef SI28_SPEC
+              xn(SI28_SPEC) = sumVars(SI28_PROF)
+#endif
               xn = xn / sum(xn)
            else
               sumVars(RHO_PROF) = sim_rhoAmbient
@@ -265,10 +282,10 @@ subroutine Simulation_initBlock (blockId, myPE)
            solnData(PRES_VAR,i,j,k)=p
            solnData(ENER_VAR,i,j,k)=e
            solnData(TEMP_VAR,i,k,k)=t
-           ! Need to add species setting for non-permanent guard cells...
-#endif
            solnData(GAME_VAR,i,j,k)=gam
            solnData(GAMC_VAR,i,j,k)=gam
+           ! Need to add species setting for non-permanent guard cells...
+#endif
            solnData(VELX_VAR,i,j,k)=vx
            solnData(VELY_VAR,i,j,k)=vy
            solnData(VELZ_VAR,i,j,k)=vz
@@ -291,9 +308,9 @@ subroutine Simulation_initBlock (blockId, myPE)
               call Grid_putPointData(blockID,CENTER,put,&
                    EXTERIOR,axis,obj_xn(put))
            enddo
-#endif
            call Grid_putPointData(blockId, CENTER, GAME_VAR, EXTERIOR, axis, gam)
            call Grid_putPointData(blockId, CENTER, GAMC_VAR, EXTERIOR, axis, gam)
+#endif
            call Grid_putPointData(blockId, CENTER, VELX_VAR, EXTERIOR, axis, vx)
            call Grid_putPointData(blockId, CENTER, VELY_VAR, EXTERIOR, axis, vy)
            call Grid_putPointData(blockId, CENTER, VELZ_VAR, EXTERIOR, axis, vz)

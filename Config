@@ -7,7 +7,6 @@ DATAFILES *.h
 
 REQUIRES Driver
 REQUIRES physics/Hydro
-REQUIRES physics/Eos/EosMain/Multigamma
 REQUIRES Simulation/SimulationComposition
 REQUIRES Multispecies/MultispeciesMain
 
@@ -34,6 +33,7 @@ USESETUPVARS loadProfile
 
 IF loadProfile
 
+REQUIRES physics/Eos/EosMain/Helmholtz
 PPDEFINE LOADPROFILE
 SPECIES H1
 SPECIES HE4
@@ -41,6 +41,7 @@ PARAMETER sim_profFile          STRING  "sm.dat"
 
 ELSE
 
+REQUIRES physics/Eos/EosMain/Multigamma
 SPECIES H1
 SPECIES HE4
 PARAMETER sim_objMass           REAL    2.E30
@@ -48,6 +49,9 @@ PARAMETER sim_objPolyN          REAL    3.E0
 PARAMETER sim_objCentDen        REAL    1.E2
 
 ENDIF
+
+LINKIF eos_initHelmholtz.F90  physics/Eos/EosMain/Helmholtz
+LINKIF eos_helmData.F90       physics/Eos/EosMain/Helmholtz
 
 PARAMETER sim_periDist              REAL    0.E0
 PARAMETER sim_periBeta              REAL    0.E0

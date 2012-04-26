@@ -102,6 +102,7 @@ subroutine Simulation_init()
         call read_table(sim_profFile, sim_table, sim_tableRows, sim_tableCols)
         write(*,*) 'r_prof', sim_table(:,R_PROF)
         write(*,*) 'rho_prof', sim_table(:,RHO_PROF)
+        write(*,*) 'temp_prof', sim_table(:,TEMP_PROF)
     endif
 
     call MPI_BCAST(sim_tableRows, 1, FLASH_INTEGER, MASTER_PE, MPI_COMM_WORLD, ierr)
@@ -146,6 +147,8 @@ subroutine Simulation_init()
         write(logstr, fmt='(A30, ES15.8)') 'Object mass:', sim_objMass
         call Logfile_stampMessage(logstr)
         write(logstr, fmt='(A30, ES15.8)') 'Object radius:', sim_objRadius
+        call Logfile_stampMessage(logstr)
+        write(logstr, fmt='(A30, ES15.8)') 'Object central density:', sim_objCentDens
         call Logfile_stampMessage(logstr)
 
         call RuntimeParameters_get("cfl", cfl)

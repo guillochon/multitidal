@@ -194,9 +194,9 @@ subroutine IO_writeIntegralQuantities (isFirst, simTime)
                     x = xx - grv_boundvec(1)
                     y = yy - grv_boundvec(2)
                     z = zz - grv_boundvec(3)
-                    if (dsqrt(x*x + y*y + z*z) .gt. &
-                        dsqrt(sum((grv_boundvec(1:3) - grv_exactvec(1:3) - grv_ptvec(1:3) + grv_obvec(1:3))**2.d0))*&
-                        (grv_bound/3.d0/grv_ptmass)**(1.d0/3.d0)) cycle
+                    !if (dsqrt(x*x + y*y + z*z) .gt. &
+                    !    dsqrt(sum((grv_boundvec(1:3) - grv_exactvec(1:3) - grv_ptvec(1:3) + grv_obvec(1:3))**2.d0))*&
+                    !    (grv_bound/3.d0/grv_ptmass)**(1.d0/3.d0)) cycle
                     v2 = 0.5d0*(velx**2.d0 + vely**2.d0 + velz**2.d0)
                     lsum(12) = lsum(12) + 0.5d0*solnData(DENS_VAR,i,j,k) * dvol * v2
                     lsum(13) = lsum(13) + solnData(DENS_VAR,i,j,k) * solnData(EINT_VAR,i,j,k)*dvol

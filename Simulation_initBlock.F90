@@ -190,7 +190,7 @@ subroutine Simulation_initBlock (blockId, myPE)
                        jLo = 1
                        jHi = 1
                        frac = 0.
-                    else if (jLo .ge. obj_ipos) then
+                    else if (jLo .eq. obj_ipos) then
                        jLo = obj_ipos
                        jHi = obj_ipos
                        frac = 0.

@@ -77,6 +77,9 @@ PARAMETER sim_useInitialPeakDensity BOOLEAN TRUE
 PARAMETER sim_ptMassRefine          INTEGER 1
 PARAMETER sim_totForceSub           INTEGER 1
 PARAMETER sim_ptMassRefRad          REAL    1.E0
+PARAMETER sim_rotFac                REAL    0.E0
+PARAMETER sim_rotAngle              REAL    0.E0
+PARAMETER sim_tSpinup               REAL    0.E0
 
 PARAMETER grv_orbTol          REAL    1.E-12
 PARAMETER grv_orbMinForce     REAL    1.E-12

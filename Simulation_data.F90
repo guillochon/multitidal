@@ -40,12 +40,8 @@ module Simulation_data
                             sim_accCoeff, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &
                             sim_periBeta, sim_startBeta, sim_periodFac, &
                             sim_orbEcc, sim_startDistance, sim_ptMassRefRad, &
-<<<<<<< local
-                            sim_totForceInv, sim_rotRate, sim_rotAngle, sim_tSpinup
-=======
-                            sim_totForceInv
+                            sim_totForceInv, sim_rotFac, sim_rotAngle, sim_tSpinup
   double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
->>>>>>> other
 
 #ifdef LOADPROFILE
   integer, save                                       :: sim_tableRows, sim_tableCols

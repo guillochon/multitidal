@@ -29,30 +29,40 @@ module Simulation_data
 
   !! *** Runtime Parameters *** !!
 
-  double precision, save :: sim_pAmbient, sim_rhoAmbient, &
+  double precision, save :: sim_pAmbient, sim_tAmbient, sim_rhoAmbient, &
                             sim_fluidGamma, &
                             sim_smallX, sim_smallRho, sim_smallP, &
                             sim_xMin, sim_xMax, sim_yMin, sim_yMax, sim_zMin, sim_zMax
   integer, save          :: sim_nSubZones
-  integer, save          :: sim_tableRows, sim_tableCols
   integer, save          :: sim_maxBlocks, sim_ptMassRefine, sim_totForceSub
-  double precision, save :: sim_tInitial, sim_tRelax, sim_relaxRate, sim_starRadius, &
-                            sim_softenRadius, sim_accRadius, sim_objMass, sim_objPolyN, sim_objCentDen, &
+  double precision, save :: sim_tInitial, sim_tRelax, sim_relaxRate, sim_objRadius, &
+                            sim_softenRadius, sim_accRadius, sim_objCentDens, sim_objMass, &
                             sim_accCoeff, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &
                             sim_periBeta, sim_startBeta, sim_periodFac, &
                             sim_orbEcc, sim_startDistance, sim_ptMassRefRad, &
+<<<<<<< local
                             sim_totForceInv, sim_rotRate, sim_rotAngle, sim_tSpinup
+=======
+                            sim_totForceInv
+  double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
+>>>>>>> other
 
+#ifdef LOADPROFILE
+  integer, save                                       :: sim_tableRows, sim_tableCols
+  double precision, dimension(:,:), allocatable, save :: sim_table
+  character(len=MAX_STRING_LENGTH), save              :: sim_profFile
+#else
+  integer, parameter                                     :: np = 1000
+  double precision, save                                 :: sim_objPolyN, sim_objCentDen, obj_mu
+  double precision, dimension(SPECIES_BEGIN:SPECIES_END) :: obj_xn
+  double precision, dimension(np), save                  :: obj_radius, obj_rhop, obj_prss
+  integer, save                                          :: obj_ipos
+#endif
 
   !! *** Variables pertaining to this Simulation *** !!
 
-  integer, parameter        :: np = 1000
   double precision, save    :: sim_inSubInv
   double precision, save    :: sim_inszd
-  double precision, save :: obj_mu
-  double precision, dimension(SPECIES_BEGIN:SPECIES_END) :: obj_xn
-  double precision, dimension(np), save :: obj_radius, obj_rhop, obj_prss
-  integer, save :: obj_ipos
   logical, save :: sim_useInitialPeakDensity
 
   double precision, parameter :: sim_msun = 1.9889225d33

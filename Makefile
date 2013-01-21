@@ -1,4 +1,4 @@
-Simulation += Simulation_data.o orbit.o poly2.o
+Simulation += Simulation_data.o orbit.o poly2.o read_table.o
 Driver += Orbit_update.o Total_force.o Bound_mass.o Orbit_energy.o odeint.o bsstep.o nr.o \
           nrutil.o pzextr.o mmid.o Mass_Loss_Correction.o
 Grid += Grid_findExtrema.o

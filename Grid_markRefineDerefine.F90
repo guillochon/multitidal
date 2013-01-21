@@ -40,8 +40,9 @@ subroutine Grid_markRefineDerefine()
       Grid_releaseBlkPtr,Grid_fillGuardCells,Grid_getMinCellSize
   use Driver_interface, ONLY: Driver_getSimTime
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
-  use Simulation_data, ONLY: sim_objMass, sim_objPolyN, sim_objCentDen, np, obj_radius, &
-      obj_ipos, sim_maxBlocks, obj_rhop, sim_useInitialPeakDensity, sim_ptMassRefine, sim_fluffDampCutoff
+  use Simulation_data, ONLY: sim_objRadius, sim_objCentDens, &
+      sim_maxBlocks, sim_useInitialPeakDensity, sim_ptMassRefine, sim_fluffDampCutoff, &
+      sim_xCenter, sim_yCenter, sim_zCenter
   use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
   use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_dynRefineMax, &
       grv_exactvec, grv_mpolevec, grv_periDist
@@ -58,7 +59,6 @@ subroutine Grid_markRefineDerefine()
 
   double precision, dimension(:,:,:,:), pointer :: solnData
   double precision :: ref_val_cut,t
-  double precision :: xcenter,ycenter,zcenter
   double precision :: dens_cut
   integer       :: l,iref,blkCount,lb,i,j
   integer,parameter :: maskSize = NUNK_VARS+NDIM*NFACE_VARS
@@ -75,7 +75,7 @@ subroutine Grid_markRefineDerefine()
   ! that are implemented in this file need values in guardcells
 
   if (sim_useInitialPeakDensity) then
-      dens_cut = obj_rhop(1)
+      dens_cut = sim_objCentDens
   else
       dens_cut = grv_densCut
   endif
@@ -108,15 +108,8 @@ subroutine Grid_markRefineDerefine()
   call Driver_getSimTime(t)
   call Grid_getListOfBlocks(ACTIVE_BLKS, gr_blkList,blkCount)
 
-  call RuntimeParameters_get('xmax',xcenter)      
-  call RuntimeParameters_get('ymax',ycenter)      
-  call RuntimeParameters_get('zmax',zcenter)      
-  xcenter = xcenter / 2.
-  ycenter = ycenter / 2.
-  zcenter = zcenter / 2.
-
   if (t .eq. 0.0) then
-      call gr_markInRadius(xcenter,ycenter,zcenter,1.2*obj_radius(obj_ipos),lrefine_max,0)
+      call gr_markInRadius(sim_xCenter,sim_yCenter,sim_zCenter,1.2*sim_objRadius,lrefine_max,0)
   else
       Call MPI_ALLREDUCE (lnblocks,max_blocks,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
       prev_refmax = grv_dynRefineMax

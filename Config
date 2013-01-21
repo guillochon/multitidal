@@ -7,7 +7,6 @@ DATAFILES *.h
 
 REQUIRES Driver
 REQUIRES physics/Hydro
-REQUIRES physics/Eos/EosMain/Multigamma
 REQUIRES Simulation/SimulationComposition
 REQUIRES Multispecies/MultispeciesMain
 
@@ -30,8 +29,30 @@ LINKIF gr_mpoleInterface.F90.pole            Grid/GridSolvers/Multipole_experime
 LINKIF gr_mpoleRad3Dcartesian.F90.pole       Grid/GridSolvers/Multipole_experimental
 LINKIF gr_mpoleMom3Dcartesian.F90.pole       Grid/GridSolvers/Multipole_experimental
 
+USESETUPVARS loadProfile
+
 SPECIES H1
 SPECIES HE4
+
+IF loadProfile
+
+REQUIRES physics/Eos/EosMain/Helmholtz
+PPDEFINE LOADPROFILE
+PARAMETER sim_profFile          STRING  "sm.dat"
+SPECIES C12
+SPECIES O16
+
+ELSE
+
+REQUIRES physics/Eos/EosMain/Multigamma
+PARAMETER sim_objMass           REAL    2.E30
+PARAMETER sim_objPolyN          REAL    3.E0
+PARAMETER sim_objCentDen        REAL    1.E2
+
+ENDIF
+
+LINKIF eos_initHelmholtz.F90  physics/Eos/EosMain/Helmholtz
+LINKIF eos_helmData.F90       physics/Eos/EosMain/Helmholtz
 
 PARAMETER sim_periDist              REAL    0.E0
 PARAMETER sim_periBeta              REAL    0.E0
@@ -41,15 +62,13 @@ PARAMETER sim_startBeta             REAL    0.1E0
 PARAMETER ptmass                    REAL    2.E33
 PARAMETER sim_rhoAmbient            REAL    1.E-15
 PARAMETER sim_pAmbient              REAL    1.E-4
+PARAMETER sim_tAmbient              REAL    1.E0
 PARAMETER sim_tRelax                REAL    1.E3
 PARAMETER sim_relaxRate             REAL    0.99E0
 PARAMETER larget                    REAL    1.E10
 PARAMETER sim_softenRadius          REAL    0.E0
 PARAMETER sim_accRadius             REAL    0.E0
 PARAMETER sim_accCoeff              REAL    0.95E0
-PARAMETER sim_objMass               REAL    2.E30
-PARAMETER sim_objPolyN              REAL    3.E0
-PARAMETER sim_objCentDen            REAL    1.E2
 PARAMETER sim_fluidGamma            REAL    1.666666667E0
 PARAMETER sim_fluffDampCoeff        REAL    0.95E0
 PARAMETER sim_fluffDampCutoff       REAL    0.E0

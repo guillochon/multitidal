@@ -1,7 +1,6 @@
-Simulation += Simulation_data.o orbit.o poly2.o read_table.o
+Simulation += Simulation_data.o orbit.o poly2.o read_table.o Multitidal_interface.o Multitidal_findExtrema.o
 Driver += Orbit_update.o Total_force.o Bound_mass.o Orbit_energy.o odeint.o bsstep.o nr.o \
           nrutil.o pzextr.o mmid.o Mass_Loss_Correction.o
-Grid += Grid_findExtrema.o
 Gravity += Gravity_sendOutputData.o gr_mpoleCopyMoments.o gr_mpoleDeallocateOldMoments.o \
 		   gr_isoMpoleData.o
 IO += IO_writeOrbitInfo.o

@@ -164,7 +164,7 @@ subroutine Simulation_initBlock (blockId, myPE)
                     xDist = xx - sim_xCenter
                     
                     dist    = dsqrt( xDist**2 + yDist**2 + zDist**2 )
-                    distInv = 1. / max( dist, 1.E-10 )
+                    distInv = 1. / max( dist, 1.d-10 )
                     !
                     !  a point at `dist' is frac-way between jLo and jHi.   We do a
                     !  linear interpolation of the quantities at jLo and jHi and sum those.

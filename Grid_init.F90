@@ -115,6 +115,9 @@
 !! gr_restrictAllMethod [INTEGER]
 !!***
 
+!!REORDER(5):scratch, scratch_ctr, scratch_facevar[xyz], gr_[xyz]flx
+!!REORDER(5):gr_xflx_[yz]face, gr_yflx_[xz]face, gr_zflx_[xy]face
+
 subroutine Grid_init()
 
   use Grid_data
@@ -128,13 +131,14 @@ subroutine Grid_init()
   use Simulation_interface, ONLY : Simulation_mapStrToInt, Simulation_getVarnameType
   use Grid_interface, only: Grid_getVarNonRep
   use paramesh_comm_data, ONLY : amr_mpi_meshComm
+!  use gr_sbInterface, ONLY: gr_sbInit
   implicit none
 
 #include "Flash.h"
 #include "constants.h"
   include "Flash_mpi.h"
 
-  integer :: i 
+  integer :: i, j, k, localNumBlocks, ii, numLeafBlks
 
   character(len=MAX_STRING_LENGTH),save :: refVarname,refVarString,paramString
   character(len=MAX_STRING_LENGTH),save :: refCutoffName,refCutOffString
@@ -148,6 +152,7 @@ subroutine Grid_init()
   real :: dx, dy, dz
   real, dimension(NDIM) :: rnb
   integer,save :: refVar
+  integer :: countInComm, color, key, ierr
   integer :: nonrep
   
 !----------------------------------------------------------------------------------
@@ -223,6 +228,7 @@ subroutine Grid_init()
 #endif
 
   call RuntimeParameters_get("nrefs", gr_nrefs)
+  call RuntimeParameters_get('lrefine_min_init', gr_lrefineMinInit)
   call RuntimeParameters_get('lrefine_min', lrefine_min)
   call RuntimeParameters_get('lrefine_max', lrefine_max)
 
@@ -281,6 +287,12 @@ subroutine Grid_init()
   call RuntimeParameters_get('zmin', gr_kmin)
   call RuntimeParameters_get('zmax', gr_kmax)
 
+! Determine the geometries of the individual dimensions, and scale
+! angle value parameters that are expressed in degrees to radians.
+! This call must be made after gr_geometry, gr_domainBC, and gr_{j,k}{min,max}
+! have been set based on the corresponding runtime parameters.
+  call gr_initGeometry()
+
   !Store computational domain limits in a convenient array.  Used later in Grid_getBlkBC.
   gr_globalDomain(LOW,IAXIS) = gr_imin
   gr_globalDomain(LOW,JAXIS) = gr_jmin
@@ -288,13 +300,6 @@ subroutine Grid_init()
   gr_globalDomain(HIGH,IAXIS) = gr_imax
   gr_globalDomain(HIGH,JAXIS) = gr_jmax
   gr_globalDomain(HIGH,KAXIS) = gr_kmax
-
-
-! Determine the geometries of the individual dimensions, and scale
-! angle value parameters that are expressed in degrees to radians.
-! This call must be made after gr_geometry, gr_domainBC, and gr_{j,k}{min,max}
-! have been set based on the corresponding runtime parameters.
-  call gr_initGeometry()
 
 
   call RuntimeParameters_get("eosMode", eosModeString)
@@ -364,6 +369,7 @@ subroutine Grid_init()
 
   call RuntimeParameters_get("lrefine_del", gr_lrefineDel)
   gr_maxRefine=lrefine_max
+  allocate(gr_delta(MDIM,lrefine_max))
 
   call RuntimeParameters_get("gr_lrefineMaxRedDoByLogR", gr_lrefineMaxRedDoByLogR)
   call RuntimeParameters_get("gr_lrefineMaxRedRadiusFact", gr_lrefineMaxRedRadiusSq)
@@ -377,6 +383,32 @@ subroutine Grid_init()
   call RuntimeParameters_get("gr_lrefineMaxRedTimeScale", gr_lrefineMaxRedTimeScale)
   call RuntimeParameters_get("gr_lrefineMaxRedLogBase", gr_lrefineMaxRedLogBase)
   call RuntimeParameters_get("gr_lrefineMaxRedTRef", gr_lrefineMaxRedTRef)
+
+  call RuntimeParameters_get("gr_lrefineMaxByTime", gr_lrefineMaxByTime)
+  if (gr_lrefineMaxByTime) then
+     gr_enforceMaxRefinement = .TRUE.
+
+     do i = 1, GR_LREFMAXTIMES
+        refVarName = "gr_lrefmaxTime_"
+        call concatStringWithInt(refVarName,i,refVarString)
+        call RuntimeParameters_get(refVarString, gr_lrefmaxTimes(i))
+
+        refVarName = "gr_lrefmaxTimeValue_"
+        call concatStringWithInt(refVarName,i,refVarString)
+        call RuntimeParameters_get(refVarString, gr_lrefmaxTimeValues(i))
+
+        if(gr_lrefmaxTimes(i) > 0.0 .and. i > 1 .and. &
+             gr_lrefmaxTimes(i) < gr_lrefmaxTimes(i-1)) then
+           if(gr_meshMe == MASTER_PE) then
+              call Driver_abortFlash('[Grid_init] Custom lrefine_max times must be in increasing order')
+           end if
+        end if
+
+        if(gr_lrefmaxTimes(i) > 0.0 .and. gr_lrefmaxTimeValues(i) < 0) then
+           call Driver_abortFlash('[Grid_init] If custom lrefine_max time is set, the value must also be set')
+        end if
+     end do
+  end if
 
   if(gr_numRefineVars==0)then
      if(gr_meshMe == MASTER_PE) print*,'WARNING : Adaptive Grid did not find any refinement variables'
@@ -487,38 +519,6 @@ subroutine Grid_init()
      call gr_ptMapInit()
   endif
 
-  ! Get runtime parameters for customRegion
-  call RuntimeParameters_get("useQuietStart", gr_useQuietStart)
-  call RuntimeParameters_get("usePiston", gr_usePiston)
-  call RuntimeParameters_get("useHole", gr_useHole)
-
-  call RuntimeParameters_get("hole_radius", gr_holeRad)
-  call RuntimeParameters_get("hole_bnd", gr_holeBnd)
-  call RuntimeParameters_get("hole_time", gr_holeTime)
-  call RuntimeParameters_get("hole_vel", gr_holeVel)
-
-  call RuntimeParameters_get("quietStartXmin", gr_quietStartBnd(LOW,IAXIS))
-  call RuntimeParameters_get("quietStartXmax", gr_quietStartBnd(HIGH,IAXIS))
-  call RuntimeParameters_get("quietStartYmin", gr_quietStartBnd(LOW,JAXIS))
-  call RuntimeParameters_get("quietStartYmax", gr_quietStartBnd(HIGH,JAXIS))
-  call RuntimeParameters_get("quietStartZmin", gr_quietStartBnd(LOW,KAXIS))
-  call RuntimeParameters_get("quietStartZmax", gr_quietStartBnd(HIGH,KAXIS))
-
-  call RuntimeParameters_get("quietStartDens", gr_quietStartDens)
-  call RuntimeParameters_get("quietStartTemp", gr_quietStartTemp)
-
-  call RuntimeParameters_get("pistonXmin", gr_pistonBnd(LOW,IAXIS))
-  call RuntimeParameters_get("pistonXmax", gr_pistonBnd(HIGH,IAXIS))
-  call RuntimeParameters_get("pistonYmin", gr_pistonBnd(LOW,JAXIS))
-  call RuntimeParameters_get("pistonYmax", gr_pistonBnd(HIGH,JAXIS))
-  call RuntimeParameters_get("pistonZmin", gr_pistonBnd(LOW,KAXIS))
-  call RuntimeParameters_get("pistonZmax", gr_pistonBnd(HIGH,KAXIS))
-
-  call RuntimeParameters_get("pistonDens", gr_pistonDens)
-  call RuntimeParameters_get("pistonVelx", gr_pistonVelx)
-  call RuntimeParameters_get("pistonVely", gr_pistonVely)
-  call RuntimeParameters_get("pistonVelz", gr_pistonVelz)
-
-
+!  call gr_sbInit()
 
 end subroutine Grid_init

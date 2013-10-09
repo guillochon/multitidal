@@ -40,20 +40,18 @@ module Simulation_data
                             sim_accCoeff, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &
                             sim_periBeta, sim_startBeta, sim_periodFac, &
                             sim_orbEcc, sim_startDistance, sim_ptMassRefRad, &
-                            sim_totForceInv, sim_rotFac, sim_rotAngle, sim_tSpinup
+                            sim_totForceInv, sim_rotFac, sim_rotAngle, sim_tSpinup, &
+                            sim_powerLawScale, sim_powerLawExponent, sim_powerLawExtent, &
+                            sim_powerLawMass, sim_powerLawTemperature
   double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
 
-#ifdef LOADPROFILE
-  integer, save                                       :: sim_tableRows, sim_tableCols
-  double precision, dimension(:,:), allocatable, save :: sim_table
-  character(len=MAX_STRING_LENGTH), save              :: sim_profFile
-#else
+  double precision, dimension(:,:), allocatable, save    :: sim_table
   integer, parameter                                     :: np = 1000
   double precision, save                                 :: sim_objPolyN, sim_objCentDen, obj_mu
   double precision, dimension(SPECIES_BEGIN:SPECIES_END) :: obj_xn
   double precision, dimension(np), save                  :: obj_radius, obj_rhop, obj_prss
-  integer, save                                          :: obj_ipos
-#endif
+  integer, save                                          :: obj_ipos, sim_tableRows, sim_tableCols
+  character(len=MAX_STRING_LENGTH), save                 :: sim_profFile, sim_kind
 
   !! *** Variables pertaining to this Simulation *** !!
 

@@ -42,7 +42,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         sim_fluidGamma, sim_softenRadius, sim_rotFac, sim_rotAngle, sim_tSpinup, obj_ipos, obj_radius, &
         sim_objMass, sim_msun
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
-        Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_findExtrema
+        Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
+    use Multitidal_interface, ONLY : Multitidal_findExtrema
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
     use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec, grv_optmass, grv_momacc, &
@@ -164,7 +165,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
 
         ldenscut = -huge(0.d0)
         do lb = 1,blockCount
-           call Grid_findExtrema (blockList(lb), DENS_VAR, 1, extrema)
+           call Multitidal_findExtrema (blockList(lb), DENS_VAR, 1, extrema)
            if (extrema .gt. ldenscut) ldenscut = extrema
         enddo
 

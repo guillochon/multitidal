@@ -1,12 +1,12 @@
-!!****if* source/Grid/GridSolvers/Multipole/Grid_findExtrema
+!!****if* source/Grid/GridSolvers/Multipole/Multitidal_findExtrema
 !!
 !! NAME
 !!
-!!  Grid_findExtrema()
+!!  Multitidal_findExtrema()
 !!
 !! SYNOPSIS
 !!
-!!  Grid_findExtrema(integer,intent(in) : blockID,
+!!  Multitidal_findExtrema(integer,intent(in) : blockID,
 !!                     integer,intent(in) : ivar,
 !!                     integer,intent(in) : flag,
 !!                     real,intent (out)  : extrema)
@@ -18,7 +18,7 @@
 !!***
 
 
-subroutine Grid_findExtrema (blockID,ivar,flag,extrema)
+subroutine Multitidal_findExtrema (blockID,ivar,flag,extrema)
   
   use Grid_interface, ONLY : Grid_getBlkPtr,Grid_releaseBlkPtr,&
                              Grid_getBlkBoundBox,&
@@ -73,4 +73,4 @@ subroutine Grid_findExtrema (blockID,ivar,flag,extrema)
   call Grid_releaseBlkPtr(blockID, solnData)
   
   return
-end subroutine Grid_findExtrema
+end subroutine Multitidal_findExtrema

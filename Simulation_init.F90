@@ -34,6 +34,7 @@ subroutine Simulation_init()
     use Grid_data, ONLY : gr_globalMe
     use Logfile_interface, ONLY : Logfile_stampMessage
     use tree, ONLY : lrefine_max
+    use Eos_data, ONLY : eos_gasConstant
 
     implicit none
 
@@ -42,19 +43,15 @@ subroutine Simulation_init()
 #include "Flash_mpi.h"
 #include "Multispecies.h"
 #include "Eos.h"
-#ifdef LOADPROFILE
 #include "Starprof.h"
-#endif
 
-    integer             :: ierr
-#ifndef LOADPROFILE
+    integer             :: ierr, i
     double precision  polyk, &
                     x(np),y(np),yp(np), &
                     mass(np),ebind(np), &
                     rhom(np),zbeta(np),ztemp(np),exact(np), &
                     xsurf,ypsurf
-#endif
-    double precision :: cfl
+    double precision :: cfl, rho0
     integer mode,iend
     character(len=100) :: logstr
 
@@ -89,62 +86,94 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_rotFac", sim_rotFac)
     call RuntimeParameters_get("sim_rotAngle", sim_rotAngle)
     call RuntimeParameters_get("sim_tSpinup", sim_tSpinup)
+
+    call RuntimeParameters_get("sim_powerLawScale", sim_powerLawScale)
+    call RuntimeParameters_get("sim_powerLawExponent", sim_powerLawExponent)
+    call RuntimeParameters_get("sim_powerLawExtent", sim_powerLawExtent)
+    call RuntimeParameters_get("sim_powerLawMass", sim_powerLawMass)
+    call RuntimeParameters_get("sim_powerLawTemperature", sim_powerLawTemperature)
+
     call RuntimeParameters_get("ptmass", sim_ptMass)
+
+    if (sim_powerLawExponent .le. -3.d0) then
+        call Driver_abortFlash('Error: sim_powerLawExponent must be greater than -3.0')
+    endif
 
     sim_xCenter = (sim_xMax + sim_xMin) / 2.d0
     sim_yCenter = (sim_yMax + sim_yMin) / 2.d0
     sim_zCenter = (sim_zMax + sim_zMin) / 2.d0
 
-#ifdef LOADPROFILE
-    call RuntimeParameters_get('sim_tAmbient', sim_tAmbient)
-    call RuntimeParameters_get('sim_profFile',sim_profFile)
+    call RuntimeParameters_get('sim_kind',sim_kind)
 
-    if (gr_globalMe .eq. MASTER_PE) then
-        call read_table_dims(sim_profFile, sim_tableRows, sim_tableCols)
-        allocate(sim_table(sim_tableRows, sim_tableCols))
-        call read_table(sim_profFile, sim_table, sim_tableRows, sim_tableCols)
-        write(*,*) 'r_prof', sim_table(:,R_PROF)
-        write(*,*) 'rho_prof', sim_table(:,RHO_PROF)
-        write(*,*) 'temp_prof', sim_table(:,TEMP_PROF)
-    endif
+    if (sim_kind .eq. 'file') then
+        call RuntimeParameters_get('sim_tAmbient', sim_tAmbient)
+        call RuntimeParameters_get('sim_profFile',sim_profFile)
 
-    call MPI_BCAST(sim_tableRows, 1, FLASH_INTEGER, MASTER_PE, MPI_COMM_WORLD, ierr)
-    call MPI_BCAST(sim_tableCols, 1, FLASH_INTEGER, MASTER_PE, MPI_COMM_WORLD, ierr)
-    if (gr_globalMe .ne. MASTER_PE) allocate(sim_table(sim_tableRows, sim_tableCols))
-    call MPI_BCAST(sim_table, sim_tableRows*sim_tableCols, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
+        if (gr_globalMe .eq. MASTER_PE) then
+            call read_table_dims(sim_profFile, sim_tableRows, sim_tableCols)
+            allocate(sim_table(sim_tableRows, sim_tableCols))
+            call read_table(sim_profFile, sim_table, sim_tableRows, sim_tableCols)
+            write(*,*) 'r_prof', sim_table(:,R_PROF)
+            write(*,*) 'rho_prof', sim_table(:,RHO_PROF)
+            write(*,*) 'temp_prof', sim_table(:,TEMP_PROF)
+        endif
 
-    sim_objRadius = sim_table(sim_tableRows,R_PROF)
-    sim_objMass = sum(PI*(sim_table(2:sim_tableRows,R_PROF) + sim_table(1:sim_tableRows-1,R_PROF))**2.d0*&
-                      (sim_table(2:sim_tableRows,R_PROF) - sim_table(1:sim_tableRows-1,R_PROF))*&
-                      sim_table(:,RHO_PROF))/sim_msun
-    sim_objCentDens = sim_table(1,RHO_PROF)
-#else
-    call RuntimeParameters_get('sim_pAmbient', sim_pAmbient)
-    call RuntimeParameters_get('sim_objPolyN',sim_objPolyN)
-    call RuntimeParameters_get('sim_objMass',sim_objMass)
-    call RuntimeParameters_get('sim_objCentDen',sim_objCentDen)
+        call MPI_BCAST(sim_tableRows, 1, FLASH_INTEGER, MASTER_PE, MPI_COMM_WORLD, ierr)
+        call MPI_BCAST(sim_tableCols, 1, FLASH_INTEGER, MASTER_PE, MPI_COMM_WORLD, ierr)
+        if (gr_globalMe .ne. MASTER_PE) allocate(sim_table(sim_tableRows, sim_tableCols))
+        call MPI_BCAST(sim_table, sim_tableRows*sim_tableCols, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
 
-    if (gr_globalMe .eq. MASTER_PE) then
-        obj_xn(H1_SPEC) = 0.7
-        obj_xn(HE4_SPEC) = 0.3
+        sim_objRadius = sim_table(sim_tableRows,R_PROF)
+        sim_objMass = sum(PI*(sim_table(2:sim_tableRows,R_PROF) + sim_table(1:sim_tableRows-1,R_PROF))**2.d0*&
+                          (sim_table(2:sim_tableRows,R_PROF) - sim_table(1:sim_tableRows-1,R_PROF))*&
+                          sim_table(:,RHO_PROF))/sim_msun
+        sim_objCentDens = sim_table(1,RHO_PROF)
+    elseif (sim_kind .eq. 'polytrope' .or. sim_kind .eq. 'powerlaw') then
+        call RuntimeParameters_get('sim_pAmbient', sim_pAmbient)
+        call RuntimeParameters_get('sim_objPolyN',sim_objPolyN)
+        call RuntimeParameters_get('sim_objMass',sim_objMass)
+        call RuntimeParameters_get('sim_objCentDen',sim_objCentDen)
+
+        obj_xn = 0.d0
+        obj_xn(H1_SPEC) = 0.7d0
+        obj_xn(HE4_SPEC) = 0.3d0
+
         call Multispecies_getSumInv(A, obj_mu, obj_xn)
-        obj_mu = 1.e0 / obj_mu
-        mode = 1
-        call polytr(sim_objPolyN,sim_objMass,sim_objCentDen,polyk,obj_mu,mode, &
-            x,y,yp,obj_radius,obj_rhop,mass,obj_prss,ebind, &
-            rhom,ztemp,zbeta,exact,xsurf,ypsurf,np,iend,obj_ipos)
+
+        if (sim_kind .eq. 'polytrope') then
+            if (gr_globalMe .eq. MASTER_PE) then
+                obj_mu = 1.e0 / obj_mu
+                mode = 1
+                call polytr(sim_objPolyN,sim_objMass,sim_objCentDen,polyk,obj_mu,mode, &
+                    x,y,yp,obj_radius,obj_rhop,mass,obj_prss,ebind, &
+                    rhom,ztemp,zbeta,exact,xsurf,ypsurf,np,iend,obj_ipos)
+            endif
+
+            !call MPI_BCAST(obj_xn, NSPECIES, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
+            !call MPI_BCAST(obj_mu, 1, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
+            call MPI_BCAST(obj_radius, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
+            call MPI_BCAST(obj_rhop, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
+            call MPI_BCAST(obj_prss, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
+            call MPI_BCAST(obj_ipos, 1, FLASH_INTEGER, MASTER_PE, MPI_COMM_WORLD, ierr)              
+        elseif (sim_kind .eq. 'powerlaw') then
+            obj_ipos = np
+            rho0 = 3.d0/4.d0/PI*sim_powerLawMass*sim_powerLawExtent**(-3.d0 - sim_powerLawExponent)*&
+                sim_powerLawScale**(2.d0 + sim_powerLawExponent)*(3.d0 + sim_powerLawExtent)
+            do i = 1, np
+                if (i .eq. 1) then
+                    obj_radius(i) = 1.d-3*sim_powerLawExtent/np
+                else
+                    obj_radius(i) = sim_powerLawExtent*i/np
+                endif
+                obj_rhop(i) = rho0*(obj_radius(i)/sim_powerLawScale)**sim_powerLawExponent
+                obj_prss(i) = eos_gasConstant*obj_rhop(i) * &
+                                 sim_powerLawTemperature / obj_mu
+            enddo 
+        endif
+
+        sim_objRadius = obj_radius(obj_ipos)
+        sim_objCentDens = obj_rhop(1)
     endif
-
-    call MPI_BCAST(obj_xn, NSPECIES, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
-    call MPI_BCAST(obj_mu, 1, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
-    call MPI_BCAST(obj_radius, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
-    call MPI_BCAST(obj_rhop, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
-    call MPI_BCAST(obj_prss, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
-    call MPI_BCAST(obj_ipos, 1, FLASH_INTEGER, MASTER_PE, MPI_COMM_WORLD, ierr)              
-
-    sim_objRadius = obj_radius(obj_ipos)
-    sim_objCentDens = obj_rhop(1)
-#endif
 
     if (gr_globalMe .eq. MASTER_PE) then
         write(logstr, fmt='(A30, ES15.8)') 'Object mass:', sim_objMass

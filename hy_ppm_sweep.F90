@@ -81,11 +81,11 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
     Grid_getBlkBC, Grid_getBlkIndexLimits, Grid_getCellCoords, &
     Grid_getBlkPtr, Grid_putBlkData, Grid_releaseBlkPtr, Grid_putFluxData, &
     Grid_conserveFluxes, Grid_getFluxData, Grid_renormAbundance, &
-    Grid_limitAbundance, &
-    Grid_markCustomRegion, Grid_updateCustomRegion, Grid_fillCustomRegion
-  use Eos_interface, ONLY : Eos_wrapped
+    Grid_limitAbundance
+  use Eos_interface, ONLY : Eos_wrapped, Eos_guardCells
   use Diffuse_interface, ONLY : Diffuse_therm, Diffuse_visc
-  use Hydro_interface, ONLY : Hydro_detectShock
+  use Hydro_interface, ONLY : Hydro_detectShock, &
+       Hydro_shockStrength
   use hy_ppm_interface, ONLY : hy_ppm_block, hy_ppm_updateSoln,&
                            hy_ppm_getTemporaryData, hy_ppm_putTemporaryData
   use IO_interface, ONLY: IO_writeCheckpoint
@@ -134,21 +134,16 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
                   GRID_JLO_GC:GRID_JHI_GC,                   &
                   GRID_KLO_GC:GRID_KHI_GC) ::  shock
 
-  real, DIMENSION(GRID_ILO_GC:GRID_IHI_GC,                   &
-                  GRID_JLO_GC:GRID_JHI_GC,                   &
-                  GRID_KLO_GC:GRID_KHI_GC) ::  regionType
-
   logical, DIMENSION(GRID_ILO_GC:GRID_IHI_GC,                   &
                   GRID_JLO_GC:GRID_JHI_GC,                   &
                   GRID_KLO_GC:GRID_KHI_GC) ::  isGc
-  real,DIMENSION(MAXCELLS) :: primaryCoord ,  &
-                              primaryLeftCoord , &
+  real,DIMENSION(MAXCELLS) :: primaryLeftCoord , &
                               primaryRghtCoord , &
                               primaryDx        , &
-                              secondCoord      , &
-                              thirdCoord       , &
-                              radialCoord     , &
                               ugrid
+  real,DIMENSION(MAXCELLS),target :: jCoord      , &
+                                     kCoord      , &
+                                     radialCoord
  
   integer, parameter :: numCells = MAXCELLS
                                 
@@ -163,24 +158,29 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
                                           tempDtDx,     &
                                           tempFict,     &
                                           tempAreaLeft
-  real, allocatable, DIMENSION(:,:,:) ::  shock, regionType
+  real, allocatable, DIMENSION(:,:,:) ::  shock
 
-  real,allocatable, DIMENSION(:) :: primaryCoord ,  &
-                                    primaryLeftCoord , &
+  real,allocatable, DIMENSION(:) :: primaryLeftCoord , &
                                     primaryRghtCoord , &
                                     primaryDx        , &
-                                    secondCoord      , &
-                                    thirdCoord       , &
-                                    radialCoord     , &
                                     ugrid
+  real,allocatable,DIMENSION(:),target :: jCoord      , &
+                                          kCoord      , &
+                                          radialCoord
   logical,allocatable,dimension(:,:,:) :: isGc
   integer :: numCells
   
 
 #endif
 
+  real, pointer :: primaryCoord(:) , &
+                   secondCoord(:)  , &
+                   thirdCoord(:)
   integer :: i,j,k,blk
-  integer, dimension(2,MDIM) :: blkLimits,blkLimitsGC,eosRange,bcs
+  integer, dimension(2,MDIM) :: blkLimits,blkLimitsGC,bcs
+  integer, dimension(MDIM)   :: eosGcLayers
+  integer                    :: transverseEosLayers, transverseGcLayers
+  integer, dimension(MDIM)   :: sDetectLayers
   real, dimension(MDIM) :: del
 
   integer :: numGuard
@@ -217,12 +217,19 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
      gcMaskLogged(idir) = .TRUE.
   end if
 #endif
-  call Grid_fillGuardCells( CENTER, ALLDIR, eosMode=hy_eosMode,doEos=.FALSE.,&
-       maskSize=hy_gcMaskSize, mask=hy_gcMask, makeMaskConsistent=.true.)
+  transverseEosLayers = 0
+  if (hy_updateHydroFluxes .OR. hy_useDiffuse) then
+     if ((hy_hybridRiemann .AND. hy_updateHydroFluxes).OR.hy_alwaysCallDetectShock) then
+        transverseEosLayers = 1 !if we are going to detect shocks...
+     end if
+  end if
+  transverseGcLayers = max(hy_transverseStencilWidth,transverseEosLayers)
+  call Grid_fillGuardCells( CENTER, idir, &
+       minLayers=transverseGcLayers,           &
+       eosMode=hy_eosMode,doEos=.FALSE.,       &
+       maskSize=hy_gcMaskSize, mask=hy_gcMask, makeMaskConsistent=.true.,&
+       selectBlockType=LEAF)
 
-
-!DEV: We may want to restore this at some point.  DO NOT DELETE!
-!!$  call Grid_fillGuardCells( CENTER, idir,minLayers=hy_transverseStencilWidth)
 
 !!------------------------------------------------------------------
 !!LOOP OVER THE BLOCKS AND RUN HYDRO
@@ -267,72 +274,76 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
      allocate(tempAreaLeft(isizeGC,jsizeGC,ksizeGC))
 
      allocate(shock(isizeGC,jsizeGC,ksizeGC))
-     allocate(regionType(isizeGC,jsizeGC,ksizeGC))
 
      allocate(primaryCoord(numCells))
      allocate(primaryLeftCoord(numCells))
      allocate(primaryRghtCoord(numCells))
      allocate(primaryDx(numCells))
-     allocate(secondCoord(numCells))
-     allocate(thirdCoord(numCells))
+     allocate(jCoord(numCells))
+     allocate(kCoord(numCells))
      allocate(radialCoord(numCells))
      allocate(ugrid(numCells))
      allocate(isGc(isizeGC,jsizeGC,ksizeGC))
 
 #endif
+     if (NDIM < MDIM .AND. hy_cvisc == 0.0) then 
      !! This logical array is the size of a single block
      !! Its values are true on guardcells, and false on the interior
-     isGc=.true.
-     isGc(blkLimits(LOW,IAXIS):blkLimits(HIGH,IAXIS),&
-          blkLimits(LOW,JAXIS):blkLimits(HIGH,JAXIS),&
-          blkLimits(LOW,KAXIS):blkLimits(HIGH,KAXIS))=.false.
+        isGc=.true.
+        isGc(blkLimits(LOW,IAXIS):blkLimits(HIGH,IAXIS),&
+             blkLimits(LOW,JAXIS):blkLimits(HIGH,JAXIS),&
+             blkLimits(LOW,KAXIS):blkLimits(HIGH,KAXIS))=.false.
+     end if
+     sDetectLayers(:) = 0
      !!Note that this assumes that SWEEP_X == 1, SWEEP_Y == 2, SWEEP_Z == 3.
      primaryDx = del(sweepDir)  
-     primaryCoord = 0.0
+     sDetectLayers(sweepDir) = 1
      primaryLeftCoord = 0.0
      primaryRghtCoord = 0.0
-     secondCoord = 0.0
-     thirdCoord  = 0.0
      ugrid(:) = 0.0 !!FIX
 
      call Grid_getCellCoords&
           (IAXIS,blockList(blk),CENTER,gcell,radialCoord,isizeGC)
+     if (NDIM .GE. 2) then
+        call Grid_getCellCoords(JAXIS,blockList(blk),CENTER,gcell,jCoord,jsizeGC)
+     else
+        jCoord(:) = 0.0
+     end if
+     if (NDIM == 3) then
+        call Grid_getCellCoords(KAXIS,blockList(blk),CENTER,gcell,kCoord,ksizeGC)
+     else
+        kCoord(:) = 0.0
+     end if
 
      if (sweepDir == SWEEP_X) then
         igeom = hy_dirGeom(IAXIS)
-        primaryCoord = radialCoord
+        primaryCoord => radialCoord
+        secondCoord  => jCoord
+        thirdCoord   => kCoord
         call Grid_getCellCoords(IAXIS,blockList(blk),&
              LEFT_EDGE,gcell,primaryLeftCoord,isizeGC)
         call Grid_getCellCoords(IAXIS,blockList(blk),&
              RIGHT_EDGE,gcell,primaryRghtCoord,isizeGC)
-        call Grid_getCellCoords(JAXIS,blockList(blk),&
-             CENTER,gcell,secondCoord,jsizeGC)
-        call Grid_getCellCoords(KAXIS,blockList(blk),&
-             CENTER,gcell,thirdCoord,ksizeGC)
         numGuard = blkLimits(LOW,IAXIS)-1
      else if (sweepDir == SWEEP_Y) then
         igeom = hy_dirGeom(JAXIS)
-        secondCoord = radialCoord
-        call Grid_getCellCoords(JAXIS,blockList(blk),&
-             CENTER,gcell,primaryCoord,jsizeGC)
+        secondCoord  => radialCoord
+        primaryCoord => jCoord
+        thirdCoord   => kCoord
         call Grid_getCellCoords(JAXIS,blockList(blk),&
              LEFT_EDGE,gcell,primaryLeftCoord,jsizeGC)
         call Grid_getCellCoords(JAXIS,blockList(blk),&
              RIGHT_EDGE,gcell,primaryRghtCoord,jsizeGC)
-        call Grid_getCellCoords(KAXIS,blockList(blk),&
-             CENTER,gcell,thirdCoord,ksizeGC)
         numGuard = blkLimits(LOW,JAXIS)-1
      else 
         igeom = hy_dirGeom(KAXIS)
-        secondCoord = radialCoord
-        call Grid_getCellCoords(KAXIS,blockList(blk),&
-             CENTER,gcell,primaryCoord,ksizeGC)
+        secondCoord  => radialCoord
+        primaryCoord => kCoord
+        thirdCoord   => jCoord
         call Grid_getCellCoords(KAXIS,blockList(blk),&
              LEFT_EDGE,gcell,primaryLeftCoord,ksizeGC)
         call Grid_getCellCoords(KAXIS,blockList(blk),&
              RIGHT_EDGE,gcell,primaryRghtCoord,ksizeGC)
-        call Grid_getCellCoords(JAXIS,blockList(blk),&
-             CENTER,gcell,thirdCoord,jsizeGC)
         numGuard = blkLimits(LOW,KAXIS)-1
      end if
         
@@ -342,13 +353,13 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
 
      call Grid_getBlkPtr(blockList(blk),solnData)
 
-     if (hy_cvisc .ne. 0.0) then !! zero all velocity in transverse directions
+     if (hy_cvisc .ne. 0.0) then !! zero all velocities in transverse directions
         if (NDIM == 1) then
            solnData(VELY_VAR:VELZ_VAR,:,:,:)=0.0
         else if (NDIM == 2) then
            solnData(VELZ_VAR,:,:,:) = 0.0
         end if
-     else   !! zero velocity on guardcells of transverse directions
+     else   !! zero velocities in transverse directions on guardcells
         if (NDIM == 1) then
            do k = blkLimitsGC(LOW,KAXIS),blkLimitsGC(HIGH,KAXIS)
               do j = blkLimitsGC(LOW,JAXIS),blkLimitsGC(HIGH,JAXIS)
@@ -370,33 +381,11 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
 
 !! ---------Setting up blkLimits to call EOS
      call Timers_start("eos gc")
-     eosRange = blkLimits
+     eosGcLayers(1:MDIM) = transverseEosLayers
+     eosGcLayers(sweepDir) = numGuard
 
-     if(sweepDir==SWEEP_X) then
-        eosRange(LOW,IAXIS) = blkLimitsGC(LOW,IAXIS)
-        eosRange(HIGH,IAXIS) = blkLimits(LOW,IAXIS)-1
-     else if(sweepDir==SWEEP_Y) then
-        eosRange(LOW,JAXIS) = blkLimitsGC(LOW,JAXIS)
-        eosRange(HIGH,JAXIS) = blkLimits(LOW,JAXIS)-1
-     else if(sweepDir==SWEEP_Z) then
-        eosRange(LOW,KAXIS) = blkLimitsGC(LOW,KAXIS)
-        eosRange(HIGH,KAXIS) = blkLimits(LOW,KAXIS)-1
-     end if
-
-     call Eos_wrapped(hy_eosMode,eosRange,blockList(blk))
-
-     if(sweepDir==SWEEP_X) then
-        eosRange(LOW,IAXIS) = blkLimits(HIGH,IAXIS)+1
-        eosRange(HIGH,IAXIS) = blkLimitsGC(HIGH,IAXIS)
-     else if(sweepDir==SWEEP_Y) then
-        eosRange(LOW,JAXIS) = blkLimits(HIGH,JAXIS)+1
-        eosRange(HIGH,JAXIS) = blkLimitsGC(HIGH,JAXIS)
-     else if(sweepDir==SWEEP_Z) then
-        eosRange(LOW,KAXIS) = blkLimits(HIGH,KAXIS)+1
-        eosRange(HIGH,KAXIS) = blkLimitsGC(HIGH,KAXIS)
-     end if
-
-     call Eos_wrapped(hy_eosMode,eosRange,blockList(blk))
+     call Eos_guardCells(hy_eosMode,blockList(blk), &
+          corners=.TRUE.,layers=eosGcLayers)
      call Timers_stop("eos gc")
 
 !! ---- SAVE OLD TEMPERATURE
@@ -414,19 +403,35 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
 #endif
 !!--------- DO HYDRO ON A BLOCK
 
-!! Insert call to Grid_markCustomRegion here - SMC
-     call Grid_markCustomRegion(blocklist(blk),blkLimitsGC, regionType)
-     call Grid_fillCustomRegion(blocklist(blk),blkLimits,blkLimitsGC, regionType,sweepDir)
-
-!! inserting check on gr_doHydro as well - SMC
-     if ( (hy_updateHydroFluxes .OR. hy_useDiffuse) .AND. ANY(regionType == GR_NORMAL) ) then
+     if ( (hy_updateHydroFluxes .OR. hy_useDiffuse) ) then
 
         shock(:,:,:) = 0.0
         if ((hy_hybridRiemann .AND. hy_updateHydroFluxes).OR.hy_alwaysCallDetectShock) then
-           call Hydro_detectShock(solnData, shock,blkLimits,blkLimitsGC,&
-                primaryCoord,secondCoord,thirdCoord)
+#ifdef SHKS_VAR
+           call Hydro_shockStrength(solnData, shock,blkLimits,blkLimitsGC, sDetectLayers, &
+                radialCoord,jCoord,kCoord,&
+                threshold=0.01, mode=1)
+           do k = blkLimitsGC(LOW,KAXIS),blkLimitsGC(HIGH,KAXIS)
+              do j = blkLimitsGC(LOW,JAXIS),blkLimitsGC(HIGH,JAXIS)
+                 do i = blkLimitsGC(LOW,IAXIS),blkLimitsGC(HIGH,IAXIS)
+                    solnData(SHKS_VAR,i,j,k)=shock(i,j,k)
+                 end do
+              end do
+           end do
+#endif
+           call Hydro_detectShock(solnData, shock,blkLimits,blkLimitsGC, sDetectLayers, &
+                radialCoord,jCoord,kCoord)
+#ifdef SHOK_VAR
+           do k = blkLimitsGC(LOW,KAXIS),blkLimitsGC(HIGH,KAXIS)
+              do j = blkLimitsGC(LOW,JAXIS),blkLimitsGC(HIGH,JAXIS)
+                 do i = blkLimitsGC(LOW,IAXIS),blkLimitsGC(HIGH,IAXIS)
+                    solnData(SHOK_VAR,i,j,k)=shock(i,j,k)
+                 end do
+              end do
+           end do
+#endif
         end if
-
+        
         ! ADDED BY JFG TO ACCOMODATE TIME-DEPENDENT DENSITY CALCULATION
         tempDens = solnData(DENS_VAR,:,:,:)
 #ifdef GPO2_VAR
@@ -452,7 +457,7 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
                           tempAreaLeft,               &
                           tempFlx,       & 
                           shock, solnData)
-        
+
         ! ADDED BY JFG TO ACCOMODATE TIME-DEPENDENT DENSITY CALCULATION
         solnData(ODEN_VAR,:,:,:) = tempDens
 #ifdef GPO2_VAR
@@ -546,9 +551,6 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
 
      end if
 
-     ! Insert call to updateCustomRegion here.  This may need to be moved (?) - SMC
-     call Grid_updateCustomRegion(blocklist(blk),blkLimitsGC, regionType)
-
 #ifndef FIXEDBLOCKSIZE
      deallocate(tempFlx)
      
@@ -560,13 +562,11 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
      deallocate(tempAreaLeft)
      
      deallocate(shock)
-     deallocate(regionType)     
-     deallocate(primaryCoord)
      deallocate(primaryLeftCoord)
      deallocate(primaryRghtCoord)
      deallocate(primaryDx)
-     deallocate(secondCoord)
-     deallocate(thirdCoord)
+     deallocate(jCoord)
+     deallocate(kCoord)
      deallocate(radialCoord)
      deallocate(ugrid)
      deallocate(isGc)
@@ -609,16 +609,13 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
         allocate(tempGrav1d(isizeGC,jsizeGC,ksizeGC))
         allocate(tempDtDx(isizeGC,jsizeGC,ksizeGC))
         allocate(tempFict(isizeGC,jsizeGC,ksizeGC))
-        allocate(regionType(isizeGC,jsizeGC,ksizeGC))
         allocate(tempAreaLeft(isizeGC,jsizeGC,ksizeGC))
 #endif
-        call Grid_markCustomRegion(blockList(blk),blkLimitsGC,regionType)
-        call Grid_fillCustomRegion(blockList(blk),blkLimits,blkLimitsGC,regionType,sweepDir)
         
         call hy_ppm_getTemporaryData(sweepDir,blockList(blk),size,&
              tempArea,tempDtDx,tempGrav1d,tempGrav1d_o,tempFict, tempAreaLeft)
         call Grid_getFluxData(blockList(blk),sweepDir, tempFlx,size, hy_specialFluxVars, tempAreaLeft)
-        
+
         
         call Grid_getBlkPtr(blockList(blk),solnData)
         
@@ -648,7 +645,6 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
         call Timers_stop("eos")
         
         call Grid_releaseBlkPtr(blockList(blk),solnData)
-        call Grid_updateCustomRegion(blockList(blk),blkLimitsGC,regionType)
 
 #ifndef FIXEDBLOCKSIZE
         deallocate(tempFlx)
@@ -657,7 +653,6 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
         deallocate(tempGrav1d)
         deallocate(tempDtDx)
         deallocate(tempFict)
-        deallocate(regionType)
         deallocate(tempAreaLeft)
 #endif
 
@@ -665,11 +660,6 @@ subroutine hy_ppm_sweep (  blockCount, blockList, &
 
   end if
   
-  ! Here we must call moveCustomRegion
-  !! Add call to move custom region - SMC
-!  call Grid_moveCustomRegion( blockCount, blockList, &
-!       timeEndAdv, dt, dtOld)
-
   call Timers_stop("hy_ppm_sweep")
 
 !  call IO_writeCheckpoint()

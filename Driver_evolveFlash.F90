@@ -52,28 +52,34 @@ subroutine Driver_evolveFlash()
        dr_tstepChangeFactor,                  &
        dr_allowDtSTSDominate
   use Driver_interface, ONLY : Driver_sourceTerms, Driver_computeDt, &
-       Driver_getElapsedWCTime
-  use Logfile_interface, ONLY : Logfile_stamp, Logfile_close, Logfile_stampMessage
+    Driver_getElapsedWCTime, Driver_superTimeStep, Driver_driftUnk
+  use Logfile_interface, ONLY : Logfile_stamp, Logfile_close
   use Timers_interface, ONLY : Timers_start, Timers_stop, &
     Timers_getSummary
   use Diffuse_interface, ONLY : Diffuse
   use Particles_interface, ONLY : Particles_advance, Particles_dump
   use Grid_interface, ONLY : Grid_getLocalNumBlks, &
-    Grid_getListOfBlocks, Grid_updateRefinement, Grid_moveCustomRegion
+    Grid_getListOfBlocks, Grid_updateRefinement
   use Hydro_interface, ONLY : Hydro
   use Gravity_interface, ONLY :  Gravity_potentialListOfBlocks
   use IO_interface, ONLY :IO_output,IO_outputFinal
   use Cosmology_interface, ONLY : Cosmology_redshiftHydro, &
     Cosmology_solveFriedmannEqn, Cosmology_getRedshift
   use RadTrans_interface, ONLY: RadTrans
+  use Eos_interface, ONLY: Eos_logDiagnostics
+  use Simulation_interface, ONLY: Simulation_adjustEvolution
+  use Profiler_interface, ONLY : Profiler_start, Profiler_stop
   use Gravity_data, ONLY: grv_mode, orb_t, orb_dt, grv_ptvec, grv_obvec
+
+  ! Added by JFG
+  use Logfile_interface, ONLY : Logfile_stampMessage
   use Simulation_data, ONLY: sim_tRelax
-  use RuntimeParameters_interface, ONLY: RuntimeParameters_get
   use Grid_interface, ONLY : Grid_getBlkPtr, Grid_releaseBlkPtr
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   use gr_mpoleInterface, ONLY : gr_mpoleCopyMoments, gr_mpoleDeallocateOldMoments
   use Gravity_data, ONLY : grv_ptmass, grv_bound, grv_obvec, grv_ptvec, grv_hobvec, &
     grv_hptvec, grv_oobvec, grv_optvec, grv_dtOld, grv_dt2Old
+  ! End JFG
 
   implicit none
 
@@ -98,13 +104,23 @@ subroutine Driver_evolveFlash()
   real    :: dt_diffuse_temp
   logical :: useSTS_local
   integer :: nstepTotalSTS_local 
+  
+  integer, parameter :: driftUnk_flags = DRIFT_NO_PARENTS
+
+  ! Added by JFG
   double precision :: tinitial
+  ! End JFG
 
   endRun = .false.
 
+  ! Added by JFG
   call RuntimeParameters_get('tinitial',tinitial)
+  ! End JFG
+
   call Logfile_stamp( 'Entering evolution loop' , '[Driver_evolveFlash]')
+  call Profiler_start("FLASH_evolution")
   call Timers_start("evolution")
+
 
 !!******************************************************************************
 !! Start of Evolution Loop
@@ -116,15 +132,21 @@ subroutine Driver_evolveFlash()
      ! Later, useSTS_local can be turned-off when dr_dtDiffusion > dr_dtAdvect
      useSTS_local = dr_useSTS
 
+     ! Added by JFG
      if (dr_simTime .lt. tinitial + sim_tRelax) then
          call dr_shortenLastDt(dr_dt, dr_simTime, tinitial + sim_tRelax, shortenedDt, 2)
          shortenedDt = .false. !Otherwise the simulation ends
      endif
+     ! End JFG
+
      call dr_shortenLastDt(dr_dt, dr_simTime, dr_tmax, shortenedDt, 2)
      !!Step forward in time. See bottom of loop for time step calculation.
      
      call Grid_getLocalNumBlks(localNumBlocks)
      call Grid_getListOfBlocks(LEAF,blockList,blockCount)
+
+
+
      if (dr_globalMe == MASTER_PE) then
 
         write (numToStr(1:), '(I10)') dr_nstep
@@ -152,8 +174,8 @@ subroutine Driver_evolveFlash()
            write (strBuff(3,1), "(A)") "z"
            write (strBuff(3,2), "(A)") trim(adjustl(NumToStr))
 
-          if (.not. dr_useSTS) then
-             write (numToStr(1:), "(1PE12.6)") dr_dt
+           if (.not. dr_useSTS) then
+              write (numToStr(1:), "(1PE12.6)") dr_dt
            else
               write (numToStr(1:), "(1PE12.6)") max(dr_dt,dr_dtSTS)
            endif
@@ -166,6 +188,9 @@ subroutine Driver_evolveFlash()
 
      end if
 
+
+     call Simulation_adjustEvolution(blockCount, blockList, dr_nstep, 2*dr_dt, &
+          dr_simTime)
 
      if (dr_useSTSforDiffusion) then
         !! Note: This setup will use the STS for overcoming small diffusion time steps
@@ -254,12 +279,13 @@ subroutine Driver_evolveFlash()
 #ifdef DEBUG_DRIVER
         print*, 'going into Hydro/MHD'
 #endif
-
         ! 1a. Cosmology-Friedmann Eqn.
         call Timers_start("cosmology")
         call Cosmology_solveFriedmannEqn(dr_simTime, dr_dt)
         call Timers_stop("cosmology")
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 
+        ! Added by JFG
         if (dr_simTime .ge. tinitial + sim_tRelax) then
             grv_mode = 1
             orb_t = dr_simTime
@@ -273,11 +299,12 @@ subroutine Driver_evolveFlash()
             endif
         endif
 
+        ! Calculate the total force applied to the box to remove it in the hydro step
+        call Total_force(blockCount, blockList)
+        ! End JFG
+
         dr_simTime = dr_simTime + dr_dt
         dr_simGeneration = 0
-
-        ! Calculate the total force applied to the box to remove it in the hydro step (ADDED BY JFG)
-        call Total_force(blockCount, blockList)
 
         ! 2a. Hydro/MHD/RHD
         call Timers_start("hydro")
@@ -288,6 +315,7 @@ subroutine Driver_evolveFlash()
              dr_simTime, dr_dt, dr_dtOld, dr_fSweepDir)
 
         call Timers_stop("hydro")
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 
      
 #ifdef DEBUG_DRIVER
@@ -298,6 +326,7 @@ subroutine Driver_evolveFlash()
         !     Radiation, viscosity, conduction, & magnetic registivity
         call RadTrans(blockCount, blockList, dr_dt, pass=1)
         call Diffuse(blockCount, blockList, dr_dt, pass=1)
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 #ifdef DEBUG_DRIVER
         print*, 'return from Diffuse '
 #endif
@@ -309,6 +338,7 @@ subroutine Driver_evolveFlash()
         call Timers_start("sourceTerms")
         call Driver_sourceTerms(blockCount, blockList, dr_dt, pass=1)
         call Timers_stop("sourceTerms")
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 #ifdef DEBUG_DRIVER
         print*,'done source terms'
         print*, 'return from Drivers_sourceTerms '
@@ -317,6 +347,7 @@ subroutine Driver_evolveFlash()
         ! 5a. Advance Particles
         call Timers_start("Particles_advance")
         call Particles_advance(dr_dtOld, dr_dt)
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 #ifdef DEBUG_DRIVER
         print*, 'return from Particles_advance '
 #endif
@@ -324,13 +355,17 @@ subroutine Driver_evolveFlash()
 
 
         ! 6a. Calculate gravitational potentials
+        ! Added by JFG
         call gr_mpoleDeallocateOldMoments()
         call gr_mpoleCopyMoments()
+        ! End JFG
         call Gravity_potentialListOfBlocks(blockCount,blockList)
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 #ifdef DEBUG_DRIVER
         print*, 'return from Gravity_potential '
 #endif
 
+        ! Added by JFG
         call Mass_Loss_Correction()
         call Bound_mass(blockCount, blockList)
         if (dr_simTime - dr_dt .ge. tinitial + sim_tRelax) then
@@ -341,17 +376,21 @@ subroutine Driver_evolveFlash()
                 call Orbit_update
             endif
         endif
+        ! End JFG
 
         ! 7a. Cosmology-Redshift
         call Timers_start("cosmology")
         call Cosmology_redshiftHydro( blockCount, blockList)
         call Timers_stop("cosmology")
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 
-        !! ADDED BY JFG, NECESSARY TO CALCULATE THE PROPER OLD DT FOR SECOND HALF OF EVOLUTION.
-        !! save for old dt
+        ! Added by JFG
+        ! necessary to calculate the proper old dt for second half of evolution.
+        ! save for old dt
         dr_dtOld = dr_dt
         grv_dt2Old = grv_dtOld
         grv_dtOld = dr_dt
+        ! End JFG
 
         !!******************************************************************************
         !!Second "half-step" of the evolution loop
@@ -360,7 +399,9 @@ subroutine Driver_evolveFlash()
         call Timers_start("cosmology")
         call Cosmology_solveFriedmannEqn(dr_simTime, dr_dt)
         call Timers_stop("cosmology")
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 
+        ! Added by JFG
         if (dr_simTime .ge. tinitial + sim_tRelax) then
             grv_mode = 1
             orb_t = dr_simTime
@@ -374,36 +415,46 @@ subroutine Driver_evolveFlash()
             endif
         endif
 
-        ! Calculate the total force applied to the box to remove it in the hydro step (ADDED BY JFG)
+        ! Calculate the total force applied to the box to remove it in the hydro step
         call Total_force(blockCount, blockList)
+        ! End JFG
 
-        ! 2b. Hydro/MHD/RHD
         dr_simTime = dr_simTime + dr_dt
         dr_simGeneration = 1
+
+        ! 2b. Hydro/MHD/RHD
         call Timers_start("hydro")
         call Hydro( blockCount, blockList, &
              dr_simTime, dr_dt, dr_dtOld, dr_rSweepDir)
         call Timers_stop("hydro")
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 
         ! 3b. Diffusive processes: 
         call RadTrans(blockCount, blockList, dr_dt, pass=2)
         call Diffuse(blockCount, blockList, dr_dt, pass=2)
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 
         ! 4b. Add source terms:
         call Timers_start("sourceTerms")
-        call Driver_sourceTerms(blockCount, blockList, dr_dt)
+        call Driver_sourceTerms(blockCount, blockList, dr_dt, pass=2)
         call Timers_stop("sourceTerms")
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 
         ! 5b. Advance Particles
         call Timers_start("Particles_advance")
         call Particles_advance(dr_dt, dr_dt)
         call Timers_stop("Particles_advance")
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
      
         ! 6b. Calculate gravitational potentials
+        ! Added by JFG
         call gr_mpoleDeallocateOldMoments()
         call gr_mpoleCopyMoments()
+        ! End JFG
         call Gravity_potentialListOfBlocks(blockCount,blockList)
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 
+        ! Added by JFG
         call Mass_Loss_Correction()
         call Bound_mass(blockCount, blockList)
         if (dr_simTime - dr_dt .ge. tinitial + sim_tRelax) then
@@ -414,16 +465,20 @@ subroutine Driver_evolveFlash()
                 call Orbit_update
             endif
         endif
+        ! End JFG
 
         ! 7b. Cosmology-Redshift
         call Timers_start("cosmology")
         call Cosmology_redshiftHydro( blockCount, blockList)
         call Timers_stop("cosmology")
+        call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
 
         !! save for old dt
         dr_dtOld = dr_dt
+        ! Added by JFG
         grv_dt2Old = grv_dtOld
         grv_dtOld = dr_dt
+        ! End JFG
 
      enddo !end of subcycling of super time stepping
 
@@ -454,8 +509,10 @@ subroutine Driver_evolveFlash()
      ! backup needed old
      if (.not. useSTS_local) then
          dr_dtOld = dr_dt
+         ! Added by JFG
          grv_dt2Old = grv_dtOld
          grv_dtOld = dr_dt
+         ! End JFG
      endif
 
      ! calculate new    
@@ -481,6 +538,8 @@ subroutine Driver_evolveFlash()
              dr_dtSTS,dr_nstep+1,dr_nbegin,endRun, CHECKPOINT_FILE_ONLY)
      endif
      call Timers_stop("IO_output")
+
+     call Eos_logDiagnostics(.TRUE.)
 
 !!*****************************************************************************
 !!  Evolution Loop -- check termination conditions
@@ -529,6 +588,7 @@ subroutine Driver_evolveFlash()
         exit
      end if
 
+    call Driver_driftUnk(__FILE__,__LINE__,driftUnk_flags)
   enddo
   !The value of dr_nstep after the loop is (dr_nend + 1) if the loop iterated for
   !the maximum number of times.  However, we need to retain the value that
@@ -541,9 +601,8 @@ subroutine Driver_evolveFlash()
 !!******************************************************************************
 
 
-
   call Timers_stop("evolution")
-
+  call Profiler_stop("FLASH_evolution")
   call Logfile_stamp( 'Exiting evolution loop' , '[Driver_evolveFlash]')
 
   !if a file termination, this may already be done.
@@ -555,7 +614,6 @@ subroutine Driver_evolveFlash()
   call Logfile_stamp( "FLASH run complete.", "LOGFILE_END")
 
   call Logfile_close()
-
 
   return
   

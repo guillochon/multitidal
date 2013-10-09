@@ -52,6 +52,7 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
                                 grv_totmass, grv_comCutoff, grv_comPeakCut, grv_mode, &
                                 grv_oexactvec, grv_ompolevec, grv_ototmass
   use Simulation_data,   ONLY : sim_fluffDampCutoff
+  use Multitidal_interface, ONLY : Multitidal_findExtrema
 
   implicit none
   
@@ -111,7 +112,7 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
 
      ldenscut = -huge(0.d0)
      do block_nr = 1,blockCount
-        call Grid_findExtrema (blockList(block_nr), idensvar, 1, extrema)
+        call Multitidal_findExtrema (blockList(block_nr), idensvar, 1, extrema)
         if (extrema .gt. ldenscut) ldenscut = extrema
      enddo
 

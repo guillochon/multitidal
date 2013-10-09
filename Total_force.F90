@@ -1,6 +1,7 @@
 subroutine Total_force(blockCount, blockList)
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
-        Grid_getCellCoords, Grid_findExtrema
+        Grid_getCellCoords
+    use Multitidal_interface, ONLY : Multitidal_findExtrema
     use Gravity_data, ONLY: grv_obvec, grv_ptvec, grv_obaccel, grv_ptaccel, grv_hptaccel, &
         grv_optaccel, grv_oobaccel, grv_oexactvec, grv_exactvec, grv_hobvec, grv_hptvec, &
         grv_oobvec, grv_optvec, grv_orb3D, grv_ptmass, grv_optmass, grv_densCut, &
@@ -35,7 +36,7 @@ subroutine Total_force(blockCount, blockList)
 
     ldenscut = -huge(0.d0)
     do lb = 1,blockCount
-       call Grid_findExtrema (blockList(lb), DENS_VAR, 1, extrema)
+       call Multitidal_findExtrema (blockList(lb), DENS_VAR, 1, extrema)
        if (extrema .gt. ldenscut) ldenscut = extrema
     enddo
 

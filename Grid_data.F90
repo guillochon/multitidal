@@ -24,6 +24,7 @@
 !!***
 
 !!REORDER(5):scratch, scratch_ctr, scratch_facevar[xyz], gr_[xyz]flx
+!!REORDER(5):gr_xflx_[yz]face, gr_yflx_[xz]face, gr_zflx_[xy]face
 
 Module Grid_data
 
@@ -32,14 +33,7 @@ Module Grid_data
 #include "constants.h"
 #include "Flash.h"
 
-!! Define the block information
-
-!  Type define
-
-  integer, parameter :: somethingBig = 20
-
-
-  real,save,dimension(3,somethingBig) :: gr_delta
+  real,save, allocatable, dimension(:,:) :: gr_delta
   integer, save :: gr_iloGc = GRID_ILO_GC
   integer, save :: gr_ihiGc = GRID_IHI_GC
   integer, save :: gr_jloGc = GRID_JLO_GC
@@ -68,6 +62,10 @@ Module Grid_data
   integer, save :: gr_meshAcrossComm, gr_meshAcrossMe, gr_meshAcrossNumProcs
 
   logical, save :: gr_useEnergyDeposition
+
+!! Define the block information
+
+!  Type define
 
   type gridBlock
      !!cornerID is integer coordinates of the lower left cornor
@@ -173,9 +171,27 @@ Module Grid_data
   integer,save,allocatable,target,dimension(:,:) :: gr_gid  !holds neigh, child, parent info for checkpoint files
   integer, save :: gr_globalNumBlocks !
   integer, save, allocatable :: gr_nToLeft(:) !holds 
+
+
+  !For flux conservation
   real,save, dimension(NFLUXES,2,NYB,NZB,MAXBLOCKS) :: gr_xflx
   real,save, dimension(NFLUXES,NXB,2,NZB,MAXBLOCKS) :: gr_yflx
   real,save, dimension(NFLUXES,NXB,NYB,2,MAXBLOCKS) :: gr_zflx
+
+  !For unsplit hydro/MHD to store transverse fluxes on AMR
+#ifdef FLASH_HYDRO_UNSPLIT
+#if NDIM >= 2
+  real,save, dimension(NFLUXES,NXB+1, 4 ,NZB,MAXBLOCKS) :: gr_xflx_yface
+  real,save, dimension(NFLUXES,4  ,NYB+1,NZB,MAXBLOCKS) :: gr_yflx_xface
+#if NDIM == 3
+  real,save, dimension(NFLUXES,NXB+1,NYB, 4 ,MAXBLOCKS) :: gr_xflx_zface
+  real,save, dimension(NFLUXES,NXB,NYB+1, 4 ,MAXBLOCKS) :: gr_yflx_zface
+  real,save, dimension(NFLUXES, 4 ,NYB,NZB+1,MAXBLOCKS) :: gr_zflx_xface
+  real,save, dimension(NFLUXES,NXB, 4 ,NZB+1,MAXBLOCKS) :: gr_zflx_yface
+#endif
+#endif
+#endif
+
 
 #ifdef FLASH_GRID_PARAMESH2
   logical, save :: gr_msgbuffer 
@@ -229,17 +245,12 @@ Module Grid_data
   real,save :: gr_lrefineMaxRedTimeScale, gr_lrefineMaxRedTRef, gr_lrefineMaxRedLogBase
   integer,save :: gr_restrictAllMethod
 
-! Stuff for customRegion 
-  logical, save :: gr_useQuietStart, gr_usePiston, gr_useHole
-  real, save, dimension(LOW:HIGH,MDIM) :: gr_quietStartBnd
-  real, save, dimension(LOW:HIGH,MDIM) :: gr_pistonBnd
-  real, save :: gr_holeRad, gr_holeTime, gr_holeVel
-  integer, save :: gr_holeBnd
+  integer, save :: gr_lrefineMinInit
 
-  real, save :: gr_quietStartDens, gr_quietStartTemp
-  real, save :: gr_pistonDens, gr_pistonVelx, gr_pistonVely, gr_pistonVelz
-  real, save, allocatable, dimension(:,:,:,:) :: gr_customRegionData
-
+  logical,save :: gr_lrefinemaxByTime
+  real, save :: gr_lrefmaxTimes(GR_LREFMAXTIMES)
+  integer, save :: gr_lrefmaxTimeValues(GR_LREFMAXTIMES)
+  logical, save ::  gr_gcellsUpToDate = .false.
 end Module Grid_data
 
 

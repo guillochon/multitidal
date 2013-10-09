@@ -80,6 +80,13 @@ PARAMETER sim_ptMassRefRad          REAL    1.E0
 PARAMETER sim_rotFac                REAL    0.E0
 PARAMETER sim_rotAngle              REAL    0.E0
 PARAMETER sim_tSpinup               REAL    0.E0
+PARAMETER sim_powerLawScale         REAL    1.E13
+PARAMETER sim_powerLawExponent      REAL    -2.E0
+PARAMETER sim_powerLawExtent        REAL    1.E14
+PARAMETER sim_powerLawMass          REAL    1.E27
+PARAMETER sim_powerLawTemperature   REAL    1.E2
+
+PARAMETER sim_kind            STRING  "polytrope"
 
 PARAMETER grv_orbTol          REAL    1.E-12
 PARAMETER grv_orbMinForce     REAL    1.E-12

@@ -36,6 +36,7 @@ subroutine gr_isoFindMassCenter (idensvar)
     use Driver_data, ONLY : dr_simTime, dr_dt, dr_restart
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
     use Gravity_data, ONLY : grv_exactvec, grv_totmass, grv_comCutoff, grv_densCut
+    use Multitidal_interface, ONLY : Multitidal_findExtrema
 
 
     implicit none
@@ -72,7 +73,7 @@ subroutine gr_isoFindMassCenter (idensvar)
 
        ldenscut = -huge(0.d0)
        do lb = 1, blockCount
-          call Grid_findExtrema (blockList(lb), idensvar, 1, extrema)
+          call Multitidal_findExtrema (blockList(lb), idensvar, 1, extrema)
           if (extrema .gt. ldenscut) ldenscut = extrema
        enddo
 

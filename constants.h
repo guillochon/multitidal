@@ -13,6 +13,7 @@ MAX_PROCS value is needed for some allocation, keeping it in a
 #define NO -10
 #define NONEXISTENT -1
 #define UNKNOWN -2
+#define LOST -3
 #define DUMP_IOFILE_NUM 9999
 
 #define TAB_CHAR ACHAR(9)
@@ -51,7 +52,9 @@ MAX_PROCS value is needed for some allocation, keeping it in a
 #if 0
   This section defines the boundary conditions. Not all
   have implementations in the current release.
-  The integer values must lie in the range -50..-20.
+  The integer values must lie in the range -50..-20 in order
+  to be fully usable as Grid boundary condition types that
+  can be combined with each other.
   PARAMESH_PHYSICAL_BOUNDARY should only be used when testing
   for the presence of a boundary, as in
      if (block_neighbor <= PARAMESH_PHYSICAL_BOUNDARY) then ...
@@ -61,12 +64,20 @@ MAX_PROCS value is needed for some allocation, keeping it in a
 
 #define REFLECTING -31
 #define OUTFLOW -32
-#define PERIODIC -35
+#define PERIODIC -135
 #define USER_DEFINED  -38
-#define ISOLATED -33
+#define ISOLATED -133
 #define HYDROSTATIC -34
 #define DIRICHLET -36
 #define PNEUMAN  -37
+
+#define NEUMANN_INS -23
+#define NOSLIP_INS -21
+#define SLIP_INS -22
+#define INFLOW_INS -24
+#define MOVLID_INS -25
+#define OUTFLOW_INS -26
+
 #define DIODE -39
 #define GRIDBC_MG_EXTRAPOLATE -40
 #define HYDROSTATIC_NVDIODE -41
@@ -79,6 +90,9 @@ MAX_PROCS value is needed for some allocation, keeping it in a
 #define HYDROSTATIC_F2_NVOUT -48
 #define MARSHAK -49
 #define VACUUM -50
+
+#define EQTSYMMETRIC -51
+#define AXISYMMETRIC -52
 
 #define PARAMESH_PHYSICAL_BOUNDARY -20
 #define GRIDBC_GIMME_WORK -19
@@ -103,7 +117,10 @@ MAX_PROCS value is needed for some allocation, keeping it in a
 #define WHOLE_VECTOR 4
 #define NO_VEC 5
 #define ALLVARS -1
-
+#define NOBOUNDARY -456
+#define VIRTUAL 876
+#define NOVIRTUAL 786
+#define VP_LEAVE 4
 
 #if 0
   This group has definition related to dimensions. The first three 
@@ -174,6 +191,7 @@ MAX_PROCS value is needed for some allocation, keeping it in a
 #define REFINEMENT 321
 #define TRAVERSED 254
 #define TRAVERSED_AND_ACTIVE 278
+#define INREGION 296
 
 #if 0
   These five constants are used in get/put data functions, The first 
@@ -239,6 +257,7 @@ MAX_PROCS value is needed for some allocation, keeping it in a
 #if 0
   This constant defines the current maximum number of variables that 
   Paramesh will refine on.
+  Modified by JFG TO 9 (from 4)
 #endif
 #define MAXREFVARS 9
 
@@ -260,6 +279,7 @@ MAX_PROCS value is needed for some allocation, keeping it in a
 #define MODE_DENS_TEMP_ION   30101
 #define MODE_DENS_TEMP_ELE   30201
 #define MODE_DENS_TEMP_RAD   30301
+#define MODE_DENS_TEMP_MAT_EQUI 32401
 #define MODE_DENS_TEMP_COMP  31101
 #define MODE_DENS_TEMP_ALL   31201
 #define MODE_DENS_TEMP_EQUI  31301
@@ -273,6 +293,7 @@ MAX_PROCS value is needed for some allocation, keeping it in a
 #define MODE_DENS_EI_EQUI    31302
 #define MODE_DENS_EI_SCATTER 31402
 #define MODE_DENS_EI_GATHER  31502
+#define MODE_DENS_EI_RECAL_GATHER  31602
 
 #define MODE_DENS_EI_SELE_GATHER  32522
 #define MODE_DENS_EI_SHOCKSELE_GATHER  33522
@@ -282,6 +303,11 @@ MAX_PROCS value is needed for some allocation, keeping it in a
 #define MODE_DENS_PRES_RAD   30303
 #define MODE_DENS_PRES_COMP  31103
 #define MODE_DENS_PRES_ALL   31203
+
+#define MODE_DENS_ENTR_ELE   30204
+#define MODE_DENS_ENTR_RAD   30304
+
+#define MODE_DENS_EI_SELERAD_GATHER  32562
 
 #if 0
 These three constants define the sweep directions in the PPM algorithm.
@@ -420,11 +446,7 @@ They are also used in other directionally split solvers as well.
 #define FL_NONE     0
 #define FL_HARMONIC 1
 #define FL_MINMAX   2
-
-#define GR_NORMAL 0
-#define GR_QUIET_START 1
-#define GR_PISTON 2
-#define GR_HOLE 3
+#define FL_LARSEN   3
 
 #if 0
 These constants identify the type of communicators in use
@@ -452,7 +474,9 @@ The ones that allow duplication of the mesh have two dimensions
 #define HYPRE_BICGSTAB 3
 #define HYPRE_GMRES 4
 #define HYPRE_SPLIT 5
-#define HYPRE_NONE 6
+#define HYPRE_PARASAILS 6
+#define HYPRE_HYBRID 7
+#define HYPRE_NONE 8 
 
 
 #if 0
@@ -462,3 +486,16 @@ The ones that allow duplication of the mesh have two dimensions
   boundaries.
 #endif
 #define GRBD_MANUAL 0
+
+
+#if 0
+  Opacity method types
+#endif
+#define OP_UNDEFINED  0
+#define OP_TABULAR_PA 10
+#define OP_TABULAR_PE 20 
+#define OP_TABULAR_RO 30
+#define OP_CONSTANT   40
+#define OP_CONSTCM2G  50
+
+#define DRIFT_NO_PARENTS 1

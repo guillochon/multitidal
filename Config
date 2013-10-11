@@ -10,6 +10,8 @@ REQUIRES physics/Hydro
 REQUIRES Simulation/SimulationComposition
 REQUIRES Multispecies/MultispeciesMain
 
+REQUIRES Particles/ParticlesMain/active/Sink
+
 USESETUPVARS loadProfile
 
 SPECIES H1
@@ -40,7 +42,7 @@ PARAMETER sim_periBeta              REAL    0.E0
 PARAMETER sim_periodFac             REAL    0.E0
 PARAMETER sim_orbEcc                REAL    0.E0
 PARAMETER sim_startBeta             REAL    0.1E0
-PARAMETER ptmass                    REAL    2.E33
+PARAMETER sim_ptMass                REAL    2.E39
 PARAMETER sim_rhoAmbient            REAL    1.E-15
 PARAMETER sim_pAmbient              REAL    1.E-4
 PARAMETER sim_tAmbient              REAL    1.E0

@@ -29,12 +29,16 @@
 subroutine Simulation_init()
 
     use Simulation_data 
+    use Particles_sinkData, ONLY : particles_local, ipm, ipvx, ipvy, ipvz
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
     use Multispecies_interface, ONLY : Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
     use Grid_data, ONLY : gr_globalMe
     use Logfile_interface, ONLY : Logfile_stampMessage
     use tree, ONLY : lrefine_max
     use Eos_data, ONLY : eos_gasConstant
+    use pt_sinkInterface, ONLY : pt_sinkCreateParticle
+    use PhysicalConstants_interface, ONLY : PhysicalConstants_get
+    use Driver_data, ONLY : dr_simTime
 
     implicit none
 
@@ -51,9 +55,12 @@ subroutine Simulation_init()
                     mass(np),ebind(np), &
                     rhom(np),zbeta(np),ztemp(np),exact(np), &
                     xsurf,ypsurf
-    double precision :: cfl, rho0
-    integer mode,iend
+    double precision :: cfl, rho0, a, period, start_dist, ecc_anom, newton
+    integer mode,iend,pno
     character(len=100) :: logstr
+    double precision, dimension(6) :: obvec, ptvec
+
+    call PhysicalConstants_get("Newton", newton)
 
     call RuntimeParameters_get('sim_rhoAmbient', sim_rhoAmbient)
     call RuntimeParameters_get('sim_nsubzones',sim_nSubZones)
@@ -93,7 +100,7 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_powerLawMass", sim_powerLawMass)
     call RuntimeParameters_get("sim_powerLawTemperature", sim_powerLawTemperature)
 
-    call RuntimeParameters_get("ptmass", sim_ptMass)
+    call RuntimeParameters_get("sim_ptMass", sim_ptMass)
 
     if (sim_powerLawExponent .le. -3.d0) then
         call Driver_abortFlash('Error: sim_powerLawExponent must be greater than -3.0')
@@ -126,7 +133,7 @@ subroutine Simulation_init()
     sim_objRadius = sim_table(sim_tableRows,R_PROF)
     sim_objMass = sum(PI*(sim_table(2:sim_tableRows,R_PROF) + sim_table(1:sim_tableRows-1,R_PROF))**2.d0*&
                       (sim_table(2:sim_tableRows,R_PROF) - sim_table(1:sim_tableRows-1,R_PROF))*&
-                      sim_table(:,RHO_PROF))/sim_msun
+                      sim_table(:,RHO_PROF))
     sim_objCentDens = sim_table(1,RHO_PROF)
 #else
     call RuntimeParameters_get('sim_pAmbient', sim_pAmbient)
@@ -144,7 +151,7 @@ subroutine Simulation_init()
     if (sim_kind .eq. 'polytrope') then
         if (gr_globalMe .eq. MASTER_PE) then
             mode = 1
-            call polytr(sim_objPolyN,sim_objMass,sim_objCentDens,polyk,obj_mu,mode, &
+            call polytr(sim_objPolyN,sim_objMass/sim_msun,sim_objCentDens,polyk,obj_mu,mode, &
                 x,y,yp,obj_radius,obj_rhop,mass,obj_prss,ebind, &
                 rhom,ztemp,zbeta,exact,xsurf,ypsurf,np,iend,obj_ipos)
         endif
@@ -159,7 +166,7 @@ subroutine Simulation_init()
                 obj_prss(i) = eos_gasConstant*obj_rhop(i) * &
                                  sim_powerLawTemperature / obj_mu
             enddo 
-            sim_objMass = sim_powerLawMass/sim_msun
+            sim_objMass = sim_powerLawMass
             sim_objCentDens = obj_rhop(1)
         endif
     endif
@@ -175,7 +182,7 @@ subroutine Simulation_init()
 #endif
 
     if (gr_globalMe .eq. MASTER_PE) then
-        write(logstr, fmt='(A30, ES15.8)') 'Object mass (m_sun):', sim_objMass
+        write(logstr, fmt='(A30, ES15.8)') 'Object mass (m_sun):', sim_objMass/sim_msun
         call Logfile_stampMessage(logstr)
         write(logstr, fmt='(A30, ES15.8)') 'Object radius:', sim_objRadius
         call Logfile_stampMessage(logstr)
@@ -192,9 +199,9 @@ subroutine Simulation_init()
 
     !Sink radius is scaled relative to the original pericenter distance
     
-    sim_softenRadius = sim_softenRadius*sim_objRadius/sim_periBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
-    sim_accRadius = sim_accRadius*sim_objRadius/sim_periBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
-    sim_startDistance = sim_objRadius/sim_startBeta*(sim_ptMass/sim_objMass/sim_msun)**(1.d0/3.d0)
+    sim_softenRadius = sim_softenRadius*sim_objRadius/sim_periBeta*(sim_ptMass/sim_objMass)**(1.d0/3.d0)
+    sim_accRadius = sim_accRadius*sim_objRadius/sim_periBeta*(sim_ptMass/sim_objMass)**(1.d0/3.d0)
+    sim_startDistance = sim_objRadius/sim_startBeta*(sim_ptMass/sim_objMass)**(1.d0/3.d0)
 
     write(logstr, fmt='(A30, ES15.8)') 'Sink radius:', sim_softenRadius
     call Logfile_stampMessage(logstr)
@@ -206,4 +213,63 @@ subroutine Simulation_init()
     sim_totForceInv = 1.d0/2.d0**sim_totForceSub
     sim_totForceSub = 2**(sim_totForceSub - 1)
 
+    if (sim_periBeta .eq. 0.d0) then
+        call RuntimeParameters_get("sim_periDist", sim_periDist)
+    else
+        sim_periDist = sim_objRadius/sim_periBeta*(sim_ptMass/sim_objMass)**(1.d0/3.d0)
+    endif
+    if (sim_periodFac .gt. 0.d0) then
+        a = sim_periDist/(1.d0 - sim_orbEcc)
+        period = dsqrt(4.d0*PI**2.d0/newton/(sim_ptMass + sim_objMass)*a**3.d0)
+        sim_periTime = sim_periodFac*period + sim_tRelax
+    endif
+    if (sim_startBeta .gt. 0.d0) then
+        a = sim_periDist/(1.d0 - sim_orbEcc)
+        period = dsqrt(4.d0*PI**2.d0/newton/(sim_ptMass + sim_objMass)*a**3.d0)
+        start_dist = sim_objRadius/sim_startBeta*(sim_ptMass/sim_objMass)**(1.d0/3.d0)
+        if (start_dist .gt. 2.d0*a - sim_periDist) call Driver_abortFlash('start_dist too large!')
+        ecc_anom = dacos((a - start_dist)/a/sim_orbEcc)
+        sim_periTime = abs(ecc_anom - sim_orbEcc*dsin(ecc_anom))*period/2.d0/PI + sim_tRelax
+    endif
+
+    if (gr_globalMe .eq. MASTER_PE) then
+        call calc_orbit(0.d0, sim_objMass, sim_ptMass, obvec, ptvec)
+        ptvec = ptvec - obvec
+        pno = pt_sinkCreateParticle(0.5d0*sim_xmax + ptvec(1), 0.5d0*sim_ymax + ptvec(2), &
+            0.5d0*sim_zmax + ptvec(3), 0., 1, gr_globalMe)
+        particles_local(ipm,pno) = sim_ptMass
+        particles_local(ipvx,pno) = ptvec(4)
+        particles_local(ipvy,pno) = ptvec(5)
+        particles_local(ipvz,pno) = ptvec(6)
+        pno = pt_sinkCreateParticle(0.5d0*sim_xmax, 0.5d0*sim_ymax, 0.5d0*sim_zmax, 0., 1, gr_globalMe)
+        particles_local(ipm,pno) = 2.d33
+    endif
+
+    if (gr_globalMe .eq. MASTER_PE) then
+        write(logstr, fmt='(A30, 2ES15.8)') 'Start distance:', start_dist
+        call Logfile_stampMessage(logstr)
+        write(logstr, fmt='(A30, 6ES15.8)') 'Pt. mass start pos:', ptvec
+        call Logfile_stampMessage(logstr)
+        write(logstr, fmt='(A30, 2ES15.8)') 'Semimajor axis, eccentricity:', a, sim_orbEcc
+        call Logfile_stampMessage(logstr)
+        write(logstr, fmt='(A30, 2ES15.8)') 'Period, pericenter time:', period, sim_periTime
+        call Logfile_stampMessage(logstr)
+        write(logstr, fmt='(A30, 2ES15.8)') 'Obj. radius, pericenter dist:', sim_objRadius, sim_periDist
+        call Logfile_stampMessage(logstr)
+
+        if (dr_simTime .eq. sim_tInitial) then
+            open(unit = 11, file = 'extras.dat', status = 'unknown')
+            write(11, fmt='(ES22.15)') sim_periBeta
+            write(11, fmt='(ES22.15)') period
+            write(11, fmt='(ES22.15)') sim_periTime
+            write(11, fmt='(ES22.15)') sim_objRadius
+            write(11, fmt='(ES22.15)') sim_objMass
+            write(11, fmt='(ES22.15)') sim_orbEcc
+            write(11, fmt='(ES22.15)') sim_ptMass
+            write(logstr, fmt='(I4)')  lrefine_max
+            write(11, fmt='(A)') adjustl(logstr)
+            write(11, fmt='(ES22.15)') sim_xMax - sim_xMin
+            close(11) 
+        endif
+    endif
 end subroutine Simulation_init

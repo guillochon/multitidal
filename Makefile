@@ -1,4 +1,4 @@
-Simulation += Simulation_data.o poly2.o read_table.o Multitidal_interface.o Multitidal_findExtrema.o
+Simulation += Simulation_data.o orbit.o poly2.o read_table.o Multitidal_interface.o Multitidal_findExtrema.o
 Driver += nr.o nrutil.o 
 
 nrutil.o : nrtype.o

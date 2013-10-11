@@ -15,7 +15,7 @@ subroutine calc_orbit (t, m1, m2, ob1vec, ob2vec)
 end subroutine calc_orbit
 
 subroutine parabolic_orbit (t, m1, m2, ob1vec, ob2vec)
-    use Gravity_data, ONLY: grv_periDist, grv_periTime
+    use Simulation_data, ONLY: sim_periDist, sim_periTime
     implicit none
 
     double precision, intent(IN)  :: t, m1, m2
@@ -25,8 +25,8 @@ subroutine parabolic_orbit (t, m1, m2, ob1vec, ob2vec)
     
     call PhysicalConstants_get("Newton", newton)
     gm = newton * (m1 + m2)
-    q = grv_periDist
-    tmt = t - grv_periTime
+    q = sim_periDist
+    tmt = t - sim_periTime
     term1 = (dsqrt(8.*q**3.+9.*gm*tmt**2.)+3.*dsqrt(gm)*tmt)
     u = (term1**(2./3.)-2.*q) / (dsqrt(2.*q)*term1**(1./3.))
     u = 2*datan(u)
@@ -51,8 +51,7 @@ subroutine parabolic_orbit (t, m1, m2, ob1vec, ob2vec)
 end
 
 subroutine elliptical_orbit (t, m1, m2, ob1vec, ob2vec)
-    use Gravity_data, ONLY: grv_ptmass, grv_periDist, grv_periTime
-    use Simulation_data, ONLY : sim_orbEcc
+    use Simulation_data, ONLY : sim_orbEcc, sim_ptMass, sim_periDist, sim_periTime
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     use Logfile_interface, ONLY: Logfile_stampMessage
     implicit none
@@ -67,12 +66,12 @@ subroutine elliptical_orbit (t, m1, m2, ob1vec, ob2vec)
 
     call PhysicalConstants_get("Newton", newton)
     gm = newton*(m1 + m2)
-    a = grv_periDist/(1.d0 - sim_orbEcc)
+    a = sim_periDist/(1.d0 - sim_orbEcc)
     P = dsqrt(4.d0*PI**2.d0/gm*a**3.d0)
-    call keplereq(2.d0*PI/P*(t - grv_periTime), sim_orbEcc, eccanom)
+    call keplereq(2.d0*PI/P*(t - sim_periTime), sim_orbEcc, eccanom)
     ceccanom = dcos(eccanom)
     u = dacos((ceccanom - sim_orbEcc)/(1.d0 - sim_orbEcc*ceccanom))
-    r = grv_periDist*(1.d0 + sim_orbEcc)/(1.d0+sim_orbEcc*dcos(u))
+    r = sim_periDist*(1.d0 + sim_orbEcc)/(1.d0+sim_orbEcc*dcos(u))
     newx = -sign(r*dsin(u), eccanom)
     newy = r*dcos(u)
     newz = 0.d0

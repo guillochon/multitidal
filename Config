@@ -37,17 +37,17 @@ SPECIES HE4
 IF loadProfile
 
 REQUIRES physics/Eos/EosMain/Helmholtz
-PPDEFINE LOADPROFILE
 PARAMETER sim_profFile          STRING  "sm.dat"
+PPDEFINE LOADPROFILE
 SPECIES C12
 SPECIES O16
 
 ELSE
 
 REQUIRES physics/Eos/EosMain/Multigamma
-PARAMETER sim_objMass           REAL    2.E30
+PARAMETER sim_objMass           REAL    1.E0
 PARAMETER sim_objPolyN          REAL    3.E0
-PARAMETER sim_objCentDen        REAL    1.E2
+PARAMETER sim_objCentDens       REAL    1.E2
 
 ENDIF
 

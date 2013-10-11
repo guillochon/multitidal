@@ -56,18 +56,20 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
 
 
   use Gravity_data, ONLY : grav_poisfact, grav_temporal_extrp, grav_boundary, &
+       grav_unjunkPden, &
        useGravity, updateGravity, grv_meshComm
   use Cosmology_interface, ONLY : Cosmology_getRedshift, &
        Cosmology_getOldRedshift
   use Driver_interface, ONLY : Driver_abortFlash
   use Timers_interface, ONLY : Timers_start, Timers_stop
-  use Particles_interface, ONLY: Particles_updateGridVar
+  use Particles_interface, ONLY: Particles_updateGridVar, Particles_sinkAccelSinksOnGas
   use Grid_interface, ONLY : GRID_PDE_BND_PERIODIC, GRID_PDE_BND_NEUMANN, &
        GRID_PDE_BND_ISOLATED, GRID_PDE_BND_DIRICHLET, &
        Grid_getBlkPtr, Grid_releaseBlkPtr, &
        Grid_solvePoisson
+  ! Added by JFG
   use Driver_data, ONLY : dr_simTime, dr_initialSimTime
-
+  ! End JFG
   implicit none
 
 #include "Flash.h"
@@ -144,9 +146,11 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
      
      do lb = 1, blockCount
         call Grid_getBlkPtr(blocklist(lb), solnVec)
+! Added by JFG
 #ifdef GPO2_VAR
         solnVec(GPO2_VAR,:,:,:) = solnVec(GPOL_VAR,:,:,:)
 #endif
+! End JFG
 #ifdef GPOL_VAR
         solnVec(GPOL_VAR,:,:,:) = solnVec(GPOT_VAR,:,:,:)
 #endif
@@ -177,6 +181,7 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
   invscale=grav_poisfact*invscale
   call Grid_solvePoisson (GPOT_VAR, density, bcTypes, bcValues, &
        invscale)
+! Added by JFG
 #ifdef GPOL_VAR
   if (dr_simTime .eq. dr_initialSimTime) then
       do lb = 1, blockCount
@@ -191,18 +196,24 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
       enddo
   endif
 #endif
-! Un-junk PDEN if it exists.
+! End JFG
+
+! Un-junk PDEN if it exists and if requested.
 
 #ifdef PDEN_VAR
- density = PDEN_VAR
+  if (grav_unjunkPden) then
+     density = PDEN_VAR
 #ifdef DENS_VAR           
-  do lb = 1, blockCount
-     call Grid_getBlkPtr(blocklist(lb), solnVec)
-     solnVec(density,:,:,:) = solnVec(density,:,:,:) - solnVec(DENS_VAR,:,:,:)
-     call Grid_releaseBlkPtr(blocklist(lb), solnVec)
-  enddo
+     do lb = 1, blockCount
+        call Grid_getBlkPtr(blocklist(lb), solnVec)
+        solnVec(density,:,:,:) = solnVec(density,:,:,:) - solnVec(DENS_VAR,:,:,:)
+        call Grid_releaseBlkPtr(blocklist(lb), solnVec)
+     enddo
 #endif
+  end if
 #endif
+
+  call Particles_sinkAccelSinksOnGas(blockCount,blockList)
 
 #ifdef USEBARS
   call MPI_Barrier (grv_meshComm, ierr)

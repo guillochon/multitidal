@@ -42,7 +42,7 @@ subroutine Grid_markRefineDerefine()
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   use Simulation_data, ONLY: sim_objRadius, sim_objCentDens, &
       sim_maxBlocks, sim_useInitialPeakDensity, sim_ptMassRefine, sim_fluffDampCutoff, &
-      sim_xCenter, sim_yCenter, sim_zCenter
+      sim_xCenter, sim_yCenter, sim_zCenter, sim_ptMassRefRad
   use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
   use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_dynRefineMax, &
       grv_exactvec, grv_mpolevec, grv_periDist
@@ -223,7 +223,7 @@ subroutine Grid_markRefineDerefine()
   call gr_markInRadius(grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1), &
                        grv_exactvec(2) - grv_obvec(2) + grv_ptvec(2), &
                        grv_exactvec(3) - grv_obvec(3) + grv_ptvec(3), &
-                       grv_periDist,sim_ptMassRefine,0)
+                       sim_ptMassRefRad*grv_periDist,sim_ptMassRefine,0)
 
   return
 end subroutine Grid_markRefineDerefine

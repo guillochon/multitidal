@@ -250,21 +250,21 @@ subroutine gr_mpoleCM3Dcartesian (idensvar)
       Y_centerofmass  = grv_exactvec(2)
       Z_centerofmass  = grv_exactvec(3)
   else
-      if (dabs(grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)) .le. 0.1d0) then
-          !print *, 'x too close!', grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)
-          grv_mpolevec(1) = grv_mpolevec(1) + mcs*sign(0.1d0, &
-              grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half))
-      endif
-      if (dabs(grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)) .le. 0.1d0) then
-          !print *, 'y too close!', grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)
-          grv_mpolevec(2) = grv_mpolevec(2) + mcs*sign(0.1d0, &
-              grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half))
-      endif
-      if (dabs(grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)) .le. 0.1d0) then
-          !print *, 'z too close!', grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)
-          grv_mpolevec(3) = grv_mpolevec(3) + mcs*sign(0.1d0, &
-              grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half))
-      endif
+      !if (dabs(grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)) .le. 0.1d0) then
+      !    !print *, 'x too close!', grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half)
+      !    grv_mpolevec(1) = grv_mpolevec(1) + mcs*sign(0.1d0, &
+      !        grv_mpolevec(1)/mcs - (floor(grv_mpolevec(1)/mcs) + half))
+      !endif
+      !if (dabs(grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)) .le. 0.1d0) then
+      !    !print *, 'y too close!', grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half)
+      !    grv_mpolevec(2) = grv_mpolevec(2) + mcs*sign(0.1d0, &
+      !        grv_mpolevec(2)/mcs - (floor(grv_mpolevec(2)/mcs) + half))
+      !endif
+      !if (dabs(grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)) .le. 0.1d0) then
+      !    !print *, 'z too close!', grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half)
+      !    grv_mpolevec(3) = grv_mpolevec(3) + mcs*sign(0.1d0, &
+      !        grv_mpolevec(3)/mcs - (floor(grv_mpolevec(3)/mcs) + half))
+      !endif
 
       X_centerofmass = grv_mpolevec(1)
       Y_centerofmass = grv_mpolevec(2)

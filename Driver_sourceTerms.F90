@@ -29,12 +29,15 @@
 
 
 subroutine Driver_sourceTerms(blockCount, blockList, dt, pass) 
+    use Polytrope_interface, ONLY : Polytrope
     use Driver_data, ONLY: dr_simTime, dr_meshComm
+    use Flame_interface, ONLY : Flame_step
     use Stir_interface, ONLY : Stir
     use Heat_interface, ONLY : Heat
+    use Heatexchange_interface, ONLY : Heatexchange
     use Burn_interface, ONLY : Burn
     use Cool_interface, ONLY : Cool
-    use Heatexchange_interface, ONLY : Heatexchange
+    use Ionize_interface, ONLY : Ionize
     use EnergyDeposition_interface, ONLY : EnergyDeposition
     use Deleptonize_interface, ONLY : Deleptonize
     use Simulation_data, ONLY: sim_smallX, &
@@ -344,13 +347,16 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             grv_optmass = grv_ptmass
         endif
 
+        call Polytrope(blockCount, blockList, dt)
         call Stir(blockCount, blockList, dt) 
+        call Flame_step(blockCount, blockList, dt)
         call Burn(blockCount, blockList, dt) 
+        call Heat(blockCount, blockList, dt, dr_simTime) 
         call Heatexchange(blockCount, blockList, dt) 
+        call Cool(blockCount, blockList, dt, dr_simTime) 
+        call Ionize(blockCount, blockList, dt, dr_simTime)
         call EnergyDeposition(blockCount, blockList, dt, dr_simTime)
         call Deleptonize(blockCount, blockList, dt, dr_simTime)
-        call Heat(blockCount, blockList, dt, dr_simTime) 
-        call Cool(blockCount, blockList, dt, dr_simTime) 
 
     endif
   

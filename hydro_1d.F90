@@ -179,10 +179,10 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
   use Hydro_data, ONLY : hy_ppmEnerFluxConstructionMeth
   use Driver_interface, ONLY : Driver_abortFlash
   use Gravity_interface, ONLY : Gravity_accelOneRow
-  use Gravity_data, ONLY : grv_mode, grv_dtOld, grv_dt2Old
   use hy_ppm_interface, ONLY: hy_ppm_force, hy_ppm_geom, hy_ppm_completeGeomFactors
-  use Driver_data, ONLY : dr_simTime
-  use Simulation_data, ONLY : sim_tRelax
+  ! Added by JFG
+  use Gravity_data, ONLY : grv_mode, grv_dtOld, grv_dt2Old
+  ! End JFG
   implicit none
   
 #include "Flash.h"
@@ -233,7 +233,7 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
               &                   urell, ugrdl, gameav, gamel, gamer, &
               &                   eintl, eintr, eintAv, &
               &                   v, dvol, &
-              &                   ograv, hgrav, ptgrav, hptgrav, optgrav, o2grav
+              &                   ograv, hgrav
 
 
   
@@ -246,10 +246,15 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
   integer :: i, n, kk
   integer :: numIntCells4, numIntCells5, numIntCells8
   
-  real ::  dtfac, dg, hdg
+  real ::  dtfac, dg
 
 !  real :: pres_jump
   integer,dimension(2) :: pos
+
+  ! Added by JFG
+  real :: hdg
+  real, DIMENSION(numCells) :: o2grav, ptgrav, hptgrav, optgrav
+  ! End JFG
   
 #ifndef RHO_FLUX
   call Driver_abortFlash("[HYDRO_1D] ERROR: rhoflx not defined")
@@ -274,103 +279,97 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
 #endif
 
 
-                          ! initialize grav arrays to zero
-    hgrav(:) = 0.e0       ! need to reconsider whether this
-    ngrav(:) = 0.e0       ! is the best place to do this
+                        ! initialize grav arrays to zero
+  hgrav(:) = 0.e0       ! need to reconsider whether this
+  ngrav(:) = 0.e0       ! is the best place to do this
 
 
-    numIntCells4 = numIntCells + 4
-    numIntCells5 = numIntCells + 5
-    numIntCells8 = numIntCells + 8
+  numIntCells4 = numIntCells + 4
+  numIntCells5 = numIntCells + 5
+  numIntCells8 = numIntCells + 8
 
-    !---------------------------
-    if (.NOT. hy_useCellAreasForFluxes) then
-       call hy_ppm_geom (numIntCells, numCells, jCell, kCell, xyzswp, igeom,  &
-            &     areaLeft, arear, area, primaryDx, dvol, &
-            &     primaryLeftCoord, primaryRghtCoord,  &
-            &     radialCoord, thirdCoord)
-    else
-       call hy_ppm_completeGeomFactors(numIntCells4, numCells, igeom, primaryDx, &
-            radialCoord(jCell), dvol, cvol, &
-            area, areaLeft)
-    end if
+  !---------------------------
+  if (.NOT. hy_useCellAreasForFluxes) then
+     call hy_ppm_geom (numIntCells, numCells, jCell, kCell, xyzswp, igeom,  &
+          &     areaLeft, arear, area, primaryDx, dvol, &
+          &     primaryLeftCoord, primaryRghtCoord,  &
+          &     radialCoord, thirdCoord)
+  else
+     call hy_ppm_completeGeomFactors(numIntCells4, numCells, igeom, primaryDx, &
+          radialCoord(jCell), dvol, cvol, &
+          area, areaLeft)
+  end if
 
-    !---------------------------
-    if (useGravity) then
-       pos(1)=jCell; pos(2)=kCell
+  !---------------------------
+  if (useGravity) then
+     pos(1)=jCell; pos(2)=kCell
 #ifdef GPOL_VAR
 #ifndef GPOT_VAR
-       call Driver_abortFlash("Shouldn't have gpol defined without gpot")
+     call Driver_abortFlash("Shouldn't have gpol defined without gpot")
 #endif
 #endif
 
 #if defined(GPOT_VAR) && defined(GPOL_VAR) && defined(FLASH_GRAVITY_TIMEDEP)
-       ! Gravity implementation defines FLASH_GRAVITY_TIMEDEP -> time-dependent gravity field,
-       ! interpolate the acceleration linearly in time (pointwise) - KW
-       grav(:) = 0.d0
-       ograv(:) = 0.d0       ! initialize array to zero
-       o2grav(:) = 0.d0
-       ptgrav(:) = 0.d0
-       hptgrav(:) = 0.d0
-       optgrav(:) = 0.d0
-#ifdef GPO2_VAR
-       grv_mode = 0
-       call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,o2grav,optgrav,GPO2_VAR)
-#endif
-       grv_mode = 1
-       call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,ograv,optgrav,GPOL_VAR)
-       grv_mode = 2
-       call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,grav,hptgrav,GPOT_VAR)
-       grv_mode = 3
-       call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,grav,ptgrav,GPOT_VAR)
-       dtfac = dt/dt_old
+     ! Gravity implementation defines FLASH_GRAVITY_TIMEDEP -> time-dependent gravity field,
+     ! interpolate the acceleration linearly in time (pointwise) - KW
+     ograv(:) = 0.e0       ! initialize array to zero
 
-       !if (dr_simTime .eq. sim_tRelax) then
-       !    print *, 'grav   ' , grav
-       !    print *, 'ograv  ' , ograv
-       !    print *, 'ptgrav ' , ptgrav
-       !    print *, 'hptgrav' , hptgrav
-       !    print *, 'optgrav' , optgrav
-       !    call Driver_abortFlash('done')
-       !endif
-       do i = 1,numIntCells8
+     ! Modified by JFG
+     o2grav(:) = 0.d0
+     ptgrav(:) = 0.d0
+     hptgrav(:) = 0.d0
+     optgrav(:) = 0.d0
 #ifdef GPO2_VAR
-          hdg       = dt/2.d0/grv_dtOld*(grav(i) - ograv(i)) + dt**2.d0/4.d0/(grv_dtOld*grv_dtOld*grv_dt2Old)*&
-                     ((grav(i) - ograv(i))*grv_dt2Old - (ograv(i) - o2grav(i))*grv_dtOld)
-          dg       = dt/grv_dtOld*(grav(i) - ograv(i)) + dt**2.d0/(grv_dtOld*grv_dtOld*grv_dt2Old)*&
-                     ((grav(i) - ograv(i))*grv_dt2Old - (ograv(i) - o2grav(i))*grv_dtOld)
-#else
-          dg = dt/dt_old*(grav(i) - ograv(i))
-          hdg = dg/2.d0
+     grv_mode = 0
+     call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,o2grav,optgrav,GPO2_VAR)
 #endif
-          hgrav(i) = grav(i) + hptgrav(i) + hdg
-          ngrav(i) = grav(i) + ptgrav(i) + dg
-          grav(i)  = grav(i) + optgrav(i)
-       enddo
+     grv_mode = 1
+     call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,ograv,optgrav,GPOL_VAR)
+     grv_mode = 2
+     call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,grav,hptgrav,GPOT_VAR)
+     grv_mode = 3
+     call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,grav,ptgrav,GPOT_VAR)
+     dtfac = dt/dt_old
+
+     do i = 1,numIntCells8
+#ifdef GPO2_VAR
+        hdg       = dt/2.d0/grv_dtOld*(grav(i) - ograv(i)) + dt**2.d0/4.d0/(grv_dtOld*grv_dtOld*grv_dt2Old)*&
+                   ((grav(i) - ograv(i))*grv_dt2Old - (ograv(i) - o2grav(i))*grv_dtOld)
+        dg       = dt/grv_dtOld*(grav(i) - ograv(i)) + dt**2.d0/(grv_dtOld*grv_dtOld*grv_dt2Old)*&
+                   ((grav(i) - ograv(i))*grv_dt2Old - (ograv(i) - o2grav(i))*grv_dtOld)
+#else
+        dg = dt/dt_old*(grav(i) - ograv(i))
+        hdg = dg/2.d0
+#endif
+        hgrav(i) = grav(i) + hptgrav(i) + hdg
+        ngrav(i) = grav(i) + ptgrav(i) + dg
+        grav(i)  = grav(i) + optgrav(i)
+     enddo
+     ! End JFG
 
 #else
-       ! FLASH_GRAVITY_TIMEDEP not defined -> assume time-independent gravity field.
-       ! Also if GPOT_VAR or GPOL_VAR defined -> use current accel without time
-       ! interpolation, i.e., handle like time-independent gravity field - KW
-       call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,grav)
-       hgrav = grav
-       ngrav = grav
+     ! FLASH_GRAVITY_TIMEDEP not defined -> assume time-independent gravity field.
+     ! Also if GPOT_VAR or GPOL_VAR defined -> use current accel without time
+     ! interpolation, i.e., handle like time-independent gravity field - KW
+     call Gravity_accelOneRow (pos, xyzswp, blockID, numIntCells8,grav)
+     hgrav = grav
+     ngrav = grav
 #endif
 
-    else
+  else
 
-       hgrav(:) = 0.e0
-       ngrav(:) = 0.e0
+     hgrav(:) = 0.e0
+     ngrav(:) = 0.e0
 
-    end if
+  end if
 
-    if (hy_updateHydroFluxes) then
+  if (hy_updateHydroFluxes) then
 
     !---------------------------
     ! For non-cartesian geometries, this call sets fict to have non-zero
     ! values.
     !---------------------------
-    call hy_ppm_force(numCells, numIntCells, jCell, kCell, igeom, &
+     call hy_ppm_force(numCells, numIntCells, jCell, kCell, igeom, &
                 primaryCoord, radialCoord, thirdCoord, u, ut, utt, fict)
 
 
@@ -381,7 +380,7 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
 
     do i = 1, numIntCells8
        v(i)  = 1.e0 / rho(i)
-       c(i)  = dsqrt (gamc(i) * p(i) * rho(i))
+       c(i)  = sqrt (gamc(i) * p(i) * rho(i))
        ce(i) = c(i)*v(i)
     end do
 
@@ -405,13 +404,13 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
     do i = 1,numIntCells8 
        eint(i) = e(i) - 0.5e0*(u(i)**2 + ut(i)**2 + utt(i)**2)
        select case (hy_ppmEnerFluxConstructionMeth)
-       case(0,1,3,4)
+       case(0,1,4,5)
           eint(i) = max(eint(i),hy_smallp/rho(i)) !primitive (mass-specific)
-       case(2,5)
+       case(2,6)
           eint(i) = max(eint(i),hy_smallp/rho(i)) * rho(i) !conserved (per-vol)
        end select
     enddo
-
+!!    hgrav = 0.
 ! Obtain PPM interpolation coefficients.
     call intrfc(xyzswp,numIntCells,numCells, guard,&
          &      rho,u,ut,utt,p, &
@@ -437,17 +436,7 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
     call rieman(numIntCells,numCells, &
                 rhoav,uav,utav,uttav,pav,&
                 urell,ugrdl,game,gameav,eintAv,xnav,primaryCoord)
-    !if (maxval(rhoav) .gt. 1.e3) then
-    !    print *, 'max rhoav', maxval(rhoav)
-    !    print *, 'ptgrav', ptgrav
-    !    print *, 'hptgrav', hptgrav
-    !    print *, 'optgrav', optgrav
-    !    print *, 'grav', grav
-    !    print *, 'ograv', ograv
-    !    print *, 'ngrav', ngrav
-    !    print *, 'dg', dg
-    !    call Driver_abortFlash('done')
-    !endif
+
 
     select case (xyzswp)
 
@@ -564,15 +553,15 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
     !==============================================================================
     !   0    | rhoav,uav,       pav,gameav | rhoav,uav,       pav,gameav,utav,uttav
     !   1,2* | rhoav,uav,eintAv,pav        | rhoav,uav,eintAv,pav       ,utav,uttav
-    !   3    | rhoav,uav,       pav,gameav | rhoav,uav,       pav,gameav,utav,uttav
-    !   4,5* | rhoav,uav,eintAv,    gameav | rhoav,uav,eintAv,    gameav,utav,uttav
+    !   4    | rhoav,uav,       pav,gameav | rhoav,uav,       pav,gameav,utav,uttav
+    !   5,6* | rhoav,uav,eintAv,    gameav | rhoav,uav,eintAv,    gameav,utav,uttav
     !Possible optimization:
     !   0    |       uav,       pav,gameav | rhoav,uav,       pav,gameav,utav,uttav
     !   1,2* | rhoav,uav,eintAv,pav        | rhoav,uav,eintAv,pav       ,utav,uttav
-    !   3    |       uav,       pav,gameav | rhoav,uav,       pav,gameav,utav,uttav
-    !   4,5* | rhoav,uav,eintAv,    gameav | rhoav,uav,eintAv,    gameav,utav,uttav
+    !   4    |       uav,       pav,gameav | rhoav,uav,       pav,gameav,utav,uttav
+    !   5,6* | rhoav,uav,eintAv,    gameav | rhoav,uav,eintAv,    gameav,utav,uttav
     !==============================================================================
-    ! * For methods 2 and 5, PPM reconstruction, interpolation, and advection for
+    ! * For methods 2 and 6, PPM reconstruction, interpolation, and advection for
     !   eintAv is applied to a conserved internal energy variable (i.e., internal
     !   energy expressed in per-volume form). Otherwise, the primitive (specific)
     !   internal energy is used.
@@ -585,11 +574,11 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
        uttflx(i) = rhoflx(i) * uttav(i)
 
        select case (hy_ppmEnerFluxConstructionMeth)
-       case(0,3)
+       case(0,4)
           scrch1(i) = pav(i) / ( rhoav(i) * (gameav(i)-1.e0) )
-       case(1,4)
+       case(1,5)
           scrch1(i) = eintAv(i)
-       case(2,5)
+       case(2,6)
           scrch1(i) = eintAv(i) / rhoav(i)
        end select
 
@@ -598,7 +587,7 @@ subroutine hydro_1d (blockID,numIntCells,numCells, guard,bcs,        &
        select case (hy_ppmEnerFluxConstructionMeth)
        case(0,1,2)
           eintflx(i) = rhoflx(i) * scrch1(i) + uav(i) * pav(i)
-       case(3,4,5)
+       case(4,5,6)
           eintflx(i) = rhoflx(i) * scrch1(i) * gameav(i) 
        end select
 

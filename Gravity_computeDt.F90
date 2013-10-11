@@ -17,7 +17,6 @@
 !!
 !! ARGUMENTS
 !!
-!!  MyPE:          local processor number
 !!  dt_grav:       Will Return the limiting timestep. Should be
 !!                 set to a large value (1.D99) on input.
 !!  dt_minloc(5):  An array to receive information about which

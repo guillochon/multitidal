@@ -121,7 +121,8 @@ subroutine IO_output( simTime, dt, nstep, nbegin, endRun, outputType)
        io_redshift, io_lastWallClockCheckpoint, io_wallClockCheckpoint, io_rollingCheckpoint, &
        io_justCheckpointed, io_memoryStatFreq, &
        io_nextCheckpointZ, io_nextPlotFileZ, io_checkpointFileIntervalZ, io_plotfileIntervalZ, &
-       io_alwaysComputeUserVars, io_outputInStack,io_globalMe, io_globalComm
+       io_alwaysComputeUserVars, io_outputInStack,io_globalMe, io_globalComm, &
+       io_wrotePlot, io_maxRSS, io_measRSS
   use Cosmology_interface, ONLY : Cosmology_getRedshift
   use Driver_interface, ONLY : Driver_abortFlash,Driver_finalizeFlash
   use Logfile_interface, ONLY : Logfile_stamp, Logfile_close
@@ -130,7 +131,10 @@ subroutine IO_output( simTime, dt, nstep, nbegin, endRun, outputType)
   use Grid_interface, ONLY : Grid_restrictAllLevels, &
     Grid_computeUserVars
   use IO_interface, ONLY : IO_writeIntegralQuantities, &
-    IO_writeCheckpoint, IO_writePlotfile, IO_writeParticles, IO_writeOrbitInfo
+    IO_writeCheckpoint, IO_writePlotfile, IO_writeParticles
+  ! Added by JFG
+  use IO_interface, ONLY : IO_writeOrbitInfo
+  ! End JFG
   use io_ptInterface, ONLY : io_ptCorrectNextPartTime, io_ptResetNextFile
 
   implicit none
@@ -151,15 +155,14 @@ subroutine IO_output( simTime, dt, nstep, nbegin, endRun, outputType)
   real :: dtCheckpoint, sav_nextPlotfileTime, sav_nextParticleFileTime
   real,save :: lastSimTime = HUGE(simTime)*0.5
   logical :: forceCheckpoint
-  
+  logical,save :: firstForcedCheckpoint = .TRUE.
+
   logical :: dumpPlotfileExist, dumpRestartExist
   logical :: dumpCheckpointExist, killExist
+  logical :: rssMaxExceeded
   logical , intent(OUT) :: endRun 
 
   real :: currentRedshift !current cosmological redshift value
-
-
-  
 
   if(present(outputType)) then
      
@@ -175,6 +178,7 @@ subroutine IO_output( simTime, dt, nstep, nbegin, endRun, outputType)
      
   end if
 
+  if(outputPlotFile) io_wrotePlot = .false.
 
   !The tree data needs to be consistent on all levels when we start a data write
   !from an IO_Output subroutine.  Set io_outputInStack to .true. to indicate we
@@ -205,10 +209,12 @@ subroutine IO_output( simTime, dt, nstep, nbegin, endRun, outputType)
   if(io_integralFreq > 0) then
      if (mod (nstep, io_integralFreq) == 0) then
         !This should happen only once per timestep
+        ! Edited by JFG
         if (abs(simTime - lastSimTime) .gt. TINY(simTime)) then
-            call IO_writeIntegralQuantities(0, simTime)
+            call IO_writeIntegralQuantities( 0, simTime)
             call IO_writeOrbitInfo(0, simTime)
         endif
+        ! End JFG
         lastSimTime = simTime
      end if
   end if
@@ -299,8 +305,13 @@ subroutine IO_output( simTime, dt, nstep, nbegin, endRun, outputType)
         
         if (dtCheckpoint > io_wallClockCheckpoint) then
      
-           if (io_globalMe == MASTER_PE .and. .not.io_justCheckpointed)  & 
-                write(*,*) 'checkpointing due to elapsed wall clock time from last checkpoint '
+           if (io_globalMe == MASTER_PE .and. .not.io_justCheckpointed) then
+              if (firstForcedCheckpoint) then
+                 write(*,*) 'forced checkpointing due to elapsed wall clock time '
+              else
+                 write(*,*) 'checkpointing due to elapsed wall clock time since last forced checkpoint'
+              end if
+           end if
 
            forceCheckpoint = .true.
         else
@@ -341,10 +352,11 @@ subroutine IO_output( simTime, dt, nstep, nbegin, endRun, outputType)
            call io_ptResetNextFile(sav_nextParticleFileTime)
            call Timers_stop("checkpointing")
         
-         end if
+        end if
  
-           ! store the wallclock time of this checkpoint in the runtime scratch database
-           io_lastWallClockCheckpoint = MPI_Wtime()
+        ! store the wallclock time of this checkpoint in the runtime scratch database
+        io_lastWallClockCheckpoint = MPI_Wtime()
+        firstForcedCheckpoint = .FALSE.
         
      endif
      
@@ -508,7 +520,52 @@ subroutine IO_output( simTime, dt, nstep, nbegin, endRun, outputType)
 
 
   end if
+  
+  !------------------------------------------------------------------------------
+  ! If we called io_memoryReport(), and if io_maxRSS .gt. 0.0, and if
+  ! io_measRSS .ge. io_maxRSS, dump a checkpoint and tell driver to exit.
+  !------------------------------------------------------------------------------
+  
+  ! only the MASTER_PE should test for this, since io_measRSS was only
+  ! set for MASTER_PE in io_memoryReport()
 
+  if (  io_globalMe == MASTER_PE) then
+    rssMaxExceeded = .false.
+    if ( (io_memoryStatFreq > 0) .and. &
+         (mod(nstep,io_memoryStatFreq) == 0) .and. &
+         (io_maxRSS > 0.0) .and.  &
+         ( io_measRSS .ge. io_maxRSS) ) rssMaxExceeded = .true. 
+  end if
+
+  ! broadcast this result to all processors now
+
+  call MPI_Bcast(rssMaxExceeded, 1, MPI_LOGICAL, MASTER_PE, io_globalComm, ierr)
+  
+  if ( outputCheckpoint .and. rssMaxExceeded ) then
+
+     if ( io_globalMe == MASTER_PE ) then
+        write(*,*) '[OUTPUT]  Maximum RSS exceeded: writing checkpoint and exiting.'
+     end if
+    
+     ! tell main loop to exit
+     endRun = .true.
+     call Timers_start("checkpointing")
+     if(.not. io_alwaysComputeUserVars) call Grid_computeUserVars()
+
+     io_checkpointFileNumber = mod(io_checkpointFileNumber,io_rollingCheckpoint)          
+     call IO_writeCheckpoint()
+     call Timers_stop("checkpointing")
+
+     call Logfile_stamp( 'Maximum RSS exceeded, exiting' , '[IO_OUTPUT]')
+
+     
+     call MPI_Barrier(io_globalComm, ierr)
+     write(*,*) '[IO_output] Maximum RSS exceeded: exiting.'
+
+     !DO NOT CALL Driver_finalizeFlash here, will cause problems! -PR
+
+
+  end if
   !------------------------------------------------------------------------------
   ! if the file ".kill" file exists, abort execution immediately
   !------------------------------------------------------------------------------

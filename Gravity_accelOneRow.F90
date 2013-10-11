@@ -164,21 +164,39 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, ptgrav, 
             gpot(:) = solnVec(potVar,:,pos(1),pos(2))
             dens(:) = solnVec(denVar,:,pos(1),pos(2))
 
-            grav = -mpoleaccel(1)
+#ifdef SGAX_VAR
+            ! acceleration due to sink particles
+            grav(iimin:iimax) = solnVec(SGAX_VAR,:,pos(1),pos(2))
+#else
+            grav(iimin:iimax) = 0.0
+#endif
+            grav = grav - mpoleaccel(1)
         elseif (sweepDir == SWEEP_Y) then                 ! y-direction
             delxinv = dble(NYB) / blockSize(JAXIS)
             
             gpot(:) = solnVec(potVar,pos(1),:,pos(2))
             dens(:) = solnVec(denVar,pos(1),:,pos(2))
 
-            grav = -mpoleaccel(2)
+#ifdef SGAY_VAR
+            ! acceleration due to sink particles
+            grav(iimin:iimax) = solnVec(SGAY_VAR,pos(1),:,pos(2))
+#else
+            grav(iimin:iimax) = 0.0
+#endif
+            grav = grav - mpoleaccel(2)
         else                                            ! z-direction
             delxinv = dble(NZB) / blockSize(KAXIS)
             
             gpot(:) = solnVec(potVar,pos(1),pos(2),:)
             dens(:) = solnVec(denVar,pos(1),pos(2),:)
 
-            grav = -mpoleaccel(3)
+#ifdef SGAZ_VAR
+            ! acceleration due to sink particles
+            grav(iimin:iimax) = solnVec(SGAZ_VAR,pos(1),pos(2),:)
+#else       
+            grav(iimin:iimax) = 0.0
+#endif
+            grav = grav - mpoleaccel(3)
         endif
 
         !-------------------------------------------------------------------------------

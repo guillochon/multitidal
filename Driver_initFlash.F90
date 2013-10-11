@@ -47,11 +47,13 @@ subroutine Driver_initFlash()
 
   use Driver_interface, ONLY : Driver_init, &
     Driver_initMaterialProperties, Driver_initSourceTerms, &
-    Driver_verifyInitDt, Driver_abortFlash
+    Driver_verifyInitDt, Driver_abortFlash, Driver_setupParallelEnv
   use RuntimeParameters_interface, ONLY : RuntimeParameters_init, RuntimeParameters_get
   use Logfile_interface, ONLY : Logfile_init
+  use Flame_interface, ONLY : Flame_init
   use PhysicalConstants_interface, ONLY : PhysicalConstants_init
-  use Gravity_interface, ONLY : Gravity_init
+  use Gravity_interface, ONLY : Gravity_init, &
+    Gravity_potentialListOfBlocks
   use Timers_interface, ONLY : Timers_init, Timers_start, Timers_stop
 
   use Grid_interface, ONLY : Grid_init, Grid_initDomain, &
@@ -60,11 +62,13 @@ subroutine Driver_initFlash()
   use Particles_interface, ONLY : Particles_init,  Particles_initData, &
        Particles_initForces
  
-  use Eos_interface, ONLY : Eos_init
+  use Eos_interface, ONLY : Eos_init, Eos_logDiagnostics
   use Hydro_interface, ONLY : Hydro_init
   use Simulation_interface, ONLY : Simulation_init
   use Cosmology_interface, ONLY : Cosmology_init
   use IO_interface, ONLY :IO_init, IO_outputInitial
+  use Opacity_interface, ONLY : Opacity_init
+  use Profiler_interface, ONLY : Profiler_init
   implicit none       
   
 #include "constants.h"
@@ -98,6 +102,7 @@ subroutine Driver_initFlash()
   !! uses MPI_WTime(), so Driver_initParallel() must go first, and
   !! uses RuntimeParameters_get(), so RuntimeParameters_init() must go
   !! first.
+  call Profiler_init()
   call Timers_init(dr_initialWCTime)
   call Timers_start("initialization")
 
@@ -116,6 +121,8 @@ subroutine Driver_initFlash()
   call Driver_initMaterialProperties()
   if(dr_globalMe==MASTER_PE)print*,'MaterialProperties initialized'
   
+  call Flame_init()
+
   call RuntimeParameters_get('dtInit',dr_dtInit)
 
   call Particles_init( dr_restart)       ! Particles
@@ -166,16 +173,16 @@ subroutine Driver_initFlash()
      
   end if
 
+  call Opacity_init()
+
   !Hydro_init must go before Driver
   if(dr_globalMe==MASTER_PE) print *, 'Ready to call Hydro_init' 
   call Hydro_init()           ! Hydrodynamics, MHD, RHD
   if(dr_globalMe==MASTER_PE)print*,'Hydro initialized'
   
-
-  ! Note from JFG: Moved this in front of gravity_init as it needs to know dr_dt
+  ! Edited by JFG: Moved this in front of Gravity_init as it needs to know dr_dt.
   call Driver_verifyInitDt()
   if(dr_globalMe==MASTER_PE)print*,'Initial dt verified'
-
   
   call Gravity_init()         ! Gravity
   if(dr_globalMe==MASTER_PE)print*,'Gravity initialized'
@@ -187,6 +194,7 @@ subroutine Driver_initFlash()
 
   if(.not. dr_restart) then
      call Grid_getListOfBlocks(LEAF,blockList,blockCount)
+     call Gravity_potentialListOfBlocks(blockCount,blockList)
      call Particles_initForces
   end if
 
@@ -198,6 +206,7 @@ subroutine Driver_initFlash()
   !!Done with initialization.
   call Timers_stop ("initialization")
 
+  call Eos_logDiagnostics(.TRUE.)
 
   return
 end subroutine Driver_initFlash

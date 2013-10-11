@@ -186,23 +186,25 @@ subroutine Simulation_initBlock (blockId, myPE)
                     sumVars = sumVars + sim_table(jLo,:) + frac*(sim_table(jHi,:) - sim_table(jLo,:))
 #else
                     call sim_find (obj_radius, obj_ipos, dist, jLo)
-                    if (jLo .eq. 0) then
-                       jLo = 1
-                       jHi = 1
-                       frac = 0.
-                    else if (jLo .eq. obj_ipos) then
-                       jLo = obj_ipos
-                       jHi = obj_ipos
-                       frac = 0.
-                    else
-                       jHi = jLo + 1
-                       frac = (dist - obj_radius(jLo)) / & 
-                            (obj_radius(jHi)-obj_radius(jLo))
+                    if (jLo .le. obj_ipos) then
+                        if (jLo .eq. 0) then
+                           jLo = 1
+                           jHi = 1
+                           frac = 0.
+                        else if (jLo .eq. obj_ipos) then
+                           jLo = obj_ipos
+                           jHi = obj_ipos
+                           frac = 0.
+                        else
+                           jHi = jLo + 1
+                           frac = (dist - obj_radius(jLo)) / & 
+                                (obj_radius(jHi)-obj_radius(jLo))
+                        endif
+                        sumVars(1) = sumVars(1) + & 
+                             obj_rhop(jLo) + frac*(obj_rhop(jHi) - obj_rhop(jLo))
+                        sumVars(2) = sumVars(2) +  & 
+                             obj_prss(jLo) + frac*(obj_prss(jHi) - obj_prss(jLo))
                     endif
-                    sumVars(1) = sumVars(1) + & 
-                         obj_rhop(jLo) + frac*(obj_rhop(jHi) - obj_rhop(jLo))
-                    sumVars(2) = sumVars(2) +  & 
-                         obj_prss(jLo) + frac*(obj_prss(jHi) - obj_prss(jLo))
 #endif
                  enddo
               enddo

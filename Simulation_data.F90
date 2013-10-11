@@ -47,7 +47,7 @@ module Simulation_data
 
   double precision, dimension(:,:), allocatable, save    :: sim_table
   integer, parameter                                     :: np = 1000
-  double precision, save                                 :: sim_objPolyN, sim_objCentDen, obj_mu
+  double precision, save                                 :: sim_objPolyN, obj_mu
   double precision, dimension(SPECIES_BEGIN:SPECIES_END) :: obj_xn
   double precision, dimension(np), save                  :: obj_radius, obj_rhop, obj_prss
   integer, save                                          :: obj_ipos, sim_tableRows, sim_tableCols

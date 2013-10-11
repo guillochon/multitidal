@@ -39,11 +39,14 @@ subroutine IO_outputInitial( nbegin, initialSimTime)
 #include "constants.h"
   use IO_data, ONLY : io_integralFreq, io_memoryStatFreq, &
        io_redshift, io_justCheckpointed, io_restart, &
-       io_alwaysComputeUserVars, io_outputInStack
+       io_alwaysComputeUserVars, io_outputInStack, io_summaryOutputOnly
   use Grid_interface, ONLY : Grid_restrictAllLevels, &
     Grid_computeUserVars
   use IO_interface, ONLY : IO_writeIntegralQuantities, &
-    IO_writeCheckpoint, IO_writePlotfile, IO_writeParticles, IO_writeOrbitInfo
+    IO_writeCheckpoint, IO_writePlotfile, IO_writeParticles
+  ! Added by JFG
+  use IO_interface, ONLY : IO_writeOrbitInfo
+  ! End JFG
 
   implicit none
 
@@ -64,7 +67,9 @@ subroutine IO_outputInitial( nbegin, initialSimTime)
   !------------------------------------------------------------------------------
   if (io_memoryStatFreq > 0) call io_memoryReport()
 
+  ! Added by JFG
   call IO_writeOrbitInfo(1, initialSimTime)
+  ! End JFG
 
   !write the diagnostic quantities for the .dat file
   if(io_integralFreq > 0) then
@@ -73,17 +78,21 @@ subroutine IO_outputInitial( nbegin, initialSimTime)
 
   if(.not. io_alwaysComputeUserVars) call Grid_computeUserVars()
   
-  if(.not. io_restart) then
-     call IO_writeCheckpoint()
-     io_justCheckpointed = .true.
+  if (.not.io_summaryOutputOnly) then
+     if(.not. io_restart) then
+        call IO_writeCheckpoint()
+        io_justCheckpointed = .true.
+     else
+        io_justCheckpointed = .false.
+     end if
+
+     if( io_restart) forcePlotfile = .true.
+     call IO_writePlotfile(forcePlotfile)
+
+     call IO_writeParticles( .false.)
   else
      io_justCheckpointed = .false.
   end if
-
-  if( io_restart) forcePlotfile = .true.
-  call IO_writePlotfile(forcePlotfile)
-
-  call IO_writeParticles( .false.)
 
   !------------------------------------------------------------------------------
   ! Dump out memory usage statistics again if we are monitoring them,

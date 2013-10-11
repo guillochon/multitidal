@@ -38,6 +38,7 @@ Module Gravity_interface
      end subroutine Gravity_accelListOfBlocks
   end interface
 
+  ! Modified by JFG
   interface
      subroutine Gravity_accelOneRow (pos,sweepDir,blockID, numCells, grav, ptgrav, &
           varIndex)
@@ -48,6 +49,7 @@ Module Gravity_interface
        integer, intent(IN), optional :: varIndex 
      end subroutine Gravity_accelOneRow
   end interface
+  ! End JFG
 
   interface Gravity_computeDt
      subroutine Gravity_computeDt (block_no, &

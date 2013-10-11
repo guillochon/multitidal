@@ -72,7 +72,8 @@ subroutine gr_sanitizeDataAfterInterp(blkList,count, info, layers)
   use Logfile_interface, ONLY : Logfile_stamp
   use physicaldata, ONLY:unk, gcell_on_cc
   use tree, ONLY:nodetype
-  use paramesh_dimensions, ONLY: il_bnd,iu_bnd,jl_bnd,ju_bnd,kl_bnd,ku_bnd, kl_bndi
+  use tree, ONLY: surr_blks,neigh
+  use paramesh_dimensions, ONLY: il_bnd,iu_bnd,jl_bnd,ju_bnd,kl_bnd,ku_bnd, kl_bndi, ndim
 
   implicit none
 #include "constants.h"
@@ -84,18 +85,20 @@ subroutine gr_sanitizeDataAfterInterp(blkList,count, info, layers)
   integer, dimension(count), intent(IN) :: blkList
   character(len=*), intent(IN) :: info
   integer,dimension(MDIM), intent(IN):: layers
-#ifndef HIDE_SANITIZE
   integer :: n, block
 
   integer ::  i,j
   integer :: iskip, jskip, kskip
   integer :: il,iu,jl,ju,kl,ku
+  integer :: kwrite,locs(3),kReorder(1:ku_bnd-kl_bnd+1),nReorder
   character(len=32), dimension(4,2) :: block_buff
   character(len=32)                 :: number_to_str
 
 111 format (a,a,a1,(1x,a18,'=',a),(1x,a2,'=',a5),(1x,a5,'=',a),(1x,a4,'=',a))
-112 format (i3,1x,16(1x,1G8.2))
+112 format (i3,1x,24(1x,1G8.2))
+113 format (' :,',i2,',',i2,1x,24(1x,1G8.2))
 
+#ifndef HIDE_SANITIZE
   iskip = NGUARD - layers(IAXIS)
   jskip = (NGUARD - layers(JAXIS)) * K2D
   kskip = (NGUARD - layers(KAXIS)) * K3D
@@ -106,6 +109,7 @@ subroutine gr_sanitizeDataAfterInterp(blkList,count, info, layers)
   kl = kl_bnd + kskip
   ku = ku_bnd - kskip
 
+  nReorder = 0
 
   do n = 1,count
      block=blkList(n)
@@ -114,6 +118,16 @@ subroutine gr_sanitizeDataAfterInterp(blkList,count, info, layers)
      if (gcell_on_cc(DENS_VAR)) then
         ! small limits -- in case the interpolants are not monotonic
         if (any(unk(DENS_VAR,il:iu,jl:ju,kl:ku,block) .LT. gr_smallrho)) then
+           kwrite = kl_bndi
+#ifdef DEBUG_CONSCONV
+           if (ndim==3) then
+              call set_kReorder
+!              print*,'kReorder(1:nReorder)',kReorder(1:nReorder)
+              locs = minloc(unk(DENS_VAR,il:iu,jl:ju,kReorder(1:nReorder),block))
+!              print*,'LOCS:',locs
+              kwrite = kReorder(locs(3))
+           end if
+#endif
            write (block_buff(1,1), '(a18)') 'min. unk(DENS_VAR)'
            !        write (number_to_str, '('//REAL_FORMAT//',a1)') minval(unk(DENS_VAR,il:iu,jl:ju,kl:ku,block)), ','
            write (number_to_str, '(G30.22)') minval(unk(DENS_VAR,il:iu,jl:ju,kl:ku,block))
@@ -134,9 +148,13 @@ subroutine gr_sanitizeDataAfterInterp(blkList,count, info, layers)
            call Logfile_stamp( block_buff, 4, 2, 'WARNING '//info)
            print 111, 'WARNING ',info,':', ((block_buff(i,j),j=1,2),i=1,4)
 #ifdef DEBUG_CONSCONV
-           ! For 2D, this prints a slice at the lowest k index that is interior - KW
            do j=ju_bnd,jl_bnd,-1
-              print 112, j, (unk(DENS_VAR,i,j,kl_bndi,block), i=il_bnd,iu_bnd)
+              if (kwrite==kl_bndi) then
+                 ! For 3D, this prints a slice at the lowest k index that is interior - KW
+                 print 112, j, (unk(DENS_VAR,i,j,kwrite,block), i=il_bnd,iu_bnd)
+              else
+                 print 113, j,kwrite, (unk(DENS_VAR,i,j,kwrite,block), i=il_bnd,iu_bnd)
+              end if
            end do
 #endif
   !        call Driver_abortFlash("DENS var exceeding acceptable range")
@@ -149,6 +167,14 @@ subroutine gr_sanitizeDataAfterInterp(blkList,count, info, layers)
      if (gcell_on_cc(ENER_VAR)) then
         ! energy
         if (any(unk(ENER_VAR,il:iu,jl:ju,kl:ku,block) .LT. gr_smalle*0.999999999)) then
+           kwrite = kl_bndi
+#ifdef DEBUG_CONSCONV
+           if (ndim==3) then
+              call set_kReorder
+              locs = minloc(unk(ENER_VAR,il:iu,jl:ju,kReorder(1:nReorder),block))
+              kwrite = kReorder(locs(3))
+           end if
+#endif
            write (block_buff(1,1), '(a)') 'min. unk(ENER_VAR)'
            write (number_to_str, '('//REAL_FORMAT//')') minval(unk(ENER_VAR,il:iu,jl:ju,kl:ku,block))
            write (block_buff(1,2), '(a)') trim(adjustl(number_to_str))
@@ -169,7 +195,11 @@ subroutine gr_sanitizeDataAfterInterp(blkList,count, info, layers)
            print 111, 'WARNING ',info,':', ((block_buff(i,j),j=1,2),i=1,4)
 #ifdef DEBUG_CONSCONV
            do j=ju_bnd,jl_bnd,-1
-              print 112, j, (unk(ENER_VAR,i,j,kl_bndi,block), i=il_bnd,iu_bnd) 
+              if (kwrite==kl_bndi) then
+                 print 112, j, (unk(ENER_VAR,i,j,kwrite,block), i=il_bnd,iu_bnd) 
+              else
+                 print 113, j,kwrite, (unk(ENER_VAR,i,j,kwrite,block), i=il_bnd,iu_bnd)
+              end if
            end do
 #endif
 !call Driver_abortFlash("ENER var exceeding acceptable range")
@@ -179,6 +209,14 @@ subroutine gr_sanitizeDataAfterInterp(blkList,count, info, layers)
 #ifdef EINT_VAR
      if (gcell_on_cc(EINT_VAR)) then
         if (any(unk(EINT_VAR,il:iu,jl:ju,kl:ku,block) .LT. gr_smalle*0.999999999)) then
+           kwrite = kl_bndi
+#ifdef DEBUG_CONSCONV
+           if (ndim==3) then
+              call set_kReorder
+              locs = minloc(unk(EINT_VAR,il:iu,jl:ju,kReorder(1:nReorder),block))
+              kwrite = kReorder(locs(3))
+           end if
+#endif
            write (block_buff(1,1), '(a)') 'min. unk(EINT_VAR)'
            write (number_to_str, '('//REAL_FORMAT//')') minval(unk(EINT_VAR,il:iu,jl:ju,kl:ku,block))
            write (block_buff(1,2), '(a)') trim(adjustl(number_to_str))
@@ -199,7 +237,11 @@ subroutine gr_sanitizeDataAfterInterp(blkList,count, info, layers)
            print 111, 'WARNING ',info,':', ((block_buff(i,j),j=1,2),i=1,4)
 #ifdef DEBUG_CONSCONV
            do j=ju_bnd,jl_bnd,-1
-              print 112, j, (unk(EINT_VAR,i,j,kl_bndi,block), i=il_bnd,iu_bnd) 
+              if (kwrite==kl_bndi) then
+                 print 112, j, (unk(EINT_VAR,i,j,kwrite,block), i=il_bnd,iu_bnd) 
+              else
+                 print 113, j,kwrite, (unk(EINT_VAR,i,j,kwrite,block), i=il_bnd,iu_bnd)
+              end if
            end do
 #endif
  !          call Driver_abortFlash("EINT var exceeding acceptable range")
@@ -211,5 +253,37 @@ subroutine gr_sanitizeDataAfterInterp(blkList,count, info, layers)
 #endif
 
   return 
+
+contains
+  subroutine set_kReorder
+    integer :: i,j,k
+    if (nReorder==0) then       !We need to do this only once per gr_sanitize... call.
+
+       !  The following code sets
+       !  kReorder = (/5,6,7,8,9,10,11,12,4,13,3,14,2,15,1,16/) ! for kl:ku = 1:16
+
+       i = 0
+       do k = kl, ku
+          if (k>NGUARD .AND. k .LE. ku_bnd-NGUARD) then
+             i = i+1
+             kReorder(i) = k
+          end if
+       end do
+       do j = 1, layers(KAXIS)
+          k = NGUARD+1-j
+          if (k .LE. NGUARD) then
+             i = i+1
+             kReorder(i) = k
+          end if
+          k = ku_bnd-NGUARD+j
+          if (k > ku_bnd-NGUARD) then
+             i = i+1
+             kReorder(i) = k
+          end if
+       end do
+       nReorder = i
+    end if
+  end subroutine set_kReorder
+
 end subroutine gr_sanitizeDataAfterInterp
         

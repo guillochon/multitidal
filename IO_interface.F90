@@ -10,12 +10,14 @@ Module IO_interface
 #define IO_H
 
 
+  ! Added by JFG
   interface IO_writeOrbitInfo
      subroutine IO_writeOrbitInfo (isfirst, simTime)
        integer, intent(in) :: isfirst
        real, intent(in) :: simTime
      end subroutine IO_writeOrbitInfo
   end interface
+  ! End JFG
 
   interface IO_setScalar
      subroutine IO_setScalarReal (name, value)
@@ -184,7 +186,39 @@ Module IO_interface
      end subroutine IO_initRPsFromCheckpoint
   end interface
 
+  interface
+     subroutine IO_checkForPlot(wrotePlot)
+       implicit none
+       logical, intent(out) :: wrotePlot
+     end subroutine IO_checkForPlot
+  end interface
 
+  interface 
+     subroutine IO_startRayWrite()
+       implicit none
+     end subroutine IO_startRayWrite
+  end interface
+  
+  interface
+     subroutine IO_writeRays(numRays, rayTags, posBuffer, powerBuffer, numPos)
+       implicit none
+       
+       integer, intent(in) :: numRays
+       integer, intent(in) :: rayTags(:)
+       real, intent(in) :: posBuffer(:,:,:)
+       real, intent(in) :: powerBuffer(:,:)
+       integer, intent(in) :: numPos(:)
+       
+     end subroutine IO_writeRays
+  end interface
+
+  interface 
+     subroutine IO_endRayWrite()
+       implicit none
+     end subroutine IO_endRayWrite
+  end interface
+
+  
 end Module IO_interface
 
 

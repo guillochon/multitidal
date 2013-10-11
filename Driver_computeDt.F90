@@ -143,6 +143,11 @@ subroutine Driver_computeDt(nbegin, nstep, &
                         PART=7,DIFF=8,COSMO=9,STIR=10,HEATXCHG=11, &
                         RADTRANS=12,STS=13
   logical :: printToScrn
+  real :: extraHydroInfo
+  character (len=20) :: cflNumber
+
+  ! Initializing extraHydroInfo to zero:
+  extraHydroInfo = 0
 
   data limiterName(HYDRO) /'dt_hydro'/
   data limiterName(HEAT) /'dt_Heat'/
@@ -156,6 +161,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
   data limiterName(HEATXCHG) /'dt_HeatXchg'/
   data limiterName(RADTRANS) /'dt_RadTrans'/
   data limiterName(STS)  /'dt_STS'/
+  data cflNumber  /'CFL'/
 
 
   !            Find the local minimum timestep among the included physics
@@ -214,19 +220,20 @@ subroutine Driver_computeDt(nbegin, nstep, &
 #ifdef DEBUG_DRIVER
      print*,'before calling get coordinates',jsize,gcell
 #endif
-     call Grid_getCellCoords(JAXIS,blockList(i),CENTER,gcell,yCenter,jsize)
-     call Grid_getCellCoords(JAXIS,blockList(i),LEFT_EDGE,gcell,yLeft,jsize)
-     call Grid_getCellCoords(JAXIS,blockList(i),RIGHT_EDGE,gcell,yRight,jsize)
+     if (NDIM > 1) then
+        call Grid_getCellCoords(JAXIS,blockList(i),CENTER,gcell,yCenter,jsize)
+        call Grid_getCellCoords(JAXIS,blockList(i),LEFT_EDGE,gcell,yLeft,jsize)
+        call Grid_getCellCoords(JAXIS,blockList(i),RIGHT_EDGE,gcell,yRight,jsize)
 
-
-
+        if (NDIM > 2) then
 #ifdef DEBUG_DRIVER
-     print*,'before calling get coordinates',ksize,gcell
+           print*,'before calling get coordinates',ksize,gcell
 #endif
-     call Grid_getCellCoords(KAXIS,blockList(i),CENTER,gcell,zCenter,ksize)
-     call Grid_getCellCoords(KAXIS,blockList(i),LEFT_EDGE,gcell,zLeft,ksize)
-     call Grid_getCellCoords(KAXIS,blockList(i),RIGHT_EDGE,gcell,zRight,ksize)
-
+           call Grid_getCellCoords(KAXIS,blockList(i),CENTER,gcell,zCenter,ksize)
+           call Grid_getCellCoords(KAXIS,blockList(i),LEFT_EDGE,gcell,zLeft,ksize)
+           call Grid_getCellCoords(KAXIS,blockList(i),RIGHT_EDGE,gcell,zRight,ksize)           
+        endif
+     endif
 
      call Grid_getDeltas(blockList(i), del)
      dx(:) = del(1)
@@ -243,16 +250,15 @@ subroutine Driver_computeDt(nbegin, nstep, &
 #ifdef DEBUG_DRIVER
      print*,'going to call Hydro timestep'
 #endif
-
-
+     extraHydroInfo = 0.
      call Hydro_computeDt ( blockList(i), &
                            xCenter, dx, uxgrid, &
                            yCenter, dy, uygrid, &
                            zCenter, dz, uzgrid, &
                            blkLimits,blkLimitsGC,  &
                            solnData,      &
-                           dtLocal(1,HYDRO), lminloc(:,HYDRO) )
-
+                           dtLocal(1,HYDRO), lminloc(:,HYDRO), &
+                           extraInfo=extraHydroInfo )
 
      call Stir_computeDt ( blockList(i),  &
                            blkLimits,blkLimitsGC,  &
@@ -272,7 +278,6 @@ subroutine Driver_computeDt(nbegin, nstep, &
      ! Added by JFG.
      call Gravity_computeDt ( blockList(i),  &
                               dtLocal(1,GRAV), lminloc(:,GRAV) )
-
 !!$     call Gravity_computeDt ( blockList(i), dr_globalMe, &
 !!$                           xCenter,xLeft,xRight, dx, uxgrid, &
 !!$                           yCenter,yLeft,yRight, dy, uygrid, &
@@ -475,91 +480,164 @@ subroutine Driver_computeDt(nbegin, nstep, &
         limiterNameOutput(iout) = limiterName(i)
      endif
   enddo
-  
+
+!!$print*,iout,nUnits;pause
+
   printToScrn = .true.
   if (printToScrn) then
   if (dr_globalMe == MASTER_PE) then
-     
+
+
+  if (extraHydroInfo .eq. 0.) then
+
      if (printTStepLoc) then
         
         if (nstep == nbegin) then
 
-           if (.not. dr_useRedshift) then
-              write (*,803) 'n', 't', 'dt', 'x', 'y', 'z', &
-                   (limiterNameOutput(i),i=1,iout)
-           else
-              write (*,804) 'n', 't', 'z', 'dt', 'x', 'y', 'z', &
-                   (limiterNameOutput(i),i=1,iout)
-           endif
+              if (.not. dr_useRedshift) then
+                 write (*,803) 'n', 't', 'dt', 'x', 'y', 'z', &
+                      (limiterNameOutput(i),i=1,iout)
+              else
+                 write (*,804) 'n', 't', 'z', 'dt', 'x', 'y', 'z', &
+                      (limiterNameOutput(i),i=1,iout)
+              endif
               
-        endif
-        
-        if (.not. dr_useRedshift) then
-           if (.not. dr_useSTS) then
-              write(*,801) nstep, simTime, dtNew, coords(1), coords(2), &
-                   coords(3), (tstepOutput(i),i=1,iout)
-           else
-              write(*,801) nstep, simTime, max(dtNew,dr_dtSTS), coords(1), coords(2), &
-                   coords(3), (tstepOutput(i),i=1,iout)
            endif
+        
+           if (.not. dr_useRedshift) then
+              if (.not. dr_useSTS) then
+                 write(*,801) nstep, simTime, dtNew, coords(1), coords(2), &
+                      coords(3), (tstepOutput(i),i=1,iout)
+              else
+                 write(*,801) nstep, simTime, max(dtNew,dr_dtSTS), coords(1), coords(2), &
+                      coords(3), (tstepOutput(i),i=1,iout)
+              endif
 
-        else
-           if (.not. dr_useSTS) then
-              write(*,802) nstep, simTime, dr_redshift, dtNew, coords(1), &
-                   coords(2), coords(3), (tstepOutput(i),i=1,iout)
+           else
+              if (.not. dr_useSTS) then
+                 write(*,802) nstep, simTime, dr_redshift, dtNew, coords(1), &
+                      coords(2), coords(3), (tstepOutput(i),i=1,iout)
               else
                  write(*,802) nstep, simTime, dr_redshift, max(dtNew,dr_dtSTS), coords(1), &
                       coords(2), coords(3), (tstepOutput(i),i=1,iout)
               endif
            endif
-
-     else
-        
-        if (nstep .eq. nbegin) then
            
-           if (.not. dr_useRedshift) then
-              write (*,903) 'n', 't', 'dt', (limiterNameOutput(i),i=1,iout)
-           else
-              write (*,904) 'n', 't', 'z', 'dt', (limiterNameOutput(i),i=1,iout)
-           endif
-           
-        endif
-        
-        if (.not. dr_useRedshift) then
-           if (.not. dr_useSTS) then
-              write(*,901) nstep, simTime, dtNew, (tstepOutput(i),i=1,iout)
-           else
-              write(*,901) nstep, simTime, max(dtNew,dr_dtSTS), (tstepOutput(i),i=1,iout)
-           endif
         else
-           if (.not. dr_useSTS) then
-              write(*,902) nstep, simTime, dr_redshift, dtNew, &
-                   (tstepOutput(i),i=1,iout)
+        
+           if (nstep .eq. nbegin) then
+           
+              if (.not. dr_useRedshift) then
+                 write (*,903) 'n', 't', 'dt', (limiterNameOutput(i),i=1,iout)
+              else
+                 write (*,904) 'n', 't', 'z', 'dt', (limiterNameOutput(i),i=1,iout)
+              endif
+           
+           endif
+        
+           if (.not. dr_useRedshift) then
+              if (.not. dr_useSTS) then
+                 write(*,901) nstep, simTime, dtNew, (tstepOutput(i),i=1,iout)
+              else
+                 write(*,901) nstep, simTime, max(dtNew,dr_dtSTS), (tstepOutput(i),i=1,iout)
+              endif
            else
-              write(*,902) nstep, simTime, dr_redshift, max(dtNew,dr_dtSTS), &
-                   (tstepOutput(i),i=1,iout)
+              if (.not. dr_useSTS) then
+                 write(*,902) nstep, simTime, dr_redshift, dtNew, &
+                      (tstepOutput(i),i=1,iout)
+              else
+                 write(*,902) nstep, simTime, dr_redshift, max(dtNew,dr_dtSTS), &
+                      (tstepOutput(i),i=1,iout)
+              endif
+
+           endif
+
+        endif
+
+     else ! elseif (extraHydroInfo .ne. 0.) then
+        if (printTStepLoc) then
+           if (nstep == nbegin) then
+
+              if (.not. dr_useRedshift) then
+                 write (*,803) 'n', 't', 'dt', 'x', 'y', 'z', &
+                      (limiterNameOutput(i),i=1,iout),cflNumber
+              else
+                 write (*,804) 'n', 't', 'z', 'dt', 'x', 'y', 'z', &
+                      (limiterNameOutput(i),i=1,iout),cflNumber
+              endif
+              
+           endif
+        
+           if (.not. dr_useRedshift) then
+              if (.not. dr_useSTS) then
+                 write(*,801) nstep, simTime, dtNew, coords(1), coords(2), &
+                      coords(3), (tstepOutput(i),i=1,iout), extraHydroInfo
+              else
+                 write(*,801) nstep, simTime, max(dtNew,dr_dtSTS), coords(1), coords(2), &
+                      coords(3), (tstepOutput(i),i=1,iout), extraHydroInfo
+              endif
+
+           else
+              if (.not. dr_useSTS) then
+                 write(*,802) nstep, simTime, dr_redshift, dtNew, coords(1), &
+                      coords(2), coords(3), (tstepOutput(i),i=1,iout), extraHydroInfo
+              else
+                 write(*,802) nstep, simTime, dr_redshift, max(dtNew,dr_dtSTS), coords(1), &
+                      coords(2), coords(3), (tstepOutput(i),i=1,iout), extraHydroInfo
+              endif
+           endif
+           
+        else
+        
+           if (nstep .eq. nbegin) then
+           
+              if (.not. dr_useRedshift) then
+                 write (*,903) 'n', 't', 'dt', (limiterNameOutput(i),i=1,iout),cflNumber
+              else
+                 write (*,904) 'n', 't', 'z', 'dt', (limiterNameOutput(i),i=1,iout),cflNumber
+              endif
+           
+           endif
+        
+           if (.not. dr_useRedshift) then
+              if (.not. dr_useSTS) then
+                 write(*,901) nstep, simTime, dtNew, (tstepOutput(i),i=1,iout), extraHydroInfo
+              else
+                 write(*,901) nstep, simTime, max(dtNew,dr_dtSTS), (tstepOutput(i),i=1,iout), extraHydroInfo
+              endif
+           else
+              if (.not. dr_useSTS) then
+                 write(*,902) nstep, simTime, dr_redshift, dtNew, &
+                      (tstepOutput(i),i=1,iout), extraHydroInfo
+              else
+                 write(*,902) nstep, simTime, dr_redshift, max(dtNew,dr_dtSTS), &
+                      (tstepOutput(i),i=1,iout), extraHydroInfo
+              endif
+
            endif
 
         endif
 
      endif
 
-  end if
-  endif ! end of printToScrn
+
+  endif
+
+endif ! end of printToScrn
       
 801 format (1X, I7, 1x, ES10.4, 1x, ES10.4, 2x, '(', ES10.3, ', ', &
-            ES 10.3, ', ', ES10.3, ')', ' | ', 11(1X, :, ES9.3))
+            ES 10.3, ', ', ES10.3, ')', ' | ', 11(1X, :, ES9.3),1x,ES10.3)
 802 format (1X, I7, 1x, ES10.4, 1x, F8.3, 1x, ES10.4, 2x, '(', ES9.3, ', ', &
-            ES 9.3, ', ', ES9.3, ')', ' | ', 11(1X, :, ES9.3))
+            ES 9.3, ', ', ES9.3, ')', ' | ', 11(1X, :, ES9.3),1x,ES10.3)
 803 format (1X, A7, 1x, A10, 1x, A10, 2x, '(', A10, ', ', A10, ', ', A10, ')', &
-            ' | ', 11(1X, :, A9))
+            ' | ', 11(1X, :, A9),1x,A10)
 804 format (1X, A7, 1x, A10, 1x, A7, 1x, A10, 2x, '(', A9, ', ', A9, ', ', &
-         A9, ')', ' | ', 11(1X, :, A9))
+         A9, ')', ' | ', 11(1X, :, A9),1x,A10)
 
-901 format (1X, I7, 1X, ES10.4, 1x, ES10.4, ' | ', 11(1X, :, ES11.5))
-902 format (1X, I7, 1X, ES10.4, 1x, F8.3, 1x, ES10.4, ' | ', 11(1X, :, ES11.5))
-903 format (1X, A7, 1x, A10   , 1x, A10,    ' | ', 11(1X, :, A11))
-904 format (1X, A7, 1x, A10   , 1x, A7, 1x, A10,    ' | ', 11(1X, :, A11))
+901 format (1X, I7, 1X, ES10.4, 1x, ES10.4, ' | ', 11(1X, :, ES11.5),1x,ES10.4)
+902 format (1X, I7, 1X, ES10.4, 1x, F8.3, 1x, ES10.4, ' | ', 11(1X, :, ES11.5),1x,ES10.4)
+903 format (1X, A7, 1x, A10   , 1x, A10,    ' | ', 11(1X, :, A11),1x,A10)
+904 format (1X, A7, 1x, A10   , 1x, A7, 1x, A10,    ' | ', 11(1X, :, A11),1x,A10)
 
   return
 end subroutine Driver_computeDt

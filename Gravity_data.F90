@@ -28,6 +28,7 @@ module Gravity_data
 
   logical, save :: useGravity, updateGravity
   logical, save :: grav_temporal_extrp !extrapolate or otherwise rescale
+  logical, save :: grav_unjunkPden
 
   real,    save :: grav_poisfact
   integer, save :: grv_mode

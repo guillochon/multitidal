@@ -57,7 +57,7 @@ subroutine Simulation_init()
                     xsurf,ypsurf
     double precision :: cfl, rho0, a, period, start_dist, ecc_anom, newton
     integer mode,iend,pno
-    character(len=100) :: logstr
+    character(len=200) :: logstr
     double precision, dimension(6) :: obvec, ptvec
 
     call PhysicalConstants_get("Newton", newton)

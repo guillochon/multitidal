@@ -48,7 +48,8 @@ subroutine Grid_markRefineDerefine()
   use tree, ONLY: lrefine_max 
   use Grid_interface, ONLY: Grid_markRefineSpecialized
   use Driver_data, ONLY: dr_simTime
-  use Simulation_data, ONLY: sim_objRadius, sim_xMax, sim_yMax, sim_zMax, sim_rhoAmbient
+  use Simulation_data, ONLY: sim_objRadius, sim_xMax, sim_yMax, sim_zMax, &
+      sim_fluffRefineCutoff, sim_fluffDampCutoff
   ! End JFG
   implicit none
 
@@ -138,9 +139,10 @@ subroutine Grid_markRefineDerefine()
   if (dr_simTime .eq. 0.d0) then
       specs = (/ 0.5d0 * sim_xMax, 0.5d0 * sim_yMax, 0.5d0 * sim_zMax, sim_objRadius /)
       call Grid_markRefineSpecialized(INRADIUS, 4, specs, lrefine_max)
+  else
+      specs = (/ real(DENS_VAR), sim_fluffRefineCutoff*sim_fluffDampCutoff, -1., 0. /)
+      call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
   endif
-  specs = (/ real(DENS_VAR), 10.d0*sim_rhoAmbient, -1., 0. /)
-  call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), 1)
   
   return
 end subroutine Grid_markRefineDerefine

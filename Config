@@ -55,6 +55,7 @@ PARAMETER sim_accCoeff              REAL    0.95E0
 PARAMETER sim_fluidGamma            REAL    1.666666667E0
 PARAMETER sim_fluffDampCoeff        REAL    0.95E0
 PARAMETER sim_fluffDampCutoff       REAL    0.E0
+PARAMETER sim_fluffRefineCutoff     REAL    1.E1
 PARAMETER sim_maxBlocks             INTEGER 40000
 PARAMETER sim_useInitialPeakDensity BOOLEAN TRUE
 PARAMETER sim_ptMassRefine          INTEGER 1

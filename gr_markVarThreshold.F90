@@ -51,7 +51,7 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
 ! Local data
 
   integer :: b, llref
-  logical :: Grid_mark
+  logical :: Grid_mark, Grid_mark2
   logical :: unmark = .false.
 
 !-------------------------------------------------------------------------------
@@ -69,14 +69,18 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
       if (unmark) then
         if (icmp < 0) then
           Grid_mark = (maxval(unk(var,:,:,:,b)) < var_th)
+          Grid_mark2 = (maxval(unk(var,:,:,:,b)) < 8.d0*var_th)
         else
           Grid_mark = (minval(unk(var,:,:,:,b)) > var_th)
+          Grid_mark2 = (minval(unk(var,:,:,:,b)) > var_th/8.d0)
         endif
       else
         if (icmp < 0) then
           Grid_mark = (minval(unk(var,:,:,:,b)) < var_th)
+          Grid_mark2 = (minval(unk(var,:,:,:,b)) < 8.d0*var_th)
         else
           Grid_mark = (maxval(unk(var,:,:,:,b)) > var_th)
+          Grid_mark2 = (maxval(unk(var,:,:,:,b)) > var_th/8.d0)
         endif
       endif
 
@@ -101,6 +105,20 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
             derefine(b) = .false.
           else if (llref <= 0) then
             refine(b) = .true.
+          endif
+        endif
+
+      endif
+
+      if (Grid_mark2) then
+
+        if (unmark) then
+          if (lrefine(b) >= llref ) then
+            refine(b)   = .false.
+          endif
+        else
+          if (lrefine(b) <= llref ) then
+            derefine(b) = .false.
           endif
         endif
 

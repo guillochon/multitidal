@@ -236,15 +236,18 @@ subroutine Simulation_init()
     if (gr_globalMe .eq. MASTER_PE) then
         call calc_orbit(0.d0, sim_objMass, sim_ptMass, obvec, ptvec)
         ptvec = ptvec - obvec
-        pno = pt_sinkCreateParticle(0.5d0*sim_xmax + ptvec(1), 0.5d0*sim_ymax + ptvec(2), &
-            0.5d0*sim_zmax + ptvec(3), 0., 1, gr_globalMe)
+        pno = pt_sinkCreateParticle(sim_xCenter + ptvec(1), sim_yCenter + ptvec(2), &
+            sim_zCenter + ptvec(3), 0., 1, gr_globalMe)
         particles_local(ipm,pno) = sim_ptMass
         particles_local(ipvx,pno) = ptvec(4)
         particles_local(ipvy,pno) = ptvec(5)
         particles_local(ipvz,pno) = ptvec(6)
-        pno = pt_sinkCreateParticle(0.5d0*sim_xmax, 0.5d0*sim_ymax, 0.5d0*sim_zmax, 0., 1, gr_globalMe)
+        pno = pt_sinkCreateParticle(sim_xCenter, sim_yCenter, sim_zCenter, 0., 1, gr_globalMe)
         particles_local(ipm,pno) = 2.d33
+        bhvec = ptvec
     endif
+
+    call MPI_BCAST(bhvec, 6, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
 
     if (gr_globalMe .eq. MASTER_PE) then
         write(logstr, fmt='(A30, 2ES15.8)') 'Start distance:', start_dist

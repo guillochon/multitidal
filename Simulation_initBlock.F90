@@ -46,10 +46,11 @@ subroutine Simulation_initBlock (blockId, myPE)
   
   integer  ::  i, j, k, jLo, jHi
   integer  ::  ii, jj, kk, put
-  real     ::  distInv, xDist, yDist, zDist
+  real     ::  distInv, xDist, yDist, zDist, &
+               bhxDist, bhyDist, bhzDist, bhDist
   real     ::  xx, dxx, yy, dyy, zz, dzz, frac
-  real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb
-  real     ::  dist, gam
+  real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb, newton
+  real     ::  dist, gam, rho0, T0, rsc
   integer  ::  istat
 
   real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
@@ -60,7 +61,7 @@ subroutine Simulation_initBlock (blockId, myPE)
   real, dimension(:,:,:,:),pointer :: solnData
 #endif
 
-  logical :: gcell = .true.
+  logical :: gcell = .true., in_wind
 
 #ifdef LOADPROFILE
   real, dimension(sim_tableCols) :: sumVars
@@ -71,9 +72,14 @@ subroutine Simulation_initBlock (blockId, myPE)
 
   call PhysicalConstants_get("proton mass", mp)
   call PhysicalConstants_get("Boltzmann", kb)
+  call PhysicalConstants_get("Newton", newton)
   
   call Multispecies_getAvg(GAMMA, gam)
 
+  ! Anninos 2012
+  rsc = 1.2d16
+  rho0 = 1.3d-21*1.d-1
+  T0 = 0.4d0*obj_mu*newton*sim_ptMass*mp/kb/rsc
 
   !do i = 1, np
   !   print *, obj_radius(i), obj_rhop(i), eint(i) 
@@ -113,6 +119,8 @@ subroutine Simulation_initBlock (blockId, myPE)
        dzz = 0.0
      endif
      zz = zCoord(k)
+
+     bhzDist = zCoord(k) - (sim_zCenter + bhvec(3))
      
      do j = blkLimitsGC(LOW, JAXIS), blkLimitsGC(HIGH, JAXIS)
         ! Find a real difference between y's if problem is >= 2D
@@ -128,6 +136,7 @@ subroutine Simulation_initBlock (blockId, myPE)
         endif
         yy = yCoord(j)
         
+        bhyDist = yCoord(j) - (sim_yCenter + bhvec(2))
 
         do i = blkLimitsGC(LOW,IAXIS), blkLimitsGC(HIGH, IAXIS)
            xx = xCoord(i)
@@ -150,6 +159,12 @@ subroutine Simulation_initBlock (blockId, myPE)
            !       Have the final values for the zone be equal to the average of
            !       the subzone values.
            ! 
+
+           in_wind = .false.
+
+           bhxDist = xCoord(i) - (sim_xCenter + bhvec(1))
+
+           bhDist = dsqrt(bhxDist**2 + bhyDist**2 + bhzDist**2)
 
            do kk = 1, sim_nSubZones
               zz    = zCoord(k) + dzz*((2*kk - 1)*sim_inSubInv - 0.5)
@@ -187,6 +202,7 @@ subroutine Simulation_initBlock (blockId, myPE)
 #else
                     call sim_find (obj_radius, obj_ipos, dist, jLo)
                     if (jLo .le. obj_ipos) then
+                        in_wind = .true.
                         if (jLo .eq. 0) then
                            jLo = 1
                            jHi = 1
@@ -252,16 +268,30 @@ subroutine Simulation_initBlock (blockId, myPE)
               xn(H1_SPEC) = 1.0
            endif
 #else
-           rho = max (sumVars(1)*sim_inszd, sim_rhoAmbient)
-           p   = max (sumVars(2)*sim_inszd, sim_pAmbient)
            vx  = 0.0d0
            vy  = 0.0d0
            vz  = 0.0d0
+
+           if (in_wind) then
+               rho = max (sumVars(1)*sim_inszd, sim_rhoAmbient)
+               p   = max (sumVars(2)*sim_inszd, sim_pAmbient)
+               t   = p/(rho/mp/obj_mu*kb)
+           else
+               rho = max (rho0*(bhDist/rsc)**(-1.5d0), sim_rhoAmbient)
+               t   = max (T0*(bhDist/rsc)**(-1.d0), sim_tAmbient)
+               ! From Anninos 2012
+               !rho = max (1.3d-21*1.d-1*(bhDist/1.2d16)**(-1.125d0), sim_rhoAmbient)
+               !t   = max (1.d8*(bhDist/1.2d16)**(-0.75d0), sim_tAmbient)
+               p   = t*rho/mp/obj_mu*kb
+               vx = bhvec(4)
+               vy = bhvec(5)
+               vz = bhvec(6)
+           endif
+
            ek  = 0.5*(vx*vx + vy*vy + vz*vz)
            !
            !  assume gamma-law equation of state
            !
-           t   = p/(rho/mp/obj_mu*kb)
            e   = p/(gam-1.)
            e   = e/rho + ek
            e   = max (e, sim_smallP)

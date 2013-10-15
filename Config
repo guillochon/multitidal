@@ -10,7 +10,7 @@ REQUIRES physics/Hydro
 REQUIRES Simulation/SimulationComposition
 REQUIRES Multispecies/MultispeciesMain
 
-REQUIRES Particles/ParticlesMain/active/Sink
+REQUIRES Particles/ParticlesMain/active/SinkJFG
 
 USESETUPVARS loadProfile
 
@@ -43,6 +43,7 @@ PARAMETER sim_periodFac             REAL    0.E0
 PARAMETER sim_orbEcc                REAL    0.E0
 PARAMETER sim_startBeta             REAL    0.1E0
 PARAMETER sim_ptMass                REAL    2.E39
+PARAMETER sim_starPtMass            REAL    2.E33
 PARAMETER sim_rhoAmbient            REAL    1.E-15
 PARAMETER sim_pAmbient              REAL    1.E-4
 PARAMETER sim_tAmbient              REAL    1.E0
@@ -69,6 +70,8 @@ PARAMETER sim_powerLawExponent      REAL    -2.E0
 PARAMETER sim_powerLawExtent        REAL    1.E14
 PARAMETER sim_powerLawMass          REAL    1.E27
 PARAMETER sim_powerLawTemperature   REAL    1.E2
+PARAMETER sim_xRayFraction          REAL    1.E0
+PARAMETER sim_fixedParticle         INTEGER 0
 
 PARAMETER sim_kind            STRING  "polytrope"
 

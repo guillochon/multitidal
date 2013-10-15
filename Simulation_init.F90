@@ -29,7 +29,7 @@
 subroutine Simulation_init()
 
     use Simulation_data 
-    use Particles_sinkData, ONLY : particles_local, ipm, ipvx, ipvy, ipvz
+    use Particles_sinkData, ONLY : particles_local, ipm, ipvx, ipvy, ipvz, iptag
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
     use Multispecies_interface, ONLY : Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
     use Grid_data, ONLY : gr_globalMe
@@ -94,6 +94,8 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_rotFac", sim_rotFac)
     call RuntimeParameters_get("sim_rotAngle", sim_rotAngle)
     call RuntimeParameters_get("sim_tSpinup", sim_tSpinup)
+    call RuntimeParameters_get("sim_fixedParticle", sim_fixedParticle)
+    call RuntimeParameters_get("sim_xRayFraction", sim_xRayFraction)
 
     call RuntimeParameters_get("sim_powerLawScale", sim_powerLawScale)
     call RuntimeParameters_get("sim_powerLawExponent", sim_powerLawExponent)
@@ -102,6 +104,7 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_powerLawTemperature", sim_powerLawTemperature)
 
     call RuntimeParameters_get("sim_ptMass", sim_ptMass)
+    call RuntimeParameters_get("sim_starPtMass", sim_starPtMass)
 
     if (sim_powerLawExponent .le. -3.d0) then
         call Driver_abortFlash('Error: sim_powerLawExponent must be greater than -3.0')
@@ -233,20 +236,37 @@ subroutine Simulation_init()
         sim_periTime = abs(ecc_anom - sim_orbEcc*dsin(ecc_anom))*period/2.d0/PI + sim_tRelax
     endif
 
+    sim_fixedPartTag = 0
+
     if (gr_globalMe .eq. MASTER_PE) then
         call calc_orbit(0.d0, sim_objMass, sim_ptMass, obvec, ptvec)
         ptvec = ptvec - obvec
         pno = pt_sinkCreateParticle(sim_xCenter + ptvec(1), sim_yCenter + ptvec(2), &
             sim_zCenter + ptvec(3), 0., 1, gr_globalMe)
         particles_local(ipm,pno) = sim_ptMass
-        particles_local(ipvx,pno) = ptvec(4)
-        particles_local(ipvy,pno) = ptvec(5)
-        particles_local(ipvz,pno) = ptvec(6)
+        if (sim_fixedParticle .eq. 1) then
+            sim_fixedPartTag = particles_local(iptag,pno)
+        endif
+        if (sim_fixedParticle .eq. 2) then
+            particles_local(ipvx,pno) = ptvec(4)
+            particles_local(ipvy,pno) = ptvec(5)
+            particles_local(ipvz,pno) = ptvec(6)
+        endif
         pno = pt_sinkCreateParticle(sim_xCenter, sim_yCenter, sim_zCenter, 0., 1, gr_globalMe)
-        particles_local(ipm,pno) = 2.d33
+        particles_local(ipm,pno) = sim_starPtMass
+        if (sim_fixedParticle .eq. 0 .or. sim_fixedParticle .eq. 1) then
+            particles_local(ipvx,pno) = -ptvec(4)
+            particles_local(ipvy,pno) = -ptvec(5)
+            particles_local(ipvz,pno) = -ptvec(6)
+        endif
+        if (sim_fixedParticle .eq. 2) then
+            sim_fixedPartTag = particles_local(iptag,pno)
+        endif
+        print *, "Fixed particle's tag: ", sim_fixedPartTag
         bhvec = ptvec
     endif
 
+    call MPI_BCAST(sim_fixedPartTag, 1, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
     call MPI_BCAST(bhvec, 6, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
 
     if (gr_globalMe .eq. MASTER_PE) then

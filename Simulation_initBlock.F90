@@ -78,7 +78,7 @@ subroutine Simulation_initBlock (blockId, myPE)
 
   ! Anninos 2012
   rsc = 1.2d16
-  rho0 = 1.3d-21*1.d-1
+  rho0 = 1.3d-21*sim_xRayFraction
   T0 = 0.4d0*obj_mu*newton*sim_ptMass*mp/kb/rsc
 
   !do i = 1, np
@@ -276,6 +276,11 @@ subroutine Simulation_initBlock (blockId, myPE)
                rho = max (sumVars(1)*sim_inszd, sim_rhoAmbient)
                p   = max (sumVars(2)*sim_inszd, sim_pAmbient)
                t   = p/(rho/mp/obj_mu*kb)
+               if (sim_fixedParticle .eq. 0 .or. sim_fixedParticle .eq. 1) then
+                   vx = -bhvec(4)
+                   vy = -bhvec(5)
+                   vz = -bhvec(6)
+               endif
            else
                rho = max (rho0*(bhDist/rsc)**(-1.5d0), sim_rhoAmbient)
                t   = max (T0*(bhDist/rsc)**(-1.d0), sim_tAmbient)
@@ -283,9 +288,11 @@ subroutine Simulation_initBlock (blockId, myPE)
                !rho = max (1.3d-21*1.d-1*(bhDist/1.2d16)**(-1.125d0), sim_rhoAmbient)
                !t   = max (1.d8*(bhDist/1.2d16)**(-0.75d0), sim_tAmbient)
                p   = t*rho/mp/obj_mu*kb
-               vx = bhvec(4)
-               vy = bhvec(5)
-               vz = bhvec(6)
+               if (sim_fixedParticle .eq. 2) then
+                   vx = bhvec(4)
+                   vy = bhvec(5)
+                   vz = bhvec(6)
+               endif
            endif
 
            ek  = 0.5*(vx*vx + vy*vy + vz*vz)

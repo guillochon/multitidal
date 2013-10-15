@@ -33,7 +33,7 @@ module Simulation_data
                             sim_fluidGamma, &
                             sim_smallX, sim_smallRho, sim_smallP, &
                             sim_xMin, sim_xMax, sim_yMin, sim_yMax, sim_zMin, sim_zMax
-  integer, save          :: sim_nSubZones
+  integer, save          :: sim_nSubZones, sim_fixedParticle, sim_fixedPartTag
   integer, save          :: sim_maxBlocks, sim_ptMassRefine, sim_totForceSub
   double precision, save :: sim_tInitial, sim_tRelax, sim_relaxRate, sim_objRadius, &
                             sim_softenRadius, sim_accRadius, sim_objCentDens, sim_objMass, &
@@ -43,7 +43,7 @@ module Simulation_data
                             sim_totForceInv, sim_rotFac, sim_rotAngle, sim_tSpinup, &
                             sim_powerLawScale, sim_powerLawExponent, sim_powerLawExtent, &
                             sim_powerLawMass, sim_powerLawTemperature, sim_periDist, &
-                            sim_fluffRefineCutoff
+                            sim_fluffRefineCutoff, sim_xRayFraction, sim_starPtMass
   double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
 
   double precision, dimension(:,:), allocatable, save    :: sim_table

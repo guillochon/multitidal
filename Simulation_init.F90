@@ -96,6 +96,7 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_tSpinup", sim_tSpinup)
     call RuntimeParameters_get("sim_fixedParticle", sim_fixedParticle)
     call RuntimeParameters_get("sim_xRayFraction", sim_xRayFraction)
+    call RuntimeParameters_get("sim_smallT", sim_smallT)
 
     call RuntimeParameters_get("sim_powerLawScale", sim_powerLawScale)
     call RuntimeParameters_get("sim_powerLawExponent", sim_powerLawExponent)

@@ -71,6 +71,7 @@ PARAMETER sim_powerLawExtent        REAL    1.E14
 PARAMETER sim_powerLawMass          REAL    1.E27
 PARAMETER sim_powerLawTemperature   REAL    1.E2
 PARAMETER sim_xRayFraction          REAL    1.E0
+PARAMETER sim_smallT                REAL    1.E4
 PARAMETER sim_fixedParticle         INTEGER 0
 
 PARAMETER sim_kind            STRING  "polytrope"
@@ -100,3 +101,5 @@ PARAMETER plot_var_22 STRING "none"
 PARAMETER plot_var_23 STRING "none"
 
 PPDEFINE HIDE_SANITIZE
+
+VARIABLE ecoo

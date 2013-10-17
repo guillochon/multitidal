@@ -467,7 +467,6 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
       fixed_vec(4) = particles_global(VELX_PART_PROP,fixedi) - fixed_vec(4)
       fixed_vec(5) = particles_global(VELY_PART_PROP,fixedi) - fixed_vec(5)
       fixed_vec(6) = particles_global(VELZ_PART_PROP,fixedi) - fixed_vec(6)
-      print *, 'fixed_vec', fixed_vec
       do i = 1, localnp
           particles_local(POSX_PART_PROP,i) = particles_local(POSX_PART_PROP,i) - fixed_vec(1)
           particles_local(POSY_PART_PROP,i) = particles_local(POSY_PART_PROP,i) - fixed_vec(2)

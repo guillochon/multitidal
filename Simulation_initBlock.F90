@@ -31,6 +31,7 @@ subroutine Simulation_initBlock (blockId, myPE)
     Grid_getCellCoords, Grid_putPointData
   use PhysicalConstants_interface, ONLY: PhysicalConstants_get
   use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
+  use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   
   implicit none
 #include "constants.h"
@@ -48,9 +49,9 @@ subroutine Simulation_initBlock (blockId, myPE)
   integer  ::  ii, jj, kk, put
   real     ::  distInv, xDist, yDist, zDist, &
                bhxDist, bhyDist, bhzDist, bhDist
-  real     ::  xx, dxx, yy, dyy, zz, dzz, frac
+  real     ::  xx, dxx, yy, dyy, zz, dzz, frac, softening_radius
   real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb, newton
-  real     ::  dist, gam, rho0, T0, rsc
+  real     ::  dist, gam, rho0, T0, rsc, rho0in, T0in
   integer  ::  istat
 
   real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
@@ -76,10 +77,14 @@ subroutine Simulation_initBlock (blockId, myPE)
   
   call Multispecies_getAvg(GAMMA, gam)
 
+  call RuntimeParameters_get("sink_softening_radius", softening_radius)
+
   ! Anninos 2012
   rsc = 1.2d16
   rho0 = 1.3d-21*sim_xRayFraction
   T0 = 0.4d0*obj_mu*newton*sim_ptMass*mp/kb/rsc
+  rho0in = rho0*(softening_radius/rsc)**(-1.5d0)
+  T0in = 0.5d0*T0*(softening_radius/rsc)**(-1.d0)
 
   !do i = 1, np
   !   print *, obj_radius(i), obj_rhop(i), eint(i) 
@@ -282,8 +287,13 @@ subroutine Simulation_initBlock (blockId, myPE)
                    vz = -bhvec(6)
                endif
            else
-               rho = max (rho0*(bhDist/rsc)**(-1.5d0), sim_rhoAmbient)
-               t   = max (T0*(bhDist/rsc)**(-1.d0), sim_tAmbient)
+               if (bhDist .le. softening_radius) then
+                   rho = max (rho0in*(bhDist/softening_radius)**3.d0, sim_rhoAmbient)
+                   t   = max (T0in*(bhDist/softening_radius)**2.d0, sim_tAmbient)
+               else
+                   rho = max (rho0*(bhDist/rsc)**(-1.5d0), sim_rhoAmbient)
+                   t   = max (T0*(bhDist/rsc)**(-1.d0), sim_tAmbient)
+               endif
                ! From Anninos 2012
                !rho = max (1.3d-21*1.d-1*(bhDist/1.2d16)**(-1.125d0), sim_rhoAmbient)
                !t   = max (1.d8*(bhDist/1.2d16)**(-0.75d0), sim_tAmbient)

@@ -43,7 +43,8 @@ module Simulation_data
                             sim_totForceInv, sim_rotFac, sim_rotAngle, sim_tSpinup, &
                             sim_powerLawScale, sim_powerLawExponent, sim_powerLawExtent, &
                             sim_powerLawMass, sim_powerLawTemperature, sim_periDist, &
-                            sim_fluffRefineCutoff, sim_xRayFraction, sim_starPtMass
+                            sim_fluffRefineCutoff, sim_xRayFraction, sim_starPtMass, &
+                            sim_smallT
   double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
 
   double precision, dimension(:,:), allocatable, save    :: sim_table

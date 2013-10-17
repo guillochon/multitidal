@@ -38,9 +38,15 @@
 
 subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
 
-  use tree, ONLY : refine, derefine, lrefine, lnblocks, nodetype
+  use paramesh_dimensions
+  use tree
   use physicaldata, ONLY : unk
+  use Grid_data, ONLY : gr_meshMe, gr_meshComm
+
   implicit none
+
+#include "Flash_mpi.h"
+#include "Flash.h"
 #include "constants.h"
 ! Arguments
 
@@ -50,9 +56,13 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
 
 ! Local data
 
-  integer :: b, llref
-  logical :: Grid_mark, Grid_mark2
+  integer :: b, llref, nsend, nrecv, ierr, j
+  logical :: Grid_mark
   logical :: unmark = .false.
+  real val(maxblocks),val_par(maxblocks)
+  integer reqr(maxblocks),reqs(maxblocks*nchild)
+  integer :: statr(MPI_STATUS_SIZE,maxblocks)
+  integer :: stats(MPI_STATUS_SIZE,maxblocks*nchild)
 
 !-------------------------------------------------------------------------------
 
@@ -62,32 +72,85 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
   llref = abs(lref)
 
   do b = 1, lnblocks
-    if (nodetype(b) == LEAF) then
+    if (unmark) then
+      if (icmp < 0) then
+        val(b) = maxval(unk(var,:,:,:,b))
+      else
+        val(b) = minval(unk(var,:,:,:,b))
+      endif
+    else
+      if (icmp < 0) then
+        val(b) = minval(unk(var,:,:,:,b))
+      else
+        val(b) = maxval(unk(var,:,:,:,b))
+      endif
+    endif
+  enddo
 
-! Compare the variable against the threshold.
+  val_par(1:lnblocks) = 0.
+  nrecv = 0
+  do b = 1,lnblocks
+     if(parent(1,b).gt.-1) then
+        if (parent(2,b).ne.gr_meshMe) then
+           nrecv = nrecv + 1
+           call MPI_IRecv(val_par(b),1, &
+                MPI_DOUBLE_PRECISION, &
+                parent(2,b), &
+                b, &
+                gr_meshComm, &
+                reqr(nrecv), &
+                ierr)
+        else
+           val_par(b) = val(parent(1,b))
+        end if
+     end if
+  end do
+ 
+  ! parents send val to children
 
+  nsend = 0
+  do b = 1,lnblocks
+     do j = 1,nchild
+        if(child(1,j,b).gt.-1) then
+           if (child(2,j,b).ne.gr_meshMe) then
+              nsend = nsend + 1
+              call MPI_ISend(val(b), &
+                   1, &
+                   MPI_DOUBLE_PRECISION, &
+                   child(2,j,b), &  ! PE TO SEND TO
+                   child(1,j,b), &  ! THIS IS THE TAG
+                   gr_meshComm, &
+                   reqs(nsend), &
+                   ierr)
+           end if
+        end if
+     end do
+  end do
+
+  if (nsend.gt.0) then
+     call MPI_Waitall (nsend, reqs, stats, ierr)
+  end if
+  if (nrecv.gt.0) then
+     call MPI_Waitall (nrecv, reqr, statr, ierr)
+  end if
+
+  do b = 1,lnblocks
+    if (nodetype(b).eq.1) then
       if (unmark) then
         if (icmp < 0) then
-          Grid_mark = (maxval(unk(var,:,:,:,b)) < var_th)
-          Grid_mark2 = (maxval(unk(var,:,:,:,b)) < 8.d0*var_th)
+          Grid_mark = (val(b) <= var_th .and. val_par(b) <= var_th)
         else
-          Grid_mark = (minval(unk(var,:,:,:,b)) > var_th)
-          Grid_mark2 = (minval(unk(var,:,:,:,b)) > var_th/8.d0)
+          Grid_mark = (val(b) >= var_th .and. val_par(b) >= var_th)
         endif
       else
         if (icmp < 0) then
-          Grid_mark = (minval(unk(var,:,:,:,b)) < var_th)
-          Grid_mark2 = (minval(unk(var,:,:,:,b)) < 8.d0*var_th)
+          Grid_mark = (val(b) >= var_th .and. val_par(b) >= var_th)
         else
-          Grid_mark = (maxval(unk(var,:,:,:,b)) > var_th)
-          Grid_mark2 = (maxval(unk(var,:,:,:,b)) > var_th/8.d0)
+          Grid_mark = (val(b) <= var_th .and. val_par(b) <= var_th)
         endif
       endif
 
-! If the test passed, Grid_mark the block for refinement.
-
       if (Grid_mark) then
-
         if (unmark) then
           if (lrefine(b) > llref ) then
             refine(b)   = .false.
@@ -107,23 +170,7 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
             refine(b) = .true.
           endif
         endif
-
       endif
-
-      if (Grid_mark2) then
-
-        if (unmark) then
-          if (lrefine(b) >= llref ) then
-            refine(b)   = .false.
-          endif
-        else
-          if (lrefine(b) <= llref ) then
-            derefine(b) = .false.
-          endif
-        endif
-
-      endif
-
     endif
   enddo
 

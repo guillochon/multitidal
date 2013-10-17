@@ -9,6 +9,7 @@ REQUIRES Driver
 REQUIRES physics/Hydro
 REQUIRES Simulation/SimulationComposition
 REQUIRES Multispecies/MultispeciesMain
+REQUIRES physics/sourceTerms/Cool/CoolMain
 
 REQUIRES Particles/ParticlesMain/active/SinkJFG
 

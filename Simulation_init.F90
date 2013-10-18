@@ -29,16 +29,17 @@
 subroutine Simulation_init()
 
     use Simulation_data 
-    use Particles_sinkData, ONLY : particles_local, ipm, ipvx, ipvy, ipvz, iptag
+    use Particles_sinkData, ONLY : particles_local, ipm, ipvx, ipvy, ipvz, iptag, localnp
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
     use Multispecies_interface, ONLY : Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
-    use Grid_data, ONLY : gr_globalMe
+    use Grid_data, ONLY : gr_globalMe, gr_globalNumProcs, gr_globalComm
     use Logfile_interface, ONLY : Logfile_stampMessage
     use tree, ONLY : lrefine_max
     use Eos_data, ONLY : eos_gasConstant
     use pt_sinkInterface, ONLY : pt_sinkCreateParticle
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
-    use Driver_data, ONLY : dr_simTime
+    use Driver_data, ONLY : dr_simTime, dr_restart
+    use IO_data, ONLY : io_scalar
 
     implicit none
 
@@ -48,8 +49,9 @@ subroutine Simulation_init()
 #include "Multispecies.h"
 #include "Eos.h"
 #include "Starprof.h"
+#include "Particles.h"
 
-    integer             :: ierr, i
+    integer             :: ierr, i, nsend, reqr
     double precision  polyk, &
                     x(np),y(np),yp(np), &
                     mass(np),ebind(np), &
@@ -59,6 +61,9 @@ subroutine Simulation_init()
     integer mode,iend,pno
     character(len=200) :: logstr
     double precision, dimension(6) :: obvec, ptvec
+    integer, dimension(gr_globalNumProcs-1) :: reqs
+    integer :: stats(MPI_STATUS_SIZE,gr_globalNumProcs-1)
+    integer :: statr(MPI_STATUS_SIZE)
 
     call PhysicalConstants_get("Newton", newton)
 
@@ -242,33 +247,70 @@ subroutine Simulation_init()
     if (gr_globalMe .eq. MASTER_PE) then
         call calc_orbit(0.d0, sim_objMass, sim_ptMass, obvec, ptvec)
         ptvec = ptvec - obvec
-        pno = pt_sinkCreateParticle(sim_xCenter + ptvec(1), sim_yCenter + ptvec(2), &
-            sim_zCenter + ptvec(3), 0., 1, gr_globalMe)
-        particles_local(ipm,pno) = sim_ptMass
-        if (sim_fixedParticle .eq. 1) then
-            sim_fixedPartTag = particles_local(iptag,pno)
-        endif
-        if (sim_fixedParticle .eq. 2) then
-            particles_local(ipvx,pno) = ptvec(4)
-            particles_local(ipvy,pno) = ptvec(5)
-            particles_local(ipvz,pno) = ptvec(6)
-        endif
-        pno = pt_sinkCreateParticle(sim_xCenter, sim_yCenter, sim_zCenter, 0., 1, gr_globalMe)
-        particles_local(ipm,pno) = sim_starPtMass
-        if (sim_fixedParticle .eq. 0 .or. sim_fixedParticle .eq. 1) then
-            particles_local(ipvx,pno) = -ptvec(4)
-            particles_local(ipvy,pno) = -ptvec(5)
-            particles_local(ipvz,pno) = -ptvec(6)
-        endif
-        if (sim_fixedParticle .eq. 2) then
-            sim_fixedPartTag = particles_local(iptag,pno)
-        endif
-        print *, "Fixed particle's tag: ", sim_fixedPartTag
-        bhvec = ptvec
     endif
 
-    call MPI_BCAST(sim_fixedPartTag, 1, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
-    call MPI_BCAST(bhvec, 6, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
+    if (dr_restart) then
+        call NameValueLL_getInt(io_scalar, "fixedparttag", sim_fixedPartTag, .true., ierr)
+        if (ierr /= NORMAL) then
+            sim_fixedPartTag = 0
+            if (gr_globalMe .eq. MASTER_PE) &
+                print *, 'Could not find fixedparttag, searching by mass instead'
+            do i=1, localnp
+                ! A bit worrisome, should be saving tags to checkpoint.
+                if (particles_local(ipm,i) .eq. sim_ptMass .and. sim_fixedParticle .eq. 1) then
+                    sim_fixedPartTag = particles_local(iptag,i)
+                endif
+                if (particles_local(ipm,i) .eq. sim_objMass .and. sim_fixedParticle .eq. 2) then
+                    sim_fixedPartTag = particles_local(iptag,i)
+                endif
+            enddo
+            if (sim_fixedPartTag .ne. 0) then
+                nsend = 0
+                do i = 1, gr_globalNumProcs
+                    if (i-1 .eq. gr_globalMe) cycle
+                    nsend = nsend + 1
+                    call MPI_ISEND(sim_fixedPartTag, 1, FLASH_INTEGER, i-1, 86, gr_globalComm, reqs(nsend), ierr)
+                    print *, 'sent to', i-1
+                enddo
+                print *, gr_globalMe, 'sent all data'
+                if (nsend .gt. 0) call MPI_WAITALL(nsend, reqs, stats, ierr)
+                print *, gr_globalMe, 'finished waiting'
+            else
+                print *, 'i am', gr_globalMe
+                call MPI_IRECV(sim_fixedPartTag, 1, FLASH_INTEGER, MPI_ANY_SOURCE, 86, gr_globalComm, reqr, ierr)
+                call MPI_WAIT(reqr, statr, ierr)
+                print *, gr_globalMe, 'received all data'
+            endif
+        endif
+    else
+        if (gr_globalMe .eq. MASTER_PE) then
+            pno = pt_sinkCreateParticle(sim_xCenter + ptvec(1), sim_yCenter + ptvec(2), &
+                sim_zCenter + ptvec(3), 0., 1, gr_globalMe)
+            particles_local(ipm,pno) = sim_ptMass
+            if (sim_fixedParticle .eq. 1) then
+                sim_fixedPartTag = particles_local(iptag,pno)
+            endif
+            if (sim_fixedParticle .eq. 2) then
+                particles_local(ipvx,pno) = ptvec(4)
+                particles_local(ipvy,pno) = ptvec(5)
+                particles_local(ipvz,pno) = ptvec(6)
+            endif
+            pno = pt_sinkCreateParticle(sim_xCenter, sim_yCenter, sim_zCenter, 0., 1, gr_globalMe)
+            particles_local(ipm,pno) = sim_starPtMass
+            if (sim_fixedParticle .eq. 0 .or. sim_fixedParticle .eq. 1) then
+                particles_local(ipvx,pno) = -ptvec(4)
+                particles_local(ipvy,pno) = -ptvec(5)
+                particles_local(ipvz,pno) = -ptvec(6)
+            endif
+            if (sim_fixedParticle .eq. 2) then
+                sim_fixedPartTag = particles_local(iptag,pno)
+            endif
+            print *, "Fixed particle's tag: ", sim_fixedPartTag
+            bhvec = ptvec
+        endif
+        call MPI_BCAST(bhvec, 6, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
+        call MPI_BCAST(sim_fixedPartTag, 1, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
+    endif
 
     if (gr_globalMe .eq. MASTER_PE) then
         write(logstr, fmt='(A30, 2ES15.8)') 'Start distance:', start_dist

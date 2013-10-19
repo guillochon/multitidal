@@ -43,7 +43,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use Simulation_data, ONLY: sim_smallX, &
         sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_accRadius, sim_accCoeff, &
         sim_fluidGamma, sim_softenRadius, sim_rotFac, sim_rotAngle, sim_tSpinup, obj_ipos, obj_radius, &
-        sim_objMass, sim_msun
+        sim_objMass, sim_msun, sim_xCenter, sim_yCenter, sim_zCenter, sim_cylinderScale, &
+        sim_cylinderDensity, sim_cylinderTemperature, obj_mu, obj_gamc, bhvec
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
     use Multitidal_interface, ONLY : Multitidal_findExtrema
@@ -54,6 +55,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use gr_mpoleData, ONLY: gr_mpoleXcenterOfMass, gr_mpoleYcenterOfMass, gr_mpoleZcenterOfMass
     use Grid_data, ONLY: gr_smalle, gr_meshMe
     use Eos_interface, ONLY: Eos_wrapped
+    use Eos_data, ONLY : eos_gasConstant
     implicit none
 
 #include "Eos.h"
@@ -71,7 +73,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     real    :: xx, yy, zz, dist, y2, z2, tot_mass, gtot_mass, peak_mass, gpeak_mass
     real    :: relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
     real    :: distxy, vpara, vspin, x, y, z, vx, vy, vz, velprojy, velprojz, rotang
-    real    :: tinitial, vol, ldenscut, denscut, extrema, newton
+    real    :: tinitial, vol, ldenscut, denscut, extrema, newton, mcs, new_dens
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
@@ -103,6 +105,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
 
     call PhysicalConstants_get("Newton", newton)
     call RuntimeParameters_get('tinitial',tinitial)
+    call Grid_getMinCellSize(mcs)
 
     rotang = PI/180.*sim_rotAngle
 
@@ -305,6 +308,38 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             !        enddo
             !    enddo
             !endif
+
+            do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
+                zz = zCoord(k) - sim_zCenter
+                do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
+                    yy = yCoord(j) - sim_yCenter
+                    do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                        xx = xCoord(i) - sim_xCenter
+                       
+                        dist = dsqrt( xx**2 + zz**2 )
+
+                        if (dist .le. 5.d0*sim_cylinderScale .and. dabs(yy) .le. 2.d0*mcs) then
+                            new_dens = sim_cylinderDensity*dexp(-(dist/sim_cylinderScale)**2)
+                            solnData(EINT_VAR,i,j,k) = &
+                                (solnData(EINT_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) + &
+                                (eos_gasConstant*sim_cylinderTemperature/((obj_gamc-1.e0)*obj_mu))*&
+                                new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                            solnData(VELX_VAR,i,j,k) = (solnData(VELX_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                - bhvec(4)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                            solnData(VELY_VAR,i,j,k) = (solnData(VELY_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                - bhvec(5)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                            solnData(VELZ_VAR,i,j,k) = (solnData(VELZ_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                - bhvec(6)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                            solnData(DENS_VAR,i,j,k) = solnData(DENS_VAR,i,j,k) + new_dens
+
+                            solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
+                                0.5d0*(solnData(VELX_VAR,i,j,k)**2.d0 + &
+                                       solnData(VELY_VAR,i,j,k)**2.d0 + &
+                                       solnData(VELZ_VAR,i,j,k)**2.d0)
+                        endif
+                    enddo
+                enddo
+            enddo
   
             call Eos_wrapped(MODE_DENS_EI, blkLimits, lb)
             call Grid_releaseBlkPtr(blockList(lb), solnData)
@@ -357,7 +392,6 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         call Ionize(blockCount, blockList, dt, dr_simTime)
         call EnergyDeposition(blockCount, blockList, dt, dr_simTime)
         call Deleptonize(blockCount, blockList, dt, dr_simTime)
-
     endif
   
     return

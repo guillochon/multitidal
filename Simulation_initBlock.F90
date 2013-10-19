@@ -30,7 +30,6 @@ subroutine Simulation_initBlock (blockId, myPE)
   use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
     Grid_getCellCoords, Grid_putPointData
   use PhysicalConstants_interface, ONLY: PhysicalConstants_get
-  use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   
   implicit none
@@ -62,7 +61,7 @@ subroutine Simulation_initBlock (blockId, myPE)
   real, dimension(:,:,:,:),pointer :: solnData
 #endif
 
-  logical :: gcell = .true., in_wind
+  logical :: gcell = .true., within_radius
 
 #ifdef LOADPROFILE
   real, dimension(sim_tableCols) :: sumVars
@@ -75,8 +74,6 @@ subroutine Simulation_initBlock (blockId, myPE)
   call PhysicalConstants_get("Boltzmann", kb)
   call PhysicalConstants_get("Newton", newton)
   
-  call Multispecies_getAvg(GAMMA, gam)
-
   call RuntimeParameters_get("sink_softening_radius", softening_radius)
 
   ! Anninos 2012
@@ -165,71 +162,74 @@ subroutine Simulation_initBlock (blockId, myPE)
            !       the subzone values.
            ! 
 
-           in_wind = .false.
+           within_radius = .false.
 
            bhxDist = xCoord(i) - (sim_xCenter + bhvec(1))
 
            bhDist = dsqrt(bhxDist**2 + bhyDist**2 + bhzDist**2)
 
-           do kk = 1, sim_nSubZones
-              zz    = zCoord(k) + dzz*((2*kk - 1)*sim_inSubInv - 0.5)
-              zDist = zz - sim_zCenter
-              
-              do jj = 1, sim_nSubZones
-                 yy    = yCoord(j) + dyy*((2*jj - 1)*sim_inSubInv - 0.5)
-                 yDist = yy - sim_yCenter
+           if (sim_kind .ne. 'cylinder') then
+              do kk = 1, sim_nSubZones
+                 zz    = zCoord(k) + dzz*((2*kk - 1)*sim_inSubInv - 0.5)
+                 zDist = zz - sim_zCenter
                  
-                 do ii = 1, sim_nSubZones
-                    xx    = xCoord(i) + dxx*((2*ii - 1)*sim_inSubInv - 0.5)
-                    xDist = xx - sim_xCenter
+                 do jj = 1, sim_nSubZones
+                    yy    = yCoord(j) + dyy*((2*jj - 1)*sim_inSubInv - 0.5)
+                    yDist = yy - sim_yCenter
                     
-                    dist    = dsqrt( xDist**2 + yDist**2 + zDist**2 )
-                    distInv = 1. / max( dist, 1.d-10 )
-                    !
-                    !  a point at `dist' is frac-way between jLo and jHi.   We do a
-                    !  linear interpolation of the quantities at jLo and jHi and sum those.
-                    ! 
+                    do ii = 1, sim_nSubZones
+                       xx    = xCoord(i) + dxx*((2*ii - 1)*sim_inSubInv - 0.5)
+                       xDist = xx - sim_xCenter
+                       
+                       dist = dsqrt( xDist**2 + yDist**2 + zDist**2 )
+
+                       distInv = 1. / max( dist, 1.d-10 )
+                       !
+                       !  a point at `dist' is frac-way between jLo and jHi.   We do a
+                       !  linear interpolation of the quantities at jLo and jHi and sum those.
+                       ! 
 #ifdef LOADPROFILE
-                    call sim_find (sim_table(:,R_PROF), sim_tableRows, dist, jLo)
-                    frac = 0.
-                    if (jLo .eq. 0) then
-                       jLo = 1
-                       jHi = 1
-                    else if (jLo .ge. sim_tableRows) then
-                       jLo = sim_tableRows
-                       jHi = sim_tableRows
-                    else
-                       jHi = jLo + 1
-                       frac = (dist - sim_table(jLo,R_PROF)) / & 
-                            (sim_table(jHi,R_PROF)-sim_table(jLo,R_PROF))
-                    endif
-                    sumVars = sumVars + sim_table(jLo,:) + frac*(sim_table(jHi,:) - sim_table(jLo,:))
+                       call sim_find (sim_table(:,R_PROF), sim_tableRows, dist, jLo)
+                       frac = 0.
+                       if (jLo .eq. 0) then
+                          jLo = 1
+                          jHi = 1
+                       else if (jLo .ge. sim_tableRows) then
+                          jLo = sim_tableRows
+                          jHi = sim_tableRows
+                       else
+                          jHi = jLo + 1
+                          frac = (dist - sim_table(jLo,R_PROF)) / & 
+                               (sim_table(jHi,R_PROF)-sim_table(jLo,R_PROF))
+                       endif
+                       sumVars = sumVars + sim_table(jLo,:) + frac*(sim_table(jHi,:) - sim_table(jLo,:))
 #else
-                    call sim_find (obj_radius, obj_ipos, dist, jLo)
-                    if (jLo .le. obj_ipos) then
-                        in_wind = .true.
-                        if (jLo .eq. 0) then
-                           jLo = 1
-                           jHi = 1
-                           frac = 0.
-                        else if (jLo .eq. obj_ipos) then
-                           jLo = obj_ipos
-                           jHi = obj_ipos
-                           frac = 0.
-                        else
-                           jHi = jLo + 1
-                           frac = (dist - obj_radius(jLo)) / & 
-                                (obj_radius(jHi)-obj_radius(jLo))
-                        endif
-                        sumVars(1) = sumVars(1) + & 
-                             obj_rhop(jLo) + frac*(obj_rhop(jHi) - obj_rhop(jLo))
-                        sumVars(2) = sumVars(2) +  & 
-                             obj_prss(jLo) + frac*(obj_prss(jHi) - obj_prss(jLo))
-                    endif
+                       call sim_find (obj_radius, obj_ipos, dist, jLo)
+                       if (jLo .le. obj_ipos) then
+                           within_radius = .true.
+                           if (jLo .eq. 0) then
+                              jLo = 1
+                              jHi = 1
+                              frac = 0.
+                           else if (jLo .eq. obj_ipos) then
+                              jLo = obj_ipos
+                              jHi = obj_ipos
+                              frac = 0.
+                           else
+                              jHi = jLo + 1
+                              frac = (dist - obj_radius(jLo)) / & 
+                                   (obj_radius(jHi)-obj_radius(jLo))
+                           endif
+                           sumVars(1) = sumVars(1) + & 
+                                obj_rhop(jLo) + frac*(obj_rhop(jHi) - obj_rhop(jLo))
+                           sumVars(2) = sumVars(2) +  & 
+                                obj_prss(jLo) + frac*(obj_prss(jHi) - obj_prss(jLo))
+                       endif
 #endif
+                    enddo
                  enddo
               enddo
-           enddo
+           endif
            
 #ifdef LOADPROFILE
            sumVars = sumVars*sim_inszd
@@ -277,7 +277,7 @@ subroutine Simulation_initBlock (blockId, myPE)
            vy  = 0.0d0
            vz  = 0.0d0
 
-           if (in_wind) then
+           if (within_radius) then
                rho = max (sumVars(1)*sim_inszd, sim_rhoAmbient)
                p   = max (sumVars(2)*sim_inszd, sim_pAmbient)
                t   = p/(rho/mp/obj_mu*kb)

@@ -109,6 +109,11 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_powerLawMass", sim_powerLawMass)
     call RuntimeParameters_get("sim_powerLawTemperature", sim_powerLawTemperature)
 
+    call RuntimeParameters_get("sim_cylinderScale", sim_cylinderScale)
+    call RuntimeParameters_get("sim_cylinderDensity", sim_cylinderDensity)
+    call RuntimeParameters_get("sim_cylinderTemperature", sim_cylinderTemperature)
+    call RuntimeParameters_get("sim_cylinderRadius", sim_cylinderRadius)
+
     call RuntimeParameters_get("sim_ptMass", sim_ptMass)
     call RuntimeParameters_get("sim_starPtMass", sim_starPtMass)
 
@@ -157,6 +162,8 @@ subroutine Simulation_init()
 
     call Multispecies_getSumInv(A, obj_mu, obj_xn)
     obj_mu = 1.e0 / obj_mu
+    call Multispecies_getSumInv(GAMMA, obj_gamc, obj_xn)
+    obj_gamc = 1.e0 / obj_gamc
 
     if (sim_kind .eq. 'polytrope') then
         if (gr_globalMe .eq. MASTER_PE) then
@@ -177,6 +184,18 @@ subroutine Simulation_init()
                                  sim_powerLawTemperature / obj_mu
             enddo 
             sim_objMass = sim_powerLawMass
+            sim_objCentDens = obj_rhop(1)
+        endif
+    elseif (sim_kind .eq. 'cylinder') then
+        if (gr_globalMe .eq. MASTER_PE) then
+            obj_ipos = np
+            do i = 1, np
+                obj_radius(i) = 5.d0*sim_cylinderScale*dble(i)/np
+                obj_rhop(i) = sim_cylinderDensity*dexp((obj_radius(i)/sim_cylinderScale)**2)
+                obj_prss(i) = eos_gasConstant*obj_rhop(i) * &
+                                 sim_cylinderTemperature / obj_mu
+            enddo 
+            sim_objMass = sim_ptMass*1.d-10
             sim_objCentDens = obj_rhop(1)
         endif
     endif

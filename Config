@@ -70,7 +70,11 @@ PARAMETER sim_powerLawScale         REAL    1.E13
 PARAMETER sim_powerLawExponent      REAL    -2.E0
 PARAMETER sim_powerLawExtent        REAL    1.E14
 PARAMETER sim_powerLawMass          REAL    1.E27
-PARAMETER sim_powerLawTemperature   REAL    1.E2
+PARAMETER sim_powerLawTemperature   REAL    1.E4
+PARAMETER sim_cylinderScale         REAL    1.E16
+PARAMETER sim_cylinderDensity       REAL    1.E-20
+PARAMETER sim_cylinderTemperature   REAL    1.E4
+PARAMETER sim_cylinderRadius        REAL    3.E16
 PARAMETER sim_xRayFraction          REAL    1.E0
 PARAMETER sim_smallT                REAL    1.E4
 PARAMETER sim_fixedParticle         INTEGER 0

@@ -44,12 +44,13 @@ module Simulation_data
                             sim_powerLawScale, sim_powerLawExponent, sim_powerLawExtent, &
                             sim_powerLawMass, sim_powerLawTemperature, sim_periDist, &
                             sim_fluffRefineCutoff, sim_xRayFraction, sim_starPtMass, &
-                            sim_smallT
+                            sim_smallT, sim_cylinderScale, sim_cylinderDensity, &
+                            sim_cylinderTemperature, sim_cylinderRadius
   double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
 
   double precision, dimension(:,:), allocatable, save    :: sim_table
   integer, parameter                                     :: np = 1000
-  double precision, save                                 :: sim_objPolyN, obj_mu
+  double precision, save                                 :: sim_objPolyN, obj_mu, obj_gamc
   double precision, dimension(SPECIES_BEGIN:SPECIES_END) :: obj_xn
   double precision, dimension(np), save                  :: obj_radius, obj_rhop, obj_prss
   integer, save                                          :: obj_ipos, sim_tableRows, sim_tableCols

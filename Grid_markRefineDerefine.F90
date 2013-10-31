@@ -50,7 +50,7 @@ subroutine Grid_markRefineDerefine()
   use Driver_data, ONLY: dr_simTime
   use Simulation_data, ONLY: sim_objRadius, sim_xMax, sim_yMax, sim_zMax, &
       sim_fluffRefineCutoff, sim_fluffDampCutoff, sim_cylinderRadius, &
-      sim_xCenter, sim_yCenter, sim_zCenter, sim_kind
+      sim_xCenter, sim_yCenter, sim_zCenter, sim_kind, stvec
   ! End JFG
   implicit none
 
@@ -152,12 +152,12 @@ subroutine Grid_markRefineDerefine()
   endif
 
   if (sim_kind .eq. 'cylinder') then
-      specs = (/ sim_xCenter - sim_cylinderRadius, &
-                 sim_xCenter + sim_cylinderRadius, &
-                 sim_yCenter - 2.d0*mcs, &
-                 sim_yCenter + 2.d0*mcs, &
-                 sim_zCenter - sim_cylinderRadius, &
-                 sim_zCenter + sim_cylinderRadius, 0. /)
+      specs = (/ sim_xCenter + stvec(1) - sim_cylinderRadius, &
+                 sim_xCenter + stvec(1) + sim_cylinderRadius, &
+                 sim_yCenter + stvec(2) - 2.d0*mcs, &
+                 sim_yCenter + stvec(2) + 2.d0*mcs, &
+                 sim_zCenter + stvec(3) - sim_cylinderRadius, &
+                 sim_zCenter + stvec(3) + sim_cylinderRadius, 0. /)
       call Grid_markRefineSpecialized(RECTANGLE, 7, specs(1:7), lrefine_max)
   endif
   

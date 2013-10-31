@@ -155,6 +155,7 @@ subroutine Simulation_init()
     call RuntimeParameters_get('sim_objPolyN',sim_objPolyN)
     call RuntimeParameters_get('sim_objMass',sim_objMass)
     call RuntimeParameters_get('sim_objCentDens',sim_objCentDens)
+    call RuntimeParameters_get('sim_condCoeff',sim_condCoeff)
 
     obj_xn = 0.d0
     obj_xn(H1_SPEC) = 0.7d0
@@ -263,10 +264,21 @@ subroutine Simulation_init()
 
     sim_fixedPartTag = 0
 
+    stvec = 0.d0
+    bhvec = 0.d0
+
     if (gr_globalMe .eq. MASTER_PE) then
         call calc_orbit(0.d0, sim_objMass, sim_ptMass, obvec, ptvec)
         ptvec = ptvec - obvec
+        if (sim_fixedParticle .eq. 1) then
+            stvec = -ptvec
+        else
+            bhvec = ptvec
+        endif
     endif
+
+    call MPI_BCAST(bhvec, 6, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
+    call MPI_BCAST(stvec, 6, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
 
     if (dr_restart) then
         call NameValueLL_getInt(io_scalar, "fixedparttag", sim_fixedPartTag, .true., ierr)
@@ -303,31 +315,27 @@ subroutine Simulation_init()
         endif
     else
         if (gr_globalMe .eq. MASTER_PE) then
-            pno = pt_sinkCreateParticle(sim_xCenter + ptvec(1), sim_yCenter + ptvec(2), &
-                sim_zCenter + ptvec(3), 0., 1, gr_globalMe)
-            particles_local(ipm,pno) = sim_ptMass
+            pno = pt_sinkCreateParticle(sim_xCenter + bhvec(1), sim_yCenter + bhvec(2), &
+                sim_zCenter + bhvec(3), 0., 1, gr_globalMe)
             if (sim_fixedParticle .eq. 1) then
                 sim_fixedPartTag = particles_local(iptag,pno)
             endif
-            if (sim_fixedParticle .eq. 2) then
-                particles_local(ipvx,pno) = ptvec(4)
-                particles_local(ipvy,pno) = ptvec(5)
-                particles_local(ipvz,pno) = ptvec(6)
-            endif
-            pno = pt_sinkCreateParticle(sim_xCenter, sim_yCenter, sim_zCenter, 0., 1, gr_globalMe)
+            particles_local(ipm,pno) = sim_ptMass
+            particles_local(ipvx,pno) = bhvec(4)
+            particles_local(ipvy,pno) = bhvec(5)
+            particles_local(ipvz,pno) = bhvec(6)
+
+            pno = pt_sinkCreateParticle(sim_xCenter + stvec(1), sim_yCenter + stvec(2), &
+                sim_zCenter + stvec(3), 0., 1, gr_globalMe)
             particles_local(ipm,pno) = sim_starPtMass
-            if (sim_fixedParticle .eq. 0 .or. sim_fixedParticle .eq. 1) then
-                particles_local(ipvx,pno) = -ptvec(4)
-                particles_local(ipvy,pno) = -ptvec(5)
-                particles_local(ipvz,pno) = -ptvec(6)
-            endif
+            particles_local(ipvx,pno) = stvec(4)
+            particles_local(ipvy,pno) = stvec(5)
+            particles_local(ipvz,pno) = stvec(6)
             if (sim_fixedParticle .eq. 2) then
                 sim_fixedPartTag = particles_local(iptag,pno)
             endif
             print *, "Fixed particle's tag: ", sim_fixedPartTag
-            bhvec = ptvec
         endif
-        call MPI_BCAST(bhvec, 6, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
         call MPI_BCAST(sim_fixedPartTag, 1, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
     endif
 

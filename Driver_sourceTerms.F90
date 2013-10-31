@@ -30,7 +30,7 @@
 
 subroutine Driver_sourceTerms(blockCount, blockList, dt, pass) 
     use Polytrope_interface, ONLY : Polytrope
-    use Driver_data, ONLY: dr_simTime, dr_meshComm
+    use Driver_data, ONLY: dr_simTime, dr_meshComm, dr_dt
     use Flame_interface, ONLY : Flame_step
     use Stir_interface, ONLY : Stir
     use Heat_interface, ONLY : Heat
@@ -44,9 +44,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_accRadius, sim_accCoeff, &
         sim_fluidGamma, sim_softenRadius, sim_rotFac, sim_rotAngle, sim_tSpinup, obj_ipos, obj_radius, &
         sim_objMass, sim_msun, sim_xCenter, sim_yCenter, sim_zCenter, sim_cylinderScale, &
-        sim_cylinderDensity, sim_cylinderTemperature, obj_mu, obj_gamc, bhvec
+        sim_cylinderDensity, sim_cylinderTemperature, obj_mu, obj_gamc, stvec, obj_xn
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
-        Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
+        Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_fillGuardCells
     use Multitidal_interface, ONLY : Multitidal_findExtrema
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
@@ -74,6 +74,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     real    :: relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
     real    :: distxy, vpara, vspin, x, y, z, vx, vy, vz, velprojy, velprojz, rotang
     real    :: tinitial, vol, ldenscut, denscut, extrema, newton, mcs, new_dens
+    real    :: flow_vel
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
@@ -310,27 +311,32 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             !endif
 
             do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
-                zz = zCoord(k) - sim_zCenter
+                zz = zCoord(k) - (sim_zCenter + stvec(3))
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
-                    yy = yCoord(j) - sim_yCenter
+                    yy = yCoord(j) - (sim_yCenter + stvec(2))
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                        xx = xCoord(i) - sim_xCenter
+                        xx = xCoord(i) - (sim_xCenter + stvec(1))
                        
                         dist = dsqrt( xx**2 + zz**2 )
 
                         if (dist .le. 5.d0*sim_cylinderScale .and. dabs(yy) .le. 2.d0*mcs) then
-                            new_dens = sim_cylinderDensity*dexp(-(dist/sim_cylinderScale)**2)
+                            flow_vel = dsqrt(stvec(4)**2 + stvec(5)**2 + stvec(6)**2)
+                            new_dens = dr_dt/(mcs/flow_vel)*sim_cylinderDensity*&
+                                dexp(-(dist/sim_cylinderScale)**2)
                             solnData(EINT_VAR,i,j,k) = &
                                 (solnData(EINT_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) + &
                                 (eos_gasConstant*sim_cylinderTemperature/((obj_gamc-1.e0)*obj_mu))*&
                                 new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
                             solnData(VELX_VAR,i,j,k) = (solnData(VELX_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
-                                - bhvec(4)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                + stvec(4)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
                             solnData(VELY_VAR,i,j,k) = (solnData(VELY_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
-                                - bhvec(5)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                + stvec(5)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
                             solnData(VELZ_VAR,i,j,k) = (solnData(VELZ_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
-                                - bhvec(6)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                + stvec(6)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
                             solnData(DENS_VAR,i,j,k) = solnData(DENS_VAR,i,j,k) + new_dens
+                            ! Not obvious why this needs to be done, but for
+                            ! some reason xn changes in this part of the code.
+                            solnData(SPECIES_BEGIN:SPECIES_END,i,j,k) = obj_xn
 
                             solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
                                 0.5d0*(solnData(VELX_VAR,i,j,k)**2.d0 + &
@@ -393,6 +399,6 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         call EnergyDeposition(blockCount, blockList, dt, dr_simTime)
         call Deleptonize(blockCount, blockList, dt, dr_simTime)
     endif
-  
+
     return
 end subroutine Driver_sourceTerms

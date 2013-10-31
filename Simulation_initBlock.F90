@@ -28,7 +28,7 @@ subroutine Simulation_initBlock (blockId, myPE)
 
   use Simulation_data
   use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
-    Grid_getCellCoords, Grid_putPointData
+    Grid_getCellCoords, Grid_putPointData, Grid_fillGuardCells
   use PhysicalConstants_interface, ONLY: PhysicalConstants_get
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   
@@ -171,15 +171,15 @@ subroutine Simulation_initBlock (blockId, myPE)
            if (sim_kind .ne. 'cylinder') then
               do kk = 1, sim_nSubZones
                  zz    = zCoord(k) + dzz*((2*kk - 1)*sim_inSubInv - 0.5)
-                 zDist = zz - sim_zCenter
+                 zDist = zz - (sim_zCenter + stvec(3))
                  
                  do jj = 1, sim_nSubZones
                     yy    = yCoord(j) + dyy*((2*jj - 1)*sim_inSubInv - 0.5)
-                    yDist = yy - sim_yCenter
+                    yDist = yy - (sim_yCenter + stvec(2))
                     
                     do ii = 1, sim_nSubZones
                        xx    = xCoord(i) + dxx*((2*ii - 1)*sim_inSubInv - 0.5)
-                       xDist = xx - sim_xCenter
+                       xDist = xx - (sim_xCenter + stvec(1))
                        
                        dist = dsqrt( xDist**2 + yDist**2 + zDist**2 )
 
@@ -282,9 +282,9 @@ subroutine Simulation_initBlock (blockId, myPE)
                p   = max (sumVars(2)*sim_inszd, sim_pAmbient)
                t   = p/(rho/mp/obj_mu*kb)
                if (sim_fixedParticle .eq. 0 .or. sim_fixedParticle .eq. 1) then
-                   vx = -bhvec(4)
-                   vy = -bhvec(5)
-                   vz = -bhvec(6)
+                   vx = stvec(4)
+                   vy = stvec(5)
+                   vz = stvec(6)
                endif
            else
                if (bhDist .le. softening_radius) then
@@ -309,7 +309,7 @@ subroutine Simulation_initBlock (blockId, myPE)
            !
            !  assume gamma-law equation of state
            !
-           e   = p/(gam-1.)
+           e   = p/(obj_gamc-1.)
            e   = e/rho + ek
            e   = max (e, sim_smallP)
 #endif
@@ -317,22 +317,23 @@ subroutine Simulation_initBlock (blockId, myPE)
            axis(JAXIS)=j
            axis(KAXIS)=k
 
-
 #ifdef FL_NON_PERMANENT_GUARDCELLS
+
 #ifdef LOADPROFILE
-           solnData(DENS_VAR,i,j,k)=sumVars(RHO_PROF)
-           solnData(TEMP_VAR,i,j,k)=sumVars(TEMP_PROF)
            do put=1,NSPECIES
               if (xn(SPECIES_BEGIN+put-1) == 0.0) xn(SPECIES_BEGIN+put-1) = sim_smallX
               solnData(SPECIES_BEGIN+put-1,i,j,k)=xn(SPECIES_BEGIN+put-1)
            enddo
+
+           solnData(DENS_VAR,i,j,k)=sumVars(RHO_PROF)
+           solnData(TEMP_VAR,i,j,k)=sumVars(TEMP_PROF)
 #else
            solnData(DENS_VAR,i,j,k)=rho
            solnData(PRES_VAR,i,j,k)=p
            solnData(ENER_VAR,i,j,k)=e
            solnData(TEMP_VAR,i,k,k)=t
-           solnData(GAME_VAR,i,j,k)=gam
-           solnData(GAMC_VAR,i,j,k)=gam
+           solnData(GAME_VAR,i,j,k)=obj_gamc
+           solnData(GAMC_VAR,i,j,k)=obj_gamc
            ! Need to add species setting for non-permanent guard cells...
 #endif
            solnData(VELX_VAR,i,j,k)=vx
@@ -357,8 +358,8 @@ subroutine Simulation_initBlock (blockId, myPE)
               call Grid_putPointData(blockID,CENTER,put,&
                    EXTERIOR,axis,obj_xn(put))
            enddo
-           call Grid_putPointData(blockId, CENTER, GAME_VAR, EXTERIOR, axis, gam)
-           call Grid_putPointData(blockId, CENTER, GAMC_VAR, EXTERIOR, axis, gam)
+           call Grid_putPointData(blockId, CENTER, GAME_VAR, EXTERIOR, axis, obj_gamc)
+           call Grid_putPointData(blockId, CENTER, GAMC_VAR, EXTERIOR, axis, obj_gamc)
 #endif
            call Grid_putPointData(blockId, CENTER, VELX_VAR, EXTERIOR, axis, vx)
            call Grid_putPointData(blockId, CENTER, VELY_VAR, EXTERIOR, axis, vy)
@@ -373,6 +374,7 @@ subroutine Simulation_initBlock (blockId, myPE)
   deallocate(xCoord)
   deallocate(yCoord)
   deallocate(zCoord)
+
   return
 end subroutine Simulation_initBlock
 

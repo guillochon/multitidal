@@ -11,9 +11,9 @@ REQUIRES Simulation/SimulationComposition
 REQUIRES Multispecies/MultispeciesMain
 REQUIRES physics/sourceTerms/Cool/CoolMain
 #REQUIRES physics/Diffuse/DiffuseMain/Split
-
 #REQUIRES physics/Diffuse/DiffuseFluxBased
 #REQUIRES physics/materialProperties/Conductivity/ConductivityMain/SpitzerHighZJFG
+#REQUIRES physics/materialProperties/Conductivity/ConductivityMain/PowerLaw
 
 REQUIRES Particles/ParticlesMain/active/SinkJFG
 
@@ -111,5 +111,3 @@ PARAMETER plot_var_22 STRING "none"
 PARAMETER plot_var_23 STRING "none"
 
 PPDEFINE HIDE_SANITIZE
-
-VARIABLE ecoo

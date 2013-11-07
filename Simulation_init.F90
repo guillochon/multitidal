@@ -113,6 +113,8 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_cylinderDensity", sim_cylinderDensity)
     call RuntimeParameters_get("sim_cylinderTemperature", sim_cylinderTemperature)
     call RuntimeParameters_get("sim_cylinderRadius", sim_cylinderRadius)
+    call RuntimeParameters_get("sim_cylinderMDot", sim_cylinderMDot)
+    call RuntimeParameters_get("sim_cylinderNCells", sim_cylinderNCells)
 
     call RuntimeParameters_get("sim_ptMass", sim_ptMass)
     call RuntimeParameters_get("sim_starPtMass", sim_starPtMass)

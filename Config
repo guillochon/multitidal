@@ -10,9 +10,9 @@ REQUIRES physics/Hydro
 REQUIRES Simulation/SimulationComposition
 REQUIRES Multispecies/MultispeciesMain
 REQUIRES physics/sourceTerms/Cool/CoolMain
-#REQUIRES physics/Diffuse/DiffuseMain/Split
+REQUIRES physics/Diffuse/DiffuseMain/Split
 #REQUIRES physics/Diffuse/DiffuseFluxBased
-#REQUIRES physics/materialProperties/Conductivity/ConductivityMain/SpitzerHighZJFG
+REQUIRES physics/materialProperties/Conductivity/ConductivityMain/SpitzerHighZJFG
 #REQUIRES physics/materialProperties/Conductivity/ConductivityMain/PowerLaw
 
 REQUIRES Particles/ParticlesMain/active/SinkJFG
@@ -78,6 +78,8 @@ PARAMETER sim_powerLawTemperature   REAL    1.E4
 PARAMETER sim_cylinderScale         REAL    1.E16
 PARAMETER sim_cylinderDensity       REAL    1.E-20
 PARAMETER sim_cylinderTemperature   REAL    1.E4
+PARAMETER sim_cylinderMDot          REAL    1.E-6
+PARAMETER sim_cylinderNCells        REAL    4.E0   
 PARAMETER sim_cylinderRadius        REAL    3.E16
 PARAMETER sim_xRayFraction          REAL    1.E0
 PARAMETER sim_smallT                REAL    1.E4

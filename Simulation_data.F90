@@ -45,7 +45,8 @@ module Simulation_data
                             sim_powerLawMass, sim_powerLawTemperature, sim_periDist, &
                             sim_fluffRefineCutoff, sim_xRayFraction, sim_starPtMass, &
                             sim_smallT, sim_cylinderScale, sim_cylinderDensity, &
-                            sim_cylinderTemperature, sim_cylinderRadius, sim_condCoeff
+                            sim_cylinderTemperature, sim_cylinderRadius, sim_condCoeff, &
+                            sim_cylinderNCells, sim_cylinderMDot
   double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
 
   double precision, dimension(:,:), allocatable, save    :: sim_table

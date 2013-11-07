@@ -44,7 +44,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_accRadius, sim_accCoeff, &
         sim_fluidGamma, sim_softenRadius, sim_rotFac, sim_rotAngle, sim_tSpinup, obj_ipos, obj_radius, &
         sim_objMass, sim_msun, sim_xCenter, sim_yCenter, sim_zCenter, sim_cylinderScale, &
-        sim_cylinderDensity, sim_cylinderTemperature, obj_mu, obj_gamc, stvec, obj_xn
+        sim_cylinderDensity, sim_cylinderTemperature, obj_mu, obj_gamc, stvec, obj_xn, &
+        sim_cylinderMDot, sim_cylinderNCells, sim_ptMass, sim_cylinderRadius
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_fillGuardCells
     use Multitidal_interface, ONLY : Multitidal_findExtrema
@@ -74,7 +75,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     real    :: relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
     real    :: distxy, vpara, vspin, x, y, z, vx, vy, vz, velprojy, velprojz, rotang
     real    :: tinitial, vol, ldenscut, denscut, extrema, newton, mcs, new_dens
-    real    :: flow_vel
+    real    :: flow_dist, flow_vel, polyk, rho0, kb, mp, yr
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
@@ -104,7 +105,10 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     gpeak_mass = 0.d0
     gpeak_mom = 0.d0
 
+    yr = 3.15569252E7
     call PhysicalConstants_get("Newton", newton)
+    call PhysicalConstants_get("Boltzmann", kb)
+    call PhysicalConstants_get("proton mass", mp)
     call RuntimeParameters_get('tinitial',tinitial)
     call Grid_getMinCellSize(mcs)
 
@@ -310,6 +314,15 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             !    enddo
             !endif
 
+            ! Need to bracket this in If statement for cylinder
+            flow_dist = dsqrt(stvec(1)**2 + stvec(2)**2 + stvec(3)**2)
+            flow_vel = dsqrt(stvec(4)**2 + stvec(5)**2 + stvec(6)**2)
+
+            polyk = kb*sim_cylinderTemperature/(mp*obj_mu)
+            rho0 = dr_dt/mcs/sim_cylinderNCells*&
+                sim_cylinderMDot*sim_msun/yr/&
+                (2.d0*PI*flow_dist**3*polyk/newton/sim_ptMass)
+
             do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
                 zz = zCoord(k) - (sim_zCenter + stvec(3))
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
@@ -319,10 +332,11 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                        
                         dist = dsqrt( xx**2 + zz**2 )
 
-                        if (dist .le. 5.d0*sim_cylinderScale .and. dabs(yy) .le. 2.d0*mcs) then
-                            flow_vel = dsqrt(stvec(4)**2 + stvec(5)**2 + stvec(6)**2)
-                            new_dens = dr_dt/(mcs/flow_vel)*sim_cylinderDensity*&
-                                dexp(-(dist/sim_cylinderScale)**2)
+                        if (dist .le. sim_cylinderRadius .and. dabs(yy) .le. 0.5d0*sim_cylinderNCells*mcs) then
+                            new_dens = rho0*dexp(-0.5d0*newton*sim_ptMass*dist**2/(flow_dist**3*polyk))
+
+                            !new_dens = dr_dt/(mcs/flow_vel)*sim_cylinderDensity*&
+                            !    dexp(-(dist/sim_cylinderScale)**2)
                             solnData(EINT_VAR,i,j,k) = &
                                 (solnData(EINT_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) + &
                                 (eos_gasConstant*sim_cylinderTemperature/((obj_gamc-1.e0)*obj_mu))*&

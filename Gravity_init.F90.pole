@@ -169,7 +169,10 @@ subroutine Gravity_init()
       a = grv_periDist/(1.d0 - sim_orbEcc)
       period = dsqrt(4.d0*PI**2.d0/newton/(grv_ptmass + grv_totmass)*a**3.d0)
       start_dist = sim_objRadius/sim_startBeta*(grv_ptmass/grv_totmass)**(1.d0/3.d0)
-      if (start_dist .gt. 2.d0*a - grv_periDist) call Driver_abortFlash('start_dist too large!')
+      if (start_dist .gt. 2.d0*a - grv_periDist) then
+          print *, 'Gravity_init', start_dist, 2.d0*a - grv_periDist
+          call Driver_abortFlash('start_dist too large!')
+      endif
       ecc_anom = dacos((a - start_dist)/a/sim_orbEcc)
       grv_periTime = abs(ecc_anom - sim_orbEcc*dsin(ecc_anom))*period/2.d0/PI + sim_tRelax
   endif

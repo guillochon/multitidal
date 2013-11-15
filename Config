@@ -42,6 +42,9 @@ ENDIF
 LINKIF eos_initHelmholtz.F90  physics/Eos/EosMain/Helmholtz
 LINKIF eos_helmData.F90       physics/Eos/EosMain/Helmholtz
 
+PARAMETER sim_xCenter               REAL    0.E0
+PARAMETER sim_yCenter               REAL    0.E0
+PARAMETER sim_zCenter               REAL    0.E0
 PARAMETER sim_periDist              REAL    0.E0
 PARAMETER sim_periBeta              REAL    0.E0
 PARAMETER sim_periodFac             REAL    0.E0

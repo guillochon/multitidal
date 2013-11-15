@@ -67,8 +67,6 @@ subroutine Simulation_init()
 
     call PhysicalConstants_get("Newton", newton)
 
-    call RuntimeParameters_get('sim_rhoAmbient', sim_rhoAmbient)
-    call RuntimeParameters_get('sim_nsubzones',sim_nSubZones)
     call RuntimeParameters_get('smallx', sim_smallX)
     call RuntimeParameters_get('smlrho', sim_smallRho)
     call RuntimeParameters_get('smallp', sim_smallP)
@@ -79,6 +77,12 @@ subroutine Simulation_init()
     call RuntimeParameters_get('ymax',sim_yMax)
     call RuntimeParameters_get('zmax',sim_zMax)
     call RuntimeParameters_get('tinitial',sim_tInitial)
+
+    call RuntimeParameters_get('sim_rhoAmbient', sim_rhoAmbient)
+    call RuntimeParameters_get('sim_nsubzones',sim_nSubZones)
+    call RuntimeParameters_get('sim_xcenter',sim_xCenter)
+    call RuntimeParameters_get('sim_ycenter',sim_yCenter)
+    call RuntimeParameters_get('sim_zcenter',sim_zCenter)
     call RuntimeParameters_get('sim_tRelax',sim_tRelax)
     call RuntimeParameters_get('sim_relaxRate',sim_relaxRate)
     call RuntimeParameters_get('sim_softenRadius',sim_softenRadius)
@@ -123,10 +127,6 @@ subroutine Simulation_init()
         call Driver_abortFlash('Error: sim_powerLawExponent must be greater than -3.0')
     endif
 
-    sim_xCenter = (sim_xMax + sim_xMin) / 2.d0
-    sim_yCenter = (sim_yMax + sim_yMin) / 2.d0
-    sim_zCenter = (sim_zMax + sim_zMin) / 2.d0
-
     call RuntimeParameters_get('sim_kind',sim_kind)
 
 #ifdef LOADPROFILE
@@ -169,46 +169,40 @@ subroutine Simulation_init()
     obj_gamc = 1.e0 / obj_gamc
 
     if (sim_kind .eq. 'polytrope') then
-        if (gr_globalMe .eq. MASTER_PE) then
-            mode = 1
-            call polytr(sim_objPolyN,sim_objMass/sim_msun,sim_objCentDens,polyk,obj_mu,mode, &
-                x,y,yp,obj_radius,obj_rhop,mass,obj_prss,ebind, &
-                rhom,ztemp,zbeta,exact,xsurf,ypsurf,np,iend,obj_ipos)
-        endif
+        mode = 1
+        call polytr(sim_objPolyN,sim_objMass/sim_msun,sim_objCentDens,polyk,obj_mu,mode, &
+            x,y,yp,obj_radius,obj_rhop,mass,obj_prss,ebind, &
+            rhom,ztemp,zbeta,exact,xsurf,ypsurf,np,iend,obj_ipos)
     elseif (sim_kind .eq. 'powerlaw') then
-        if (gr_globalMe .eq. MASTER_PE) then
-            obj_ipos = np
-            rho0 = sim_powerLawMass*sim_powerLawExtent**(-3.d0 - sim_powerLawExponent)*&
-                sim_powerLawScale**sim_powerLawExponent*(3.d0 + sim_powerLawExponent)/(2.d0*PI)
-            do i = 1, np
-                obj_radius(i) = sim_powerLawExtent*dble(i)/np
-                obj_rhop(i) = rho0*(obj_radius(i)/sim_powerLawScale)**sim_powerLawExponent
-                obj_prss(i) = eos_gasConstant*obj_rhop(i) * &
-                                 sim_powerLawTemperature / obj_mu
-            enddo 
-            sim_objMass = sim_powerLawMass
-            sim_objCentDens = obj_rhop(1)
-        endif
+        obj_ipos = np
+        rho0 = sim_powerLawMass*sim_powerLawExtent**(-3.d0 - sim_powerLawExponent)*&
+            sim_powerLawScale**sim_powerLawExponent*(3.d0 + sim_powerLawExponent)/(2.d0*PI)
+        do i = 1, np
+            obj_radius(i) = sim_powerLawExtent*dble(i)/np
+            obj_rhop(i) = rho0*(obj_radius(i)/sim_powerLawScale)**sim_powerLawExponent
+            obj_prss(i) = eos_gasConstant*obj_rhop(i) * &
+                             sim_powerLawTemperature / obj_mu
+        enddo 
+        sim_objMass = sim_powerLawMass
+        sim_objCentDens = obj_rhop(1)
     elseif (sim_kind .eq. 'cylinder') then
-        if (gr_globalMe .eq. MASTER_PE) then
-            obj_ipos = np
-            do i = 1, np
-                obj_radius(i) = 5.d0*sim_cylinderScale*dble(i)/np
-                obj_rhop(i) = sim_cylinderDensity*dexp((obj_radius(i)/sim_cylinderScale)**2)
-                obj_prss(i) = eos_gasConstant*obj_rhop(i) * &
-                                 sim_cylinderTemperature / obj_mu
-            enddo 
-            sim_objMass = sim_ptMass*1.d-10
-            sim_objCentDens = obj_rhop(1)
-        endif
+        obj_ipos = np
+        do i = 1, np
+            obj_radius(i) = 5.d0*sim_cylinderScale*dble(i)/np
+            obj_rhop(i) = sim_cylinderDensity*dexp((obj_radius(i)/sim_cylinderScale)**2)
+            obj_prss(i) = eos_gasConstant*obj_rhop(i) * &
+                             sim_cylinderTemperature / obj_mu
+        enddo 
+        sim_objMass = sim_ptMass*1.d-10
+        sim_objCentDens = obj_rhop(1)
     endif
 
     !call MPI_BCAST(obj_xn, NSPECIES, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
     !call MPI_BCAST(obj_mu, 1, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
-    call MPI_BCAST(obj_radius, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
-    call MPI_BCAST(obj_rhop, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
-    call MPI_BCAST(obj_prss, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
-    call MPI_BCAST(obj_ipos, 1, FLASH_INTEGER, MASTER_PE, MPI_COMM_WORLD, ierr)              
+    !call MPI_BCAST(obj_radius, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
+    !call MPI_BCAST(obj_rhop, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
+    !call MPI_BCAST(obj_prss, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
+    !call MPI_BCAST(obj_ipos, 1, FLASH_INTEGER, MASTER_PE, MPI_COMM_WORLD, ierr)              
 
     sim_objRadius = obj_radius(obj_ipos)
 #endif
@@ -259,7 +253,11 @@ subroutine Simulation_init()
         a = sim_periDist/(1.d0 - sim_orbEcc)
         period = dsqrt(4.d0*PI**2.d0/newton/(sim_ptMass + sim_objMass)*a**3.d0)
         start_dist = sim_objRadius/sim_startBeta*(sim_ptMass/sim_objMass)**(1.d0/3.d0)
-        if (start_dist .gt. 2.d0*a - sim_periDist) call Driver_abortFlash('start_dist too large!')
+        if (start_dist .gt. 2.d0*a - sim_periDist) then
+            print *, 'Simulation_init', start_dist, 2.d0*a - sim_periDist,&
+            sim_objRadius, sim_startBeta, sim_ptMass, sim_objMass
+            call Driver_abortFlash('start_dist too large!')
+        endif
         ecc_anom = dacos((a - start_dist)/a/sim_orbEcc)
         sim_periTime = abs(ecc_anom - sim_orbEcc*dsin(ecc_anom))*period/2.d0/PI + sim_tRelax
     endif
@@ -277,6 +275,8 @@ subroutine Simulation_init()
         else
             bhvec = ptvec
         endif
+        print *, 'stvec', stvec
+        print *, 'bhvec', bhvec
     endif
 
     call MPI_BCAST(bhvec, 6, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                

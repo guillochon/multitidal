@@ -48,9 +48,10 @@ subroutine Grid_markRefineDerefine()
   use tree, ONLY: lrefine_max 
   use Grid_interface, ONLY: Grid_markRefineSpecialized, Grid_getMinCellSize
   use Driver_data, ONLY: dr_simTime
-  use Simulation_data, ONLY: sim_objRadius, sim_xMax, sim_yMax, sim_zMax, &
+  use Simulation_data, ONLY: sim_objRadius, &
       sim_fluffRefineCutoff, sim_fluffDampCutoff, sim_cylinderRadius, &
-      sim_xCenter, sim_yCenter, sim_zCenter, sim_kind, stvec
+      sim_xCenter, sim_yCenter, sim_zCenter, sim_kind, stvec, &
+      sim_softenRadius
   ! End JFG
   implicit none
 
@@ -142,8 +143,14 @@ subroutine Grid_markRefineDerefine()
   call Particles_sinkMarkRefineDerefine()
 
   if (dr_simTime .eq. 0.d0) then
-      if (sim_kind .ne. 'cylinder') then
-          specs = (/ 0.5d0 * sim_xMax, 0.5d0 * sim_yMax, 0.5d0 * sim_zMax, sim_objRadius, 0., 0., 0. /)
+      if (sim_kind .eq. 'polytrope') then
+          specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_objRadius, 0., 0., 0. /)
+          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
+      elseif (sim_kind .eq. 'powerlaw') then
+          specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_softenRadius, 0., 0., 0. /)
+          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
+          specs = (/ sim_xCenter + stvec(1), sim_yCenter + stvec(2), sim_zCenter + stvec(3), &
+                     sim_objRadius, 0., 0., 0. /)
           call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
       endif
   else

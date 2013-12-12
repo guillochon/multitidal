@@ -168,7 +168,7 @@ subroutine Simulation_initBlock (blockId, myPE)
 
            bhDist = dsqrt(bhxDist**2 + bhyDist**2 + bhzDist**2)
 
-           if (sim_kind .ne. 'cylinder') then
+           if (sim_kind .ne. 'cylinder' .and. sim_kind .ne. 'wind') then
               do kk = 1, sim_nSubZones
                  zz    = zCoord(k) + dzz*((2*kk - 1)*sim_inSubInv - 0.5)
                  zDist = zz - (sim_zCenter + stvec(3))

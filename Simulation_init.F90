@@ -84,6 +84,7 @@ subroutine Simulation_init()
     call RuntimeParameters_get('sim_ycenter',sim_yCenter)
     call RuntimeParameters_get('sim_zcenter',sim_zCenter)
     call RuntimeParameters_get('sim_tRelax',sim_tRelax)
+    call RuntimeParameters_get('sim_tDelay',sim_tDelay)
     call RuntimeParameters_get('sim_relaxRate',sim_relaxRate)
     call RuntimeParameters_get('sim_softenRadius',sim_softenRadius)
     call RuntimeParameters_get('sim_accRadius',sim_accRadius)
@@ -119,6 +120,14 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_cylinderRadius", sim_cylinderRadius)
     call RuntimeParameters_get("sim_cylinderMDot", sim_cylinderMDot)
     call RuntimeParameters_get("sim_cylinderNCells", sim_cylinderNCells)
+    call RuntimeParameters_get("sim_cylinderType", sim_cylinderType)
+
+    call RuntimeParameters_get("sim_windVelocity", sim_windVelocity)
+    call RuntimeParameters_get("sim_windMdot", sim_windMdot)
+    call RuntimeParameters_get("sim_windTemperature", sim_windTemperature)
+    call RuntimeParameters_get("sim_windNCells", sim_windNCells)
+    call RuntimeParameters_get("sim_windLaunchRadius", sim_windLaunchRadius)
+    call RuntimeParameters_get("sim_windKernel", sim_windKernel)
 
     call RuntimeParameters_get("sim_ptMass", sim_ptMass)
     call RuntimeParameters_get("sim_starPtMass", sim_starPtMass)
@@ -173,6 +182,7 @@ subroutine Simulation_init()
         call polytr(sim_objPolyN,sim_objMass/sim_msun,sim_objCentDens,polyk,obj_mu,mode, &
             x,y,yp,obj_radius,obj_rhop,mass,obj_prss,ebind, &
             rhom,ztemp,zbeta,exact,xsurf,ypsurf,np,iend,obj_ipos)
+        sim_objRadius = obj_radius(obj_ipos)
     elseif (sim_kind .eq. 'powerlaw') then
         obj_ipos = np
         rho0 = sim_powerLawMass*sim_powerLawExtent**(-3.d0 - sim_powerLawExponent)*&
@@ -185,6 +195,7 @@ subroutine Simulation_init()
         enddo 
         sim_objMass = sim_powerLawMass
         sim_objCentDens = obj_rhop(1)
+        sim_objRadius = obj_radius(obj_ipos)
     elseif (sim_kind .eq. 'cylinder') then
         obj_ipos = np
         do i = 1, np
@@ -195,6 +206,10 @@ subroutine Simulation_init()
         enddo 
         sim_objMass = sim_ptMass*1.d-10
         sim_objCentDens = obj_rhop(1)
+        sim_objRadius = obj_radius(obj_ipos)
+    elseif (sim_kind .eq. 'wind') then
+        sim_objMass = sim_starPtMass
+        sim_objRadius = sim_windLaunchRadius
     endif
 
     !call MPI_BCAST(obj_xn, NSPECIES, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)              
@@ -204,7 +219,6 @@ subroutine Simulation_init()
     !call MPI_BCAST(obj_prss, np, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
     !call MPI_BCAST(obj_ipos, 1, FLASH_INTEGER, MASTER_PE, MPI_COMM_WORLD, ierr)              
 
-    sim_objRadius = obj_radius(obj_ipos)
 #endif
 
     if (gr_globalMe .eq. MASTER_PE) then
@@ -327,16 +341,18 @@ subroutine Simulation_init()
             particles_local(ipvy,pno) = bhvec(5)
             particles_local(ipvz,pno) = bhvec(6)
 
-            pno = pt_sinkCreateParticle(sim_xCenter + stvec(1), sim_yCenter + stvec(2), &
-                sim_zCenter + stvec(3), 0., 1, gr_globalMe)
-            particles_local(ipm,pno) = sim_starPtMass
-            particles_local(ipvx,pno) = stvec(4)
-            particles_local(ipvy,pno) = stvec(5)
-            particles_local(ipvz,pno) = stvec(6)
-            if (sim_fixedParticle .eq. 2) then
-                sim_fixedPartTag = particles_local(iptag,pno)
+            if (sim_kind .ne. 'cylinder') then
+                pno = pt_sinkCreateParticle(sim_xCenter + stvec(1), sim_yCenter + stvec(2), &
+                    sim_zCenter + stvec(3), 0., 1, gr_globalMe)
+                particles_local(ipm,pno) = sim_starPtMass
+                particles_local(ipvx,pno) = stvec(4)
+                particles_local(ipvy,pno) = stvec(5)
+                particles_local(ipvz,pno) = stvec(6)
+                if (sim_fixedParticle .eq. 2) then
+                    sim_fixedPartTag = particles_local(iptag,pno)
+                endif
+                print *, "Fixed particle's tag: ", sim_fixedPartTag
             endif
-            print *, "Fixed particle's tag: ", sim_fixedPartTag
         endif
         call MPI_BCAST(sim_fixedPartTag, 1, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
     endif

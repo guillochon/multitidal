@@ -51,7 +51,11 @@ subroutine Grid_markRefineDerefine()
   use Simulation_data, ONLY: sim_objRadius, &
       sim_fluffRefineCutoff, sim_fluffDampCutoff, sim_cylinderRadius, &
       sim_xCenter, sim_yCenter, sim_zCenter, sim_kind, stvec, &
-      sim_softenRadius
+      sim_softenRadius, sim_fixedPartTag, sim_windNCells, &
+      sim_tDelay, sim_periDist, sim_ptMass, sim_cylinderType
+  use pt_sinkInterface, ONLY : pt_sinkGatherGlobal
+  use Particles_sinkData, ONLY : localnpf, particles_global
+  use PhysicalConstants_interface, ONLY : PhysicalConstants_get
   ! End JFG
   implicit none
 
@@ -69,8 +73,10 @@ subroutine Grid_markRefineDerefine()
 
   ! Added by JFG
   real,dimension(7) :: specs
-  real :: mcs
+  real,dimension(3) :: pvec
+  real :: mcs, flow_dist, newton
 
+  call PhysicalConstants_get("Newton", newton)
   call Grid_getMinCellSize(mcs)
   ! End JFG
 
@@ -159,13 +165,37 @@ subroutine Grid_markRefineDerefine()
   endif
 
   if (sim_kind .eq. 'cylinder') then
-      specs = (/ sim_xCenter + stvec(1) - sim_cylinderRadius, &
-                 sim_xCenter + stvec(1) + sim_cylinderRadius, &
-                 sim_yCenter + stvec(2) - 2.d0*mcs, &
-                 sim_yCenter + stvec(2) + 2.d0*mcs, &
-                 sim_zCenter + stvec(3) - sim_cylinderRadius, &
-                 sim_zCenter + stvec(3) + sim_cylinderRadius, 0. /)
+      if (sim_cylinderType .eq. 1) then
+          specs = (/ sim_xCenter + stvec(1) - sim_cylinderRadius, &
+                     sim_xCenter + stvec(1) + sim_cylinderRadius, &
+                     sim_yCenter + stvec(2) - 2.d0*mcs, &
+                     sim_yCenter + stvec(2) + 2.d0*mcs, &
+                     sim_zCenter + stvec(3) - sim_cylinderRadius, &
+                     sim_zCenter + stvec(3) + sim_cylinderRadius, 0. /)
+      else
+          flow_dist = sim_periDist*((dr_simTime+sim_tDelay)/&
+                      (2.d0*PI*dsqrt(sim_periDist**3.d0/(newton*sim_ptMass))))**(2.d0/3.d0)
+          specs = (/ sim_xCenter + flow_dist - 2.d0*mcs, &
+                     sim_xCenter + flow_dist + 2.d0*mcs, &
+                     sim_yCenter - sim_cylinderRadius, &
+                     sim_yCenter + sim_cylinderRadius, &
+                     sim_zCenter - sim_cylinderRadius, &
+                     sim_zCenter + sim_cylinderRadius, 0. /)
+      endif
+
       call Grid_markRefineSpecialized(RECTANGLE, 7, specs(1:7), lrefine_max)
+  elseif (sim_kind .eq. 'wind') then
+      call pt_sinkGatherGlobal()
+      do i = 1, localnpf
+          if (idnint(particles_global(TAG_PART_PROP,i)) .ne. sim_fixedPartTag) then
+              pvec(1:3) = particles_global(POSX_PART_PROP:POSZ_PART_PROP,i)
+          endif
+      enddo
+
+      specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_softenRadius, 0., 0., 0. /)
+      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
+      specs = (/ pvec(1), pvec(2), pvec(3), sim_windNCells*mcs, 0., 0., 0. /)
+      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
   endif
   
   return

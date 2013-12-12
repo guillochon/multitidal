@@ -34,7 +34,7 @@ module Simulation_data
                             sim_smallX, sim_smallRho, sim_smallP, &
                             sim_xMin, sim_xMax, sim_yMin, sim_yMax, sim_zMin, sim_zMax
   integer, save          :: sim_nSubZones, sim_fixedParticle, sim_fixedPartTag
-  integer, save          :: sim_maxBlocks, sim_ptMassRefine, sim_totForceSub
+  integer, save          :: sim_maxBlocks, sim_ptMassRefine, sim_totForceSub, sim_cylinderType
   double precision, save :: sim_tInitial, sim_tRelax, sim_relaxRate, sim_objRadius, &
                             sim_softenRadius, sim_accRadius, sim_objCentDens, sim_objMass, &
                             sim_accCoeff, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_ptMass, &
@@ -46,7 +46,9 @@ module Simulation_data
                             sim_fluffRefineCutoff, sim_xRayFraction, sim_starPtMass, &
                             sim_smallT, sim_cylinderScale, sim_cylinderDensity, &
                             sim_cylinderTemperature, sim_cylinderRadius, sim_condCoeff, &
-                            sim_cylinderNCells, sim_cylinderMDot
+                            sim_cylinderNCells, sim_cylinderMDot, sim_windVelocity, &
+                            sim_windMdot, sim_windTemperature, sim_windNCells, &
+                            sim_windLaunchRadius, sim_windKernel, sim_tDelay
   double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
 
   double precision, dimension(:,:), allocatable, save    :: sim_table

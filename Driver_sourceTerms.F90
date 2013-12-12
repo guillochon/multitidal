@@ -46,7 +46,9 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         sim_objMass, sim_msun, sim_xCenter, sim_yCenter, sim_zCenter, sim_cylinderScale, &
         sim_cylinderDensity, sim_cylinderTemperature, obj_mu, obj_gamc, stvec, obj_xn, &
         sim_cylinderMDot, sim_cylinderNCells, sim_ptMass, sim_cylinderRadius, &
-        sim_kind
+        sim_kind, sim_windVelocity, sim_windMdot, sim_windTemperature, sim_windNCells, &
+        sim_fixedPartTag, sim_windKernel, sim_cylinderType, sim_orbEcc, sim_periDist, &
+        sim_tDelay
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_fillGuardCells
     use Multitidal_interface, ONLY : Multitidal_findExtrema
@@ -58,6 +60,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use Grid_data, ONLY: gr_smalle, gr_meshMe
     use Eos_interface, ONLY: Eos_wrapped
     use Eos_data, ONLY : eos_gasConstant
+    use pt_sinkInterface, ONLY : pt_sinkGatherGlobal
+    use Particles_sinkData, ONLY : localnpf, particles_global
     implicit none
 
 #include "Eos.h"
@@ -76,10 +80,12 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     real    :: relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
     real    :: distxy, vpara, vspin, x, y, z, vx, vy, vz, velprojy, velprojz, rotang
     real    :: tinitial, vol, ldenscut, denscut, extrema, newton, mcs, new_dens
-    real    :: flow_dist, flow_vel, polyk, rho0, kb, mp, yr, mdot
+    real    :: flow_dist, flow_vel, polyk, rho0, kb, mp, yr, mdot, perp_dist, flow_ecc
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
+    real, dimension(6) :: pvec
+    real, dimension(3) :: vvec
     real, dimension(:,:,:,:),pointer :: solnData
     real, dimension(MDIM) :: tot_avg_vel, peak_avg_vel, tot_mom_acc, gtot_mom_acc, tot_com_acc, gtot_com_acc, &
         tot_angmom_acc, gtot_angmom_acc, tot_mom, gtot_mom, peak_mom, gpeak_mom
@@ -114,6 +120,16 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     call Grid_getMinCellSize(mcs)
 
     rotang = PI/180.*sim_rotAngle
+
+    if (sim_kind .eq. 'wind') then
+        call pt_sinkGatherGlobal()
+        do i = 1, localnpf
+            if (idnint(particles_global(TAG_PART_PROP,i)) .ne. sim_fixedPartTag) then
+                pvec(1:3) = particles_global(POSX_PART_PROP:POSZ_PART_PROP,i)
+                pvec(4:6) = particles_global(VELX_PART_PROP:VELZ_PART_PROP,i)
+            endif
+        enddo
+    endif
 
     if (dr_simTime .lt. tinitial + sim_tRelax) then
         relax_rate = max(0.0d0, dr_simTime - sim_tSpinup)/(sim_tRelax - sim_tSpinup)*(1.0 - sim_relaxRate) + sim_relaxRate 
@@ -316,15 +332,23 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             !endif
 
             if (sim_kind .eq. 'cylinder') then
-                mdot = sim_cylinderMdot*8.726109204062576e-21*(-5.648776878000001e15 + &
-                       2.2327568400807356e22*(1.d0/(5.993628868330768e9 + dr_simTime))**0.6666666666666666)**3* &
-                       dlog(3.738175969361188e22/(-5.648776878000001e15 + &
-                       2.2327568400807356e22*(1.d0/(5.993628868330768e9 + dr_simTime))**0.6666666666666666)**1.5d0) 
+                !mdot = sim_cylinderMdot*8.726109204062576e-21*(-5.648776878000001e15 + &
+                !       2.2327568400807356e22*(1.d0/(5.993628868330768e9 + dr_simTime))**0.6666666666666666)**3* &
+                !       dlog(3.738175969361188e22/(-5.648776878000001e15 + &
+                !       2.2327568400807356e22*(1.d0/(5.993628868330768e9 + dr_simTime))**0.6666666666666666)**1.5d0) 
+                mdot = sim_cylinderMdot*1.456480385842967d40/(dexp(9.5414615205053d12/(dr_simTime+sim_tDelay)**(4.d0/3.d0))*&
+                       (dr_simTime+sim_tDelay)**(5.d0/3.d0))
                 !if (dr_meshMe .eq. MASTER_PE) print *, 'mdot', mdot
 
                 if (mdot .gt. 0.d0) then
-                    flow_dist = dsqrt(stvec(1)**2 + stvec(2)**2 + stvec(3)**2)
-                    flow_vel = dsqrt(stvec(4)**2 + stvec(5)**2 + stvec(6)**2)
+                    if (sim_cylinderType .eq. 1) then
+                        flow_dist = dsqrt(stvec(1)**2 + stvec(2)**2 + stvec(3)**2)
+                        flow_vel = dsqrt(stvec(4)**2 + stvec(5)**2 + stvec(6)**2)
+                    else
+                        flow_dist = sim_periDist*((dr_simTime+sim_tDelay)/(2.d0*PI*dsqrt(sim_periDist**3.d0/(newton*sim_ptMass))))**(2.d0/3.d0)
+                        flow_ecc = 1.d0 - 2.d0*sim_periDist/flow_dist
+                        flow_vel = dsqrt((1.d0-flow_ecc)/(1.d0+flow_ecc)*newton*sim_ptMass/(0.5d0*flow_dist))
+                    endif
 
                     polyk = kb*sim_cylinderTemperature/(mp*obj_mu)
 
@@ -335,15 +359,33 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                     !    (2.d0*PI*flow_dist**3*polyk/newton/sim_ptMass)
 
                     do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
-                        zz = zCoord(k) - (sim_zCenter + stvec(3))
+                        if (sim_cylinderType .eq. 1) then
+                            zz = zCoord(k) - (sim_zCenter + stvec(3))
+                        else
+                            zz = zCoord(k) - sim_zCenter
+                        endif
                         do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
-                            yy = yCoord(j) - (sim_yCenter + stvec(2))
+                            if (sim_cylinderType .eq. 1) then
+                                yy = yCoord(j) - (sim_yCenter + stvec(2))
+                            else
+                                yy = yCoord(j) - (sim_yCenter + flow_dist)
+                            endif
                             do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                                xx = xCoord(i) - (sim_xCenter + stvec(1))
+                                if (sim_cylinderType .eq. 1) then
+                                    xx = xCoord(i) - (sim_xCenter + stvec(1))
+                                else
+                                    xx = xCoord(i) - sim_xCenter
+                                endif
                                
-                                dist = dsqrt( xx**2 + zz**2 )
+                                if (sim_cylinderType .eq. 1) then
+                                    dist = dsqrt(xx**2 + zz**2)
+                                    perp_dist = yy
+                                else
+                                    dist = dsqrt(yy**2 + zz**2)
+                                    perp_dist = xx
+                                endif
 
-                                if (dist .le. sim_cylinderRadius .and. dabs(yy) .le. 0.5d0*sim_cylinderNCells*mcs) then
+                                if (dist .le. sim_cylinderRadius .and. dabs(perp_dist) .le. 0.5d0*sim_cylinderNCells*mcs) then
                                     new_dens = rho0*dexp(-0.5d0*newton*sim_ptMass*dist**2/(flow_dist**3*polyk))
 
                                     !new_dens = dr_dt/(mcs/flow_vel)*sim_cylinderDensity*&
@@ -352,12 +394,17 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                                         (solnData(EINT_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) + &
                                         (eos_gasConstant*sim_cylinderTemperature/((obj_gamc-1.e0)*obj_mu))*&
                                         new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
-                                    solnData(VELX_VAR,i,j,k) = (solnData(VELX_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
-                                        + stvec(4)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
-                                    solnData(VELY_VAR,i,j,k) = (solnData(VELY_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
-                                        + stvec(5)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
-                                    solnData(VELZ_VAR,i,j,k) = (solnData(VELZ_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
-                                        + stvec(6)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                    if (sim_cylinderType .eq. 1) then
+                                        solnData(VELX_VAR,i,j,k) = (solnData(VELX_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                            + stvec(4)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                        solnData(VELY_VAR,i,j,k) = (solnData(VELY_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                            + stvec(5)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                        solnData(VELZ_VAR,i,j,k) = (solnData(VELZ_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                            + stvec(6)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                    else
+                                        solnData(VELX_VAR,i,j,k) = (solnData(VELX_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                            - flow_vel*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                    endif
                                     solnData(DENS_VAR,i,j,k) = solnData(DENS_VAR,i,j,k) + new_dens
                                     ! Not obvious why this needs to be done, but for
                                     ! some reason xn changes in this part of the code.
@@ -372,13 +419,57 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                         enddo
                     enddo
                 endif
-  
-                call Eos_wrapped(MODE_DENS_EI, blkLimits, lb)
-                call Grid_releaseBlkPtr(blockList(lb), solnData)
-                deallocate(xCoord)
-                deallocate(yCoord)
-                deallocate(zCoord)
             endif
+
+            if (sim_kind .eq. 'wind') then
+                rho0 = dr_dt*sim_windMdot*sim_msun/yr/((2.d0*PI)**1.5d0*(sim_windKernel*mcs)**3.)
+
+                do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
+                    zz = zCoord(k) - pvec(3)
+                    do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
+                        yy = yCoord(j) - pvec(2)
+                        do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                            xx = xCoord(i) - pvec(1)
+                           
+                            dist = dsqrt( xx**2 + yy**2 + zz**2 )
+
+                            if (dist .le. sim_windNCells*mcs) then
+                                new_dens = rho0*dexp(-0.5d0*(dist/(sim_windKernel*mcs))**2)
+
+                                !new_dens = dr_dt/(mcs/flow_vel)*sim_cylinderDensity*&
+                                !    dexp(-(dist/sim_cylinderScale)**2)
+                                solnData(EINT_VAR,i,j,k) = &
+                                    (solnData(EINT_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) + &
+                                    (eos_gasConstant*sim_cylinderTemperature/((obj_gamc-1.e0)*obj_mu))*&
+                                    new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+
+                                vvec = (/ xx, yy, zz /)/dist*sim_windVelocity + pvec(4:6)
+                                solnData(VELX_VAR,i,j,k) = (solnData(VELX_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                    + vvec(1)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                solnData(VELY_VAR,i,j,k) = (solnData(VELY_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                    + vvec(2)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                solnData(VELZ_VAR,i,j,k) = (solnData(VELZ_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                    + vvec(3)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                solnData(DENS_VAR,i,j,k) = solnData(DENS_VAR,i,j,k) + new_dens
+                                ! Not obvious why this needs to be done, but for
+                                ! some reason xn changes in this part of the code.
+                                solnData(SPECIES_BEGIN:SPECIES_END,i,j,k) = obj_xn
+
+                                solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
+                                    0.5d0*(solnData(VELX_VAR,i,j,k)**2.d0 + &
+                                           solnData(VELY_VAR,i,j,k)**2.d0 + &
+                                           solnData(VELZ_VAR,i,j,k)**2.d0)
+                            endif
+                        enddo
+                    enddo
+                enddo
+            endif
+
+            call Eos_wrapped(MODE_DENS_EI, blkLimits, lb)
+            call Grid_releaseBlkPtr(blockList(lb), solnData)
+            deallocate(xCoord)
+            deallocate(yCoord)
+            deallocate(zCoord)
         enddo
 
         ! Add subtracted velocity to tracking point

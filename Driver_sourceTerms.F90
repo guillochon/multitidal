@@ -440,7 +440,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                                 !    dexp(-(dist/sim_cylinderScale)**2)
                                 solnData(EINT_VAR,i,j,k) = &
                                     (solnData(EINT_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) + &
-                                    (eos_gasConstant*sim_cylinderTemperature/((obj_gamc-1.e0)*obj_mu))*&
+                                    (eos_gasConstant*sim_windTemperature/((obj_gamc-1.e0)*obj_mu))*&
                                     new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
 
                                 vvec = (/ xx, yy, zz /)/dist*sim_windVelocity + pvec(4:6)

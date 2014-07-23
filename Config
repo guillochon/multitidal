@@ -93,7 +93,6 @@ PARAMETER sim_cylinderRadius        REAL    3.E16
 PARAMETER sim_cylinderType          INTEGER 1
 PARAMETER sim_tDelay                REAL    0.E0
 PARAMETER sim_xRayFraction          REAL    1.E0
-PARAMETER sim_smallT                REAL    1.E4
 PARAMETER sim_fixedParticle         INTEGER 0
 PARAMETER sim_condCoeff             REAL    1.E0
 

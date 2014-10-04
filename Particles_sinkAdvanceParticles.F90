@@ -6,14 +6,19 @@
 !!
 !! SYNOPSIS
 !!
-!!  call Particles_sinkAdvanceParticles(real, INTENT(in)  :: dr_dt)
+!!  call Particles_sinkAdvanceParticles(real, INTENT(in) :: dr_dt)
 !!
 !! DESCRIPTION
 !!
+!!  Updates sink particle postions and velocities based on gravitational accelerations,
+!!  using Leapfrog or Euler, depending on the user's choice There is also a special
+!!  implementation of Leapfrog for cosmological simulations.
+!!  This routine performs subcycling on sink-sink interactions, in case of very close
+!!  encounters and highly eccentric orbits.
 !!
 !! ARGUMENTS
 !!
-!!   dr_dt : 
+!!   dr_dt - the current time step
 !!
 !! NOTES
 !!
@@ -22,23 +27,22 @@
 !!   ported to FLASH3.3/4 by Chalence Safranek-Shrader, 2010-2012
 !!   modified by Nathan Goldbaum, 2012
 !!   refactored for FLASH4 by John Bachan, 2012
+!!   removed call to AccelGasOnSinks (now called in Gravity_PotentialListOfBlocks)
+!!   (CTSS, CF 2013)
 !!
 !!***
 
-! used to be AdvanceSinkParticles
 subroutine Particles_sinkAdvanceParticles(dr_dt)
 
   ! Advance sink particles through timestep dr_dt
 
   use Particles_sinkData
-  use pt_sinkInterface, only: pt_sinkAccelGasOnSinks, pt_sinkAccelSinksOnSinks, &
-      pt_sinkGetSubCycleTimeStep
-  use Particles_data, only: pt_indexCount, pt_indexList
+  use pt_sinkInterface, only: pt_sinkAccelSinksOnSinks, pt_sinkGetSubCycleTimeStep, &
+                              pt_sinkGatherGlobal
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
   use Driver_data, ONLY : dr_globalMe
   use Cosmology_interface, ONLY :  Cosmology_getParams, Cosmology_getRedshift, Cosmology_getOldRedshift
   use Driver_interface, ONLY : Driver_getSimTime, Driver_abortFlash
-  use Grid_interface, ONLY : Grid_moveParticles, Grid_sortParticles
   ! Added by JFG
   use pt_sinkInterface, only: pt_sinkGatherGlobal
   use Simulation_data, only: sim_fixedPartTag
@@ -54,24 +58,29 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
 
   real, dimension(maxsinks) :: ax_gas, ay_gas, az_gas
 
-  integer             :: i, nsubcycles, j
+  integer             :: i, nsubcycles, np
   logical, save       :: first_call = .true.
   real                :: dt, dt_global, t_sub, wterm
   real, save          :: dt_subOld
   real                :: local_min_radius, local_max_accel
   logical             :: end_subcycling
   integer, save       :: integrator
-  logical, parameter  :: debug = .false.
-  real                :: max_part_vel
   character(len=80)   :: sink_integrator
   real                :: alpha, dotalpha, aterm, bterm, woldterm
   real, save          :: Hubble, OmegaM, OmegaCurv, OmegaL, OmegaB
   real                :: redshift_old, sOld, a0, simTime
-  integer, dimension(MAXBLOCKS,NPART_TYPES) :: particlesPerBlk
-  
+
   ! this should be an interface
   real                :: pt_sinkBNCOEFF, pt_sinkCNCOEFF, pt_sinkDNCOEFF
-  
+
+  integer, parameter :: gather_nprops = 13
+  integer, dimension(gather_nprops), save :: gather_propinds = &
+    (/ integer :: ACCX_PART_PROP, ACCY_PART_PROP, ACCZ_PART_PROP, &
+                  POSX_PART_PROP, POSY_PART_PROP, POSZ_PART_PROP, &
+                  VELX_PART_PROP, VELY_PART_PROP, VELZ_PART_PROP, &
+                  OACX_PART_PROP, OACY_PART_PROP, OACZ_PART_PROP, &
+                  DTOLD_PART_PROP /)
+
   ! Added by JFG
   real, dimension(6)  :: fixed_vec
   integer             :: fixedi
@@ -105,7 +114,7 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
      end select
      if (dr_globalMe .eq. MASTER_PE) print*, "Advance Particles, sink integrator = ", trim(sink_integrator)
 
-     call Cosmology_getParams(Hubble,OmegaM,OmegaB,OmegaL)
+     call Cosmology_getParams(Hubble, OmegaM, OmegaB, OmegaL)
      OmegaCurv = OmegaM + OmegaL - 1.
 
      first_call = .false.
@@ -113,33 +122,27 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
 
   if (localnpf .eq. 0) return
 
-  ! clear particle accelerations
-  do i=1, localnp
-     particles_local(ACCX_PART_PROP,i) = 0.0
-     particles_local(ACCY_PART_PROP,i) = 0.0
-     particles_local(ACCZ_PART_PROP,i) = 0.0
-  end do
-
-  if(debug) then
-     do i=1, localnp
-        do j=1, pt_sinkParticleProps
-           print*, i,j,particles_local(j,i)
-        end do
-     end do
-  end if
-
-  ! Compute acceleration on sinks from gas and 
-  ! mapped particle (not sinks) density (e.g. dark matte)
-
-  if(debug) then
-     max_part_vel = 0.0
-    do i=1, localnp
-       max_part_vel = max(max_part_vel, abs(particles_local(VELX_PART_PROP, i)))
-       max_part_vel = max(max_part_vel, abs(particles_local(VELY_PART_PROP, i)))
-       max_part_vel = max(max_part_vel, abs(particles_local(VELZ_PART_PROP, i)))
-    end do
-    print*, dr_globalMe, "start of advance particles (1): max_part_vel=", max_part_vel
-  end if
+  ! Decide whether to update global or local list
+  if (sink_AdvanceSerialComputation) then
+     ! this requires that all CPUs update all particles
+     ! in the global list (serial computation), but avoids communication during subcycling
+     np = localnpf
+     ! we only have to call pt_sinkGatherGlobal once here,
+     ! instead of many times in pt_sinkAccelSinksOnSinks()
+     call pt_sinkGatherGlobal(gather_propinds, gather_nprops)
+     ! store acceleration from GasOnSinksAccel (now called in Gravity_PotentialListOfBlocks)
+     ax_gas(1:np) = particles_global(ACCX_PART_PROP, 1:np)
+     ay_gas(1:np) = particles_global(ACCY_PART_PROP, 1:np)
+     az_gas(1:np) = particles_global(ACCZ_PART_PROP, 1:np)
+  else
+     ! this parallelizes, but requires communicating the particle
+     ! positions of all particles in pt_sinkAccelSinksOnSinks()
+     np = localnp
+     ! store acceleration from GasOnSinksAccel (now called in Gravity_PotentialListOfBlocks)
+     ax_gas(1:np) = particles_local(ACCX_PART_PROP, 1:np)
+     ay_gas(1:np) = particles_local(ACCY_PART_PROP, 1:np)
+     az_gas(1:np) = particles_local(ACCZ_PART_PROP, 1:np)
+  endif
 
   ! Added by JFG
   if (sim_fixedPartTag .ne. 0) then
@@ -162,25 +165,6 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
   endif
   ! End JFG
 
-  call pt_sinkAccelGasOnSinks()
-
-  if(debug) then
-     max_part_vel = 0.0
-    do i=1, localnp
-       max_part_vel = max(max_part_vel, abs(particles_local(VELX_PART_PROP, i)))
-       max_part_vel = max(max_part_vel, abs(particles_local(VELY_PART_PROP, i)))
-       max_part_vel = max(max_part_vel, abs(particles_local(VELZ_PART_PROP, i)))
-    end do
-    print*, dr_globalMe, "after gas on sinks: max_part_vel=", max_part_vel
-  end if
-
-  ! store acceleration from GasOnSinksAccel
-  do i=1, localnp
-     ax_gas(i) = particles_local(ACCX_PART_PROP, i)
-     ay_gas(i) = particles_local(ACCY_PART_PROP, i)
-     az_gas(i) = particles_local(ACCZ_PART_PROP, i)
-  end do
-
   dt_global = dr_dt
   t_sub = 0.0
   nsubcycles = 0
@@ -190,35 +174,19 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
 
      do while (.not. end_subcycling)
 
-        do i = 1, localnp
-           particles_local(ACCX_PART_PROP, i) = ax_gas(i)
-           particles_local(ACCY_PART_PROP, i) = ay_gas(i)
-           particles_local(ACCZ_PART_PROP, i) = az_gas(i)
-        end do
+        ! copy gas acceleration into list
+        if (sink_AdvanceSerialComputation) then
+          particles_global(ACCX_PART_PROP, 1:np) = ax_gas(1:np)
+          particles_global(ACCY_PART_PROP, 1:np) = ay_gas(1:np)
+          particles_global(ACCZ_PART_PROP, 1:np) = az_gas(1:np)
+        else
+          particles_local(ACCX_PART_PROP, 1:np) = ax_gas(1:np)
+          particles_local(ACCY_PART_PROP, 1:np) = ay_gas(1:np)
+          particles_local(ACCZ_PART_PROP, 1:np) = az_gas(1:np)
+        endif
 
         ! compute sink-sink gravity
         call pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
-
-        if(debug) then
-           max_part_vel = 0.0
-           do i=1, localnp
-              max_part_vel = max(max_part_vel, abs(particles_local(VELX_PART_PROP, i)))
-              max_part_vel = max(max_part_vel, abs(particles_local(VELY_PART_PROP, i)))
-              max_part_vel = max(max_part_vel, abs(particles_local(VELZ_PART_PROP, i)))
-           end do
-           print*, dr_globalMe, "after sinks on sinks: max_part_vel=", max_part_vel
-           if(max_part_vel .ge. 1.0e10) then
-              call Driver_abortFlash("velocity too high!")
-           end if
-           do i=1, localnp
-              print*, "accleration contribution from other sinks x", i, particles_local(ACCX_PART_PROP, i) - ax_gas(i)
-              print*, "accleration contribution from other sinks y", i, particles_local(ACCY_PART_PROP, i) - ay_gas(i)
-              print*, "accleration contribution from other sinks z", i, particles_local(ACCZ_PART_PROP, i) - az_gas(i)
-           end do
-           print*, dr_globalMe, "advance sinks: getting sub cycle timestep"
-           print*, dr_globalMe, "local_min_radius=", local_min_radius
-           print*, dr_globalMe, "local_max_accel=", local_max_accel
-        endif
 
         call pt_sinkGetSubCycleTimeStep(dt, dt_global, local_min_radius, local_max_accel)
 
@@ -228,92 +196,136 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
            end_subcycling = .true.
         end if
 
-        if(debug) then
-           print*, dr_globalMe, "advance sink particles subcycle dt = ", dt
-           print*, dr_globalMe, "advance sink particles, global dt = ", dt_global
-        end if
-
         ! First step of leapfrog:
         wterm = 0.5 * dt
 
-        do i = 1, localnp
-           particles_local(VELX_PART_PROP, i) =  & 
+        if (sink_AdvanceSerialComputation) then
+
+          do i = 1, np
+            particles_global(VELX_PART_PROP, i) =  & 
+                particles_global(VELX_PART_PROP, i) + & 
+                wterm * particles_global(ACCX_PART_PROP, i)
+            particles_global(POSX_PART_PROP, i) = & 
+                particles_global(POSX_PART_PROP, i) + & 
+                dt*particles_global(VELX_PART_PROP, i)
+
+            particles_global(VELY_PART_PROP, i) =  & 
+                particles_global(VELY_PART_PROP, i) + & 
+                wterm * particles_global(ACCY_PART_PROP, i)
+            particles_global(POSY_PART_PROP, i) = & 
+                particles_global(POSY_PART_PROP, i) + & 
+                dt*particles_global(VELY_PART_PROP, i)
+
+            particles_global(VELZ_PART_PROP, i) =  & 
+                particles_global(VELZ_PART_PROP, i) + & 
+                wterm * particles_global(ACCZ_PART_PROP, i)
+            particles_global(POSZ_PART_PROP, i) = & 
+                particles_global(POSZ_PART_PROP, i) + & 
+                dt*particles_global(VELZ_PART_PROP, i)
+          enddo
+
+        else ! parallel
+
+          do i = 1, np
+            particles_local(VELX_PART_PROP, i) =  & 
                 particles_local(VELX_PART_PROP, i) + & 
                 wterm * particles_local(ACCX_PART_PROP, i)
-           particles_local(POSX_PART_PROP, i) = & 
+            particles_local(POSX_PART_PROP, i) = & 
                 particles_local(POSX_PART_PROP, i) + & 
                 dt*particles_local(VELX_PART_PROP, i)
 
-           particles_local(VELY_PART_PROP, i) =  & 
+            particles_local(VELY_PART_PROP, i) =  & 
                 particles_local(VELY_PART_PROP, i) + & 
                 wterm * particles_local(ACCY_PART_PROP, i)
-           particles_local(POSY_PART_PROP, i) = & 
+            particles_local(POSY_PART_PROP, i) = & 
                 particles_local(POSY_PART_PROP, i) + & 
                 dt*particles_local(VELY_PART_PROP, i)
 
-           particles_local(VELZ_PART_PROP, i) =  & 
+            particles_local(VELZ_PART_PROP, i) =  & 
                 particles_local(VELZ_PART_PROP, i) + & 
                 wterm * particles_local(ACCZ_PART_PROP, i)
-           particles_local(POSZ_PART_PROP, i) = & 
+            particles_local(POSZ_PART_PROP, i) = & 
                 particles_local(POSZ_PART_PROP, i) + & 
                 dt*particles_local(VELZ_PART_PROP, i)
-        enddo
+          enddo
 
-        ! restore gas contribution
-        do i = 1, localnp
-           particles_local(ACCX_PART_PROP, i) = ax_gas(i)
-           particles_local(ACCY_PART_PROP, i) = ay_gas(i)
-           particles_local(ACCZ_PART_PROP, i) = az_gas(i)
-        end do
+        endif ! sink_AdvanceSerialComputation
+
+        ! reset list accelerations to gas contribution only
+        if (sink_AdvanceSerialComputation) then
+          particles_global(ACCX_PART_PROP, 1:np) = ax_gas(1:np)
+          particles_global(ACCY_PART_PROP, 1:np) = ay_gas(1:np)
+          particles_global(ACCZ_PART_PROP, 1:np) = az_gas(1:np)
+        else
+          particles_local(ACCX_PART_PROP, 1:np) = ax_gas(1:np)
+          particles_local(ACCY_PART_PROP, 1:np) = ay_gas(1:np)
+          particles_local(ACCZ_PART_PROP, 1:np) = az_gas(1:np)
+        endif
 
         ! Add sink-sink acceleration at new position of particle
-        if(debug) print*, dr_globalMe, "advance sinks: calculating sink on sink acceleration"
-        call pt_sinkAccelSinksOnSinks(local_min_radius,local_max_accel)
+        call pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
 
         ! Second step of leapfrog
-        do i = 1, localnp
+        if (sink_AdvanceSerialComputation) then
 
-           particles_local(VELX_PART_PROP, i) = & 
+          do i = 1, np
+
+            particles_global(VELX_PART_PROP, i) = & 
+                particles_global(VELX_PART_PROP, i) + & 
+                wterm*particles_global(ACCX_PART_PROP, i)
+
+            particles_global(VELY_PART_PROP, i) = & 
+                particles_global(VELY_PART_PROP, i) + & 
+                wterm*particles_global(ACCY_PART_PROP, i)
+
+            particles_global(VELZ_PART_PROP, i) = & 
+                particles_global(VELZ_PART_PROP, i) + & 
+                wterm*particles_global(ACCZ_PART_PROP, i)
+
+          enddo
+
+        else ! parallel
+
+          do i = 1, np
+
+            particles_local(VELX_PART_PROP, i) = & 
                 particles_local(VELX_PART_PROP, i) + & 
                 wterm*particles_local(ACCX_PART_PROP, i)
 
-           particles_local(VELY_PART_PROP, i) = & 
+            particles_local(VELY_PART_PROP, i) = & 
                 particles_local(VELY_PART_PROP, i) + & 
                 wterm*particles_local(ACCY_PART_PROP, i)
 
-           particles_local(VELZ_PART_PROP, i) = & 
+            particles_local(VELZ_PART_PROP, i) = & 
                 particles_local(VELZ_PART_PROP, i) + & 
                 wterm*particles_local(ACCZ_PART_PROP, i)
 
-        end do
+          enddo
+
+        endif ! sink_AdvanceSerialComputation
 
         ! add dt to the current time within subcycling loop
         t_sub = t_sub + dt
         nsubcycles = nsubcycles + 1
 
-        if(debug) then 
-           print*, dr_globalMe, "nsubcycles=", nsubcycles
-        endif
-
      end do
-
-     if(debug) then
-        if(dr_globalMe .eq. MASTER_PE) then
-           print*, "subcycling on master PE"
-        end if
-     endif
 
   end if    ! leapfrog integrator
 
-  if(integrator .eq. 2) then       ! euler method integrator.
+  if (integrator .eq. 2) then       ! euler method integrator.
 
      do while(.not. end_subcycling)
 
-        do i = 1, localnp
-           particles_local(ACCX_PART_PROP,i) = ax_gas(i)
-           particles_local(ACCY_PART_PROP,i) = ay_gas(i)
-           particles_local(ACCZ_PART_PROP,i) = az_gas(i)
-        enddo
+        ! copy gas acceleration into list
+        if (sink_AdvanceSerialComputation) then
+          particles_global(ACCX_PART_PROP, 1:np) = ax_gas(1:np)
+          particles_global(ACCY_PART_PROP, 1:np) = ay_gas(1:np)
+          particles_global(ACCZ_PART_PROP, 1:np) = az_gas(1:np)
+        else
+          particles_local(ACCX_PART_PROP, 1:np) = ax_gas(1:np)
+          particles_local(ACCY_PART_PROP, 1:np) = ay_gas(1:np)
+          particles_local(ACCZ_PART_PROP, 1:np) = az_gas(1:np)
+        endif
 
         call pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
 
@@ -324,24 +336,49 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
            end_subcycling = .true.
         endif
 
-        do i = 1, localnp
+        if (sink_AdvanceSerialComputation) then
 
-           particles_local(POSX_PART_PROP,i) = particles_local(POSX_PART_PROP,i) + & 
+          do i = 1, np
+
+            particles_global(POSX_PART_PROP,i) = particles_global(POSX_PART_PROP,i) + & 
+                dt * particles_global(VELX_PART_PROP,i)
+            particles_global(VELX_PART_PROP,i) = particles_global(VELX_PART_PROP,i) + & 
+                dt * particles_global(ACCX_PART_PROP,i)
+
+            particles_global(POSY_PART_PROP,i) = particles_global(POSY_PART_PROP,i) + & 
+                dt * particles_global(VELY_PART_PROP,i)
+            particles_global(VELY_PART_PROP,i) = particles_global(VELY_PART_PROP,i) + & 
+                dt * particles_global(ACCY_PART_PROP,i)
+
+            particles_global(POSZ_PART_PROP,i) = particles_global(POSZ_PART_PROP,i) + & 
+                dt * particles_global(VELZ_PART_PROP,i)
+            particles_global(VELZ_PART_PROP,i) = particles_global(VELZ_PART_PROP,i) + & 
+                dt * particles_global(ACCZ_PART_PROP,i)
+
+          enddo
+
+        else ! parallel
+
+          do i = 1, np
+
+            particles_local(POSX_PART_PROP,i) = particles_local(POSX_PART_PROP,i) + & 
                 dt * particles_local(VELX_PART_PROP,i)
-           particles_local(VELX_PART_PROP,i) = particles_local(VELX_PART_PROP,i) + & 
+            particles_local(VELX_PART_PROP,i) = particles_local(VELX_PART_PROP,i) + & 
                 dt * particles_local(ACCX_PART_PROP,i)
 
-           particles_local(POSY_PART_PROP,i) = particles_local(POSY_PART_PROP,i) + & 
+            particles_local(POSY_PART_PROP,i) = particles_local(POSY_PART_PROP,i) + & 
                 dt * particles_local(VELY_PART_PROP,i)
-           particles_local(VELY_PART_PROP,i) = particles_local(VELY_PART_PROP,i) + & 
+            particles_local(VELY_PART_PROP,i) = particles_local(VELY_PART_PROP,i) + & 
                 dt * particles_local(ACCY_PART_PROP,i)
 
-           particles_local(POSZ_PART_PROP,i) = particles_local(POSZ_PART_PROP,i) + & 
+            particles_local(POSZ_PART_PROP,i) = particles_local(POSZ_PART_PROP,i) + & 
                 dt * particles_local(VELZ_PART_PROP,i)
-           particles_local(VELZ_PART_PROP,i) = particles_local(VELZ_PART_PROP,i) + & 
+            particles_local(VELZ_PART_PROP,i) = particles_local(VELZ_PART_PROP,i) + & 
                 dt * particles_local(ACCZ_PART_PROP,i)
 
-        enddo
+          enddo
+
+        endif ! sink_AdvanceSerialComputation
 
         t_sub = t_sub + dt
         nsubcycles = nsubcycles + 1
@@ -359,19 +396,21 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
 
      do while (.not. end_subcycling)
 
-        do i = 1, localnp
-           particles_local(ACCX_PART_PROP, i) = ax_gas(i)
-           particles_local(ACCY_PART_PROP, i) = ay_gas(i)
-           particles_local(ACCZ_PART_PROP, i) = az_gas(i)
-        end do
+        ! copy gas acceleration into list
+        if (sink_AdvanceSerialComputation) then
+          particles_global(ACCX_PART_PROP, 1:np) = ax_gas(1:np)
+          particles_global(ACCY_PART_PROP, 1:np) = ay_gas(1:np)
+          particles_global(ACCZ_PART_PROP, 1:np) = az_gas(1:np)
+        else
+          particles_local(ACCX_PART_PROP, 1:np) = ax_gas(1:np)
+          particles_local(ACCY_PART_PROP, 1:np) = ay_gas(1:np)
+          particles_local(ACCZ_PART_PROP, 1:np) = az_gas(1:np)
+        endif
 
         ! compute sink-sink gravity
-        if(debug) print*, dr_globalMe, "advance sinks: computing sink on sink acceleration"
         call pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
 
         call pt_sinkGetSubCycleTimeStep(dt, dt_global, local_min_radius, local_max_accel)
-
-        if(debug) print*, dr_globalMe, "advance sinks: got subcycle timestep", dt
 
         ! check whether we have reached the global (hydro) timestep for exiting
         if (t_sub + dt .ge. dt_global) then
@@ -382,7 +421,7 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
         alpha    = 2.0*Hubble/sOld * sqrt(OmegaM/sOld-OmegaCurv+OmegaL*sOld**2)
         dotalpha = 2.0*Hubble**2 * (-3.0*OmegaM + 2.0*OmegaCurv*sOld)/sOld**3
 
-        call pt_sinkCsm_integrateFriedmann(a0,dt,sOld)
+        call pt_sinkCsm_integrateFriedmann(a0, dt, sOld)
         ! sOld is now the scale factor at start of subcycle timestep
         a0 = sOld
         simTime = simTime + dt
@@ -390,9 +429,12 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
         ! Advances particle positions fully over the sink particle
         ! subcycle timestep
         ! Velocities are defined in center of timestep
-        do i = 1, localnp
 
-           dt_subOld = particles_local(ipdtold,i)
+        if (sink_AdvanceSerialComputation) then
+
+         do i = 1, np
+
+           dt_subOld = particles_global(DTOLD_PART_PROP,i)
 
            ! If dt_subOld = 0, assume this is the first time moving this
            ! particular sink particle.
@@ -406,8 +448,55 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
            else
               aterm      = dt
               bterm      = pt_sinkBNCOEFF(dt, dt_subOld, alpha, dotalpha)
-              wterm      = pt_sinkCNCOEFF(dt, dt_subOld, alpha, dotalpha)
-              woldterm   = pt_sinkDNCOEFF(dt, dt_subOld, alpha, dotalpha)
+              wterm      = pt_sinkCNCOEFF(dt, dt_subOld, alpha)
+              woldterm   = pt_sinkDNCOEFF(dt, dt_subOld, alpha)
+           end if
+
+           particles_global(VELX_PART_PROP,i) = bterm*particles_global(VELX_PART_PROP,i) + &
+                wterm*particles_global(ACCX_PART_PROP,i) + &
+                woldterm*particles_global(OACX_PART_PROP,i)
+           particles_global(POSX_PART_PROP,i) = particles_global(POSX_PART_PROP,i) + &
+                aterm*particles_global(VELX_PART_PROP,i)
+           particles_global(OACX_PART_PROP,i) = particles_global(ACCX_PART_PROP,i)
+
+           particles_global(VELY_PART_PROP,i)= bterm*particles_global(VELY_PART_PROP,i) + &
+                wterm*particles_global(ACCY_PART_PROP,i) + &
+                woldterm*particles_global(OACY_PART_PROP,i)
+           particles_global(POSY_PART_PROP,i)=  particles_global(POSY_PART_PROP,i) + &
+                aterm*particles_global(VELY_PART_PROP,i)
+           particles_global(OACY_PART_PROP,i) = particles_global(ACCY_PART_PROP,i)
+
+           particles_global(VELZ_PART_PROP,i)= bterm*particles_global(VELZ_PART_PROP,i) + &
+                wterm*particles_global(ACCZ_PART_PROP,i) + &
+                woldterm*particles_global(OACZ_PART_PROP,i)
+           particles_global(POSZ_PART_PROP,i) =  particles_global(POSZ_PART_PROP,i) + &
+                aterm*particles_global(VELZ_PART_PROP,i)
+           particles_global(OACZ_PART_PROP,i) = particles_global(ACCZ_PART_PROP,i)
+
+           particles_global(DTOLD_PART_PROP,i) = dt
+
+         end do
+
+        else ! parallel
+
+         do i = 1, np
+
+           dt_subOld = particles_local(DTOLD_PART_PROP,i)
+
+           ! If dt_subOld = 0, assume this is the first time moving this
+           ! particular sink particle.
+           ! As with dark matter, first step is defined at t0
+           ! afterwards, position and velocity are staggered, ala leapfrog
+           if(dt_subOld .eq. 0.0) then
+              aterm     = dt
+              bterm     = 1. - alpha*dt*0.5
+              wterm     = 0.5*dt
+              woldterm  = 0.
+           else
+              aterm      = dt
+              bterm      = pt_sinkBNCOEFF(dt, dt_subOld, alpha, dotalpha)
+              wterm      = pt_sinkCNCOEFF(dt, dt_subOld, alpha)
+              woldterm   = pt_sinkDNCOEFF(dt, dt_subOld, alpha)
            end if
 
            particles_local(VELX_PART_PROP,i) = bterm*particles_local(VELX_PART_PROP,i) + &
@@ -431,23 +520,19 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
                 aterm*particles_local(VELZ_PART_PROP,i)
            particles_local(OACZ_PART_PROP,i) = particles_local(ACCZ_PART_PROP,i)
 
-           particles_local(ipdtold,i) = dt
+           particles_local(DTOLD_PART_PROP,i) = dt
 
-        end do
+         end do
+
+        endif ! sink_AdvanceSerialComputation
 
         ! add dt to the current time within subcycling loop
         t_sub = t_sub + dt
         nsubcycles = nsubcycles + 1
 
-        if(debug)then
-           print*, dr_globalMe, "nsubcycles=", nsubcycles
-        endif
-
      end do
 
-  end if
-
-  if (dr_globalMe .eq. MASTER_PE) print*, "pt_sinkAdvanceParticles: #subcycles:", nsubcycles
+  end if ! leapfrog cosmo
 
   ! Added by JFG
   if (sim_fixedPartTag .ne. 0) then
@@ -479,12 +564,27 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
   endif
   ! End JFG
 
-  ! moved from Particles_advance
-  call Grid_moveParticles(particles_local,pt_sinkParticleProps,&
-    pt_maxSinksPerProc,localnp, pt_indexList, pt_indexCount, .false.)
-  call Grid_sortParticles(particles_local,pt_sinkParticleProps,localnp, &
-    NPART_TYPES,pt_maxSinksPerProc,particlesPerBlk,BLK_PART_PROP)
-  
+  ! in case of serial computation, copy global list into local list, so we leave updated
+  if (sink_AdvanceSerialComputation) then
+     particles_local(POSX_PART_PROP,1:localnp) = particles_global(POSX_PART_PROP,1:localnp)
+     particles_local(POSY_PART_PROP,1:localnp) = particles_global(POSY_PART_PROP,1:localnp)
+     particles_local(POSZ_PART_PROP,1:localnp) = particles_global(POSZ_PART_PROP,1:localnp)
+     particles_local(VELX_PART_PROP,1:localnp) = particles_global(VELX_PART_PROP,1:localnp)
+     particles_local(VELY_PART_PROP,1:localnp) = particles_global(VELY_PART_PROP,1:localnp)
+     particles_local(VELZ_PART_PROP,1:localnp) = particles_global(VELZ_PART_PROP,1:localnp)
+     particles_local(ACCX_PART_PROP,1:localnp) = particles_global(ACCX_PART_PROP,1:localnp)
+     particles_local(ACCY_PART_PROP,1:localnp) = particles_global(ACCY_PART_PROP,1:localnp)
+     particles_local(ACCZ_PART_PROP,1:localnp) = particles_global(ACCZ_PART_PROP,1:localnp)
+     if (integrator .eq. 3) then
+       particles_local(OACX_PART_PROP,1:localnp) = particles_global(OACX_PART_PROP,1:localnp)
+       particles_local(OACY_PART_PROP,1:localnp) = particles_global(OACY_PART_PROP,1:localnp)
+       particles_local(OACZ_PART_PROP,1:localnp) = particles_global(OACZ_PART_PROP,1:localnp)
+       particles_local(DTOLD_PART_PROP,1:localnp) = particles_global(DTOLD_PART_PROP,1:localnp)
+     endif
+  endif
+
+  if (dr_globalMe .eq. MASTER_PE) print*, "Particles_sinkAdvanceParticles: #subcycles:", nsubcycles
+
   return
 
 end subroutine Particles_sinkAdvanceParticles
@@ -514,14 +614,14 @@ end function pt_sinkBNCOEFF
 
 !===============================================================================
 
-function pt_sinkCNCOEFF (DT, DT_OLD, ALPHA, DOTALPHA)
+function pt_sinkCNCOEFF (DT, DT_OLD, ALPHA)
   !       This function is the "C_n" function from
   !       equation 31 in SecondOrder.tex
 
   implicit none
 
   real :: pt_sinkCNCOEFF
-  real, INTENT(in)   :: DT, DT_OLD, ALPHA, DOTALPHA
+  real, INTENT(in)   :: DT, DT_OLD, ALPHA
   real, parameter    :: onesixth   = 1./6.
   real, parameter    :: onethird   = 1./3.
 
@@ -534,14 +634,14 @@ end function pt_sinkCNCOEFF
 
 !===============================================================================
 
-function pt_sinkDNCOEFF (DT, DT_OLD, ALPHA, DOTALPHA)
+function pt_sinkDNCOEFF (DT, DT_OLD, ALPHA)
   !       This function is the "D_n" function from
   !       equation 33 in SecondOrder.tex
 
   implicit none
 
   real :: pt_sinkDNCOEFF
-  real, INTENT(in)  :: DT, DT_OLD, ALPHA, DOTALPHA
+  real, INTENT(in)  :: DT, DT_OLD, ALPHA
   real, parameter   :: onetwelfth = 1./12.
 
   pt_sinkDNCOEFF = (DT_OLD**2 - DT**2)/(6*DT_OLD) - ALPHA*DT_OLD*(DT+DT_OLD)*onetwelfth
@@ -576,20 +676,20 @@ subroutine pt_sinkCsm_integrateFriedmann(a,dt,anew)
   dt6 = dt/6.
   dtn = dt + dt2
 
-  call pt_sinkCsm_friedmannDeriv(a,dadt)
+  call pt_sinkCsm_friedmannDeriv(a, dadt)
 
   a1 = a + dt2*dadt
 
-  call pt_sinkCsm_friedmannDeriv(a1,dadt1)
+  call pt_sinkCsm_friedmannDeriv(a1, dadt1)
 
   a1 = a + dt2*dadt1
 
-  call pt_sinkCsm_friedmannDeriv(a1,dadt2)
+  call pt_sinkCsm_friedmannDeriv(a1, dadt2)
 
   a1 = a + dt*dadt2
   dadt2 = dadt1 + dadt2
 
-  call pt_sinkCsm_friedmannDeriv(a1,dadt1)
+  call pt_sinkCsm_friedmannDeriv(a1, dadt1)
 
   anew = a + dt6*(dadt + dadt1 + 2.*dadt2)
 
@@ -597,36 +697,32 @@ subroutine pt_sinkCsm_integrateFriedmann(a,dt,anew)
 
 end subroutine pt_sinkCsm_integrateFriedmann
 
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+!===============================================================================
 
 subroutine pt_sinkCsm_friedmannDeriv(avar, dadtvar)
 
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
+  use Cosmology_interface, ONLY : Cosmology_getParams
 
   implicit none
 
   real, intent(IN) :: avar
   real, intent(INOUT) :: dadtvar
 
-  real, save :: hubble, omega, lambda, curv
+  real, save :: Hubble, OmegaM, OmegaB, OmegaL, curv
 
   logical, save :: first_call = .true.
 
   if(first_call) then
-     call RuntimeParameters_get("HubbleConstant", hubble)
-     call RuntimeParameters_get("OmegaMatter", omega)
-     call RuntimeParameters_get("CosmologicalConstant", lambda)
-     curv = omega + lambda - 1.0
-
+     call Cosmology_getParams(Hubble, OmegaM, OmegaB, OmegaL)
+     curv = OmegaM + OmegaL - 1.0
      first_call = .false.
   end if
 
-  dadtvar = hubble*sqrt(omega/avar - curv + lambda*avar**2)
-
-  !===============================================================================
+  dadtvar = Hubble*sqrt(OmegaM/avar - curv + OmegaL*avar**2)
 
   return
 
 end subroutine pt_sinkCsm_friedmannDeriv
+
+!===============================================================================

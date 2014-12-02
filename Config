@@ -54,7 +54,7 @@ PARAMETER sim_ptMass                REAL    2.E39
 PARAMETER sim_starPtMass            REAL    2.E33
 PARAMETER sim_rhoAmbient            REAL    1.E-15
 PARAMETER sim_pAmbient              REAL    1.E-4
-PARAMETER sim_tAmbient              REAL    1.E0
+PARAMETER sim_tAmbient              REAL    1.E4
 PARAMETER sim_tRelax                REAL    1.E3
 PARAMETER sim_relaxRate             REAL    0.99E0
 PARAMETER larget                    REAL    1.E10
@@ -67,6 +67,7 @@ PARAMETER sim_fluffDampCutoff       REAL    0.E0
 PARAMETER sim_fluffRefineCutoff     REAL    1.E1
 PARAMETER sim_maxBlocks             INTEGER 40000
 PARAMETER sim_useInitialPeakDensity BOOLEAN TRUE
+PARAMETER sim_useRadialProfile      BOOLEAN TRUE
 PARAMETER sim_ptMassRefine          INTEGER 1
 PARAMETER sim_totForceSub           INTEGER 1
 PARAMETER sim_ptMassRefRad          REAL    1.E0

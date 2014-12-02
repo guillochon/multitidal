@@ -77,11 +77,19 @@ subroutine Simulation_initBlock (blockId, myPE)
   call RuntimeParameters_get("sink_softening_radius", softening_radius)
 
   ! Anninos 2012
-  rsc = 1.2d16
-  rho0 = 1.3d-21*sim_xRayFraction
-  T0 = 0.4d0*obj_mu*newton*sim_ptMass*mp/kb/rsc
-  rho0in = rho0*(softening_radius/rsc)**(-1.5d0)
-  T0in = 0.5d0*T0*(softening_radius/rsc)**(-1.d0)
+  if (sim_useRadialProfile) then
+      rsc = 1.2d16
+      rho0 = 1.3d-21*sim_xRayFraction
+      T0 = 0.4d0*obj_mu*newton*sim_ptMass*mp/kb/rsc
+      rho0in = rho0*(softening_radius/rsc)**(-1.5d0)
+      T0in = 0.5d0*T0*(softening_radius/rsc)**(-1.d0)
+  else
+      rsc = 1.d0
+      rho0 = 0.d0
+      T0 = 0.d0
+      rho0in = 0.d0
+      T0in = 0.d0
+  endif
 
   !do i = 1, np
   !   print *, obj_radius(i), obj_rhop(i), eint(i) 

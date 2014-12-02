@@ -283,7 +283,6 @@ subroutine Simulation_init()
 
     if (gr_globalMe .eq. MASTER_PE) then
         call calc_orbit(0.d0, sim_objMass, sim_ptMass, obvec, ptvec)
-        print *, sim_objMass, sim_ptMass, obvec, ptvec
         ptvec = ptvec - obvec
         if (sim_fixedParticle .eq. 1) then
             stvec = -ptvec

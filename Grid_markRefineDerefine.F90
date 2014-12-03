@@ -160,7 +160,7 @@ subroutine Grid_markRefineDerefine()
           call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
       endif
   else
-      specs = (/ real(DENS_VAR), sim_fluffRefineCutoff*sim_fluffDampCutoff, -1., 0., 0., 0., 0. /)
+      specs = (/ real(DENS_VAR), sim_fluffRefineCutoff, -1., 0., 0., 0., 0. /)
       call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
   endif
 

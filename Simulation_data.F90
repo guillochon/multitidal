@@ -64,7 +64,7 @@ module Simulation_data
   double precision, save    :: sim_inSubInv
   double precision, save    :: sim_inszd
   double precision, dimension(6), save :: bhvec, stvec
-  logical, save :: sim_useInitialPeakDensity, sim_useRadialProfile
+  logical, save :: sim_useInitialPeakDensity, sim_useRadialProfile, sim_moveFixedToCOM
 
   double precision, parameter :: sim_msun = 1.9889225d33
 

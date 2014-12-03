@@ -45,7 +45,8 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
   use Driver_interface, ONLY : Driver_getSimTime, Driver_abortFlash
   ! Added by JFG
   use pt_sinkInterface, only: pt_sinkGatherGlobal
-  use Simulation_data, only: sim_fixedPartTag
+  use Simulation_data, only: sim_fixedPartTag, sim_tRelax
+  use Driver_data, ONLY : dr_simTime
   ! End JFG
   
 #include "constants.h"
@@ -93,6 +94,8 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
       real, intent(OUT) :: anew
     end subroutine
   end interface
+
+  if (dr_simTime .lt. sim_tRelax) return
 
   call Cosmology_getOldRedshift(redshift_old)
   a0 = 1./(1. + redshift_old)
@@ -145,6 +148,7 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
   endif
 
   ! Added by JFG
+  ! NOTE: THIS ONLY CURRENTLY WORKS IF ADVANCE SERIAL IS FALSE!
   if (sim_fixedPartTag .ne. 0) then
       call pt_sinkGatherGlobal()
       do i = 1, localnpf

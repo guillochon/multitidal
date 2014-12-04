@@ -83,8 +83,9 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
                   DTOLD_PART_PROP /)
 
   ! Added by JFG
-  real, dimension(6)  :: fixed_vec
-  integer             :: fixedi
+  real, dimension(6)          :: fixed_vec
+  real, dimension(3,maxsinks) :: tempAccel
+  integer                     :: fixedi
   ! End JFG
 
   interface
@@ -149,24 +150,24 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
 
   ! Added by JFG
   ! NOTE: THIS ONLY CURRENTLY WORKS IF ADVANCE SERIAL IS FALSE!
-  !if (sim_fixedPartTag .ne. 0) then
-  !    call pt_sinkGatherGlobal()
-  !    do i = 1, localnpf
-  !        if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) then
-  !            fixedi = i
-  !            exit
-  !        else
-  !            cycle
-  !        endif
-  !        call Driver_abortFlash('Error: Unable to find fixed particle tag [1]')
-  !    enddo
-  !    fixed_vec(1) = particles_global(POSX_PART_PROP,fixedi)
-  !    fixed_vec(2) = particles_global(POSY_PART_PROP,fixedi)
-  !    fixed_vec(3) = particles_global(POSZ_PART_PROP,fixedi)
-  !    fixed_vec(4) = particles_global(VELX_PART_PROP,fixedi)
-  !    fixed_vec(5) = particles_global(VELY_PART_PROP,fixedi)
-  !    fixed_vec(6) = particles_global(VELZ_PART_PROP,fixedi)
-  !endif
+  if (sim_fixedPartTag .ne. 0) then
+      call pt_sinkGatherGlobal()
+      do i = 1, localnpf
+          if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) then
+              fixedi = i
+              exit
+          else
+              cycle
+          endif
+          call Driver_abortFlash('Error: Unable to find fixed particle tag [1]')
+      enddo
+      !fixed_vec(1) = particles_global(POSX_PART_PROP,fixedi)
+      !fixed_vec(2) = particles_global(POSY_PART_PROP,fixedi)
+      !fixed_vec(3) = particles_global(POSZ_PART_PROP,fixedi)
+      !fixed_vec(4) = particles_global(VELX_PART_PROP,fixedi)
+      !fixed_vec(5) = particles_global(VELY_PART_PROP,fixedi)
+      !fixed_vec(6) = particles_global(VELZ_PART_PROP,fixedi)
+  endif
   ! End JFG
 
   dt_global = dr_dt
@@ -196,15 +197,6 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
 
         ! JFG
         call pt_sinkGatherGlobal()
-        do i = 1, localnpf
-            if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) then
-                fixedi = i
-                exit
-            else
-                cycle
-            endif
-            call Driver_abortFlash('Error: Unable to find fixed particle tag [2]')
-        enddo
         particles_local(ACCX_PART_PROP, 1:np) = particles_local(ACCX_PART_PROP, 1:np) - particles_global(ACCX_PART_PROP, fixedi)
         particles_local(ACCY_PART_PROP, 1:np) = particles_local(ACCY_PART_PROP, 1:np) - particles_global(ACCY_PART_PROP, fixedi)
         particles_local(ACCZ_PART_PROP, 1:np) = particles_local(ACCZ_PART_PROP, 1:np) - particles_global(ACCZ_PART_PROP, fixedi)
@@ -287,15 +279,6 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
 
         ! JFG
         call pt_sinkGatherGlobal()
-        do i = 1, localnpf
-            if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) then
-                fixedi = i
-                exit
-            else
-                cycle
-            endif
-            call Driver_abortFlash('Error: Unable to find fixed particle tag [2]')
-        enddo
         
         if (sim_fixedPartTag .ne. 0 .and. t_sub + dt .ge. dt_global) then
             sim_comAccel(1) = particles_global(ACCX_PART_PROP,fixedi)
@@ -456,23 +439,28 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
         call pt_sinkGetSubCycleTimeStep(dt, dt_global, local_min_radius, local_max_accel)
 
         ! JFG
-        call pt_sinkGatherGlobal()
-        do i = 1, localnpf
-            if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) then
-                fixedi = i
-                exit
-            else
-                cycle
-            endif
-            call Driver_abortFlash('Error: Unable to find fixed particle tag [2]')
-        enddo
+        tempAccel(1,1:np) = particles_local(ACCX_PART_PROP,1:np)
+        tempAccel(2,1:np) = particles_local(ACCY_PART_PROP,1:np)
+        tempAccel(3,1:np) = particles_local(ACCZ_PART_PROP,1:np)
 
-        sim_comAccel(1) = particles_global(ACCX_PART_PROP,fixedi) - ax_gas(fixedi)
-        sim_comAccel(2) = particles_global(ACCY_PART_PROP,fixedi) - ay_gas(fixedi)
-        sim_comAccel(3) = particles_global(ACCZ_PART_PROP,fixedi) - az_gas(fixedi)
+        particles_local(ACCX_PART_PROP,1:np) = particles_local(ACCX_PART_PROP,1:np) - ax_gas(1:np)
+        particles_local(ACCY_PART_PROP,1:np) = particles_local(ACCY_PART_PROP,1:np) - ay_gas(1:np)
+        particles_local(ACCZ_PART_PROP,1:np) = particles_local(ACCZ_PART_PROP,1:np) - az_gas(1:np)
+
+        call pt_sinkGatherGlobal()
+
+        sim_comAccel(1) = particles_global(ACCX_PART_PROP,fixedi)
+        sim_comAccel(2) = particles_global(ACCY_PART_PROP,fixedi)
+        sim_comAccel(3) = particles_global(ACCZ_PART_PROP,fixedi)
+
+        particles_local(ACCX_PART_PROP,1:np) = tempAccel(1,1:np)
+        particles_local(ACCY_PART_PROP,1:np) = tempAccel(2,1:np)
+        particles_local(ACCZ_PART_PROP,1:np) = tempAccel(3,1:np)
+
         if (sim_fixedPartTag .ne. 0 .and. t_sub + dt .ge. dt_global) then
             if (dr_globalMe .eq. MASTER_PE) then
                 print *, 'sim_comAccel', sim_comAccel
+                print *, 'a_gas', ax_gas(fixedi), ay_gas(fixedi), az_gas(fixedi)
             !    print *, 'particle', particles_global(:,fixedi)
             endif
         endif

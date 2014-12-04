@@ -50,6 +50,7 @@ module Simulation_data
                             sim_windMdot, sim_windTemperature, sim_windNCells, &
                             sim_windLaunchRadius, sim_windKernel, sim_tDelay
   double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
+  double precision, dimension(NDIM), save                :: sim_comAccel
 
   double precision, dimension(:,:), allocatable, save    :: sim_table
   integer, parameter                                     :: np = 1000

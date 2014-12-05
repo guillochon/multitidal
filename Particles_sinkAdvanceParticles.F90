@@ -83,7 +83,6 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
                   DTOLD_PART_PROP /)
 
   ! Added by JFG
-  real, dimension(6)          :: fixed_vec
   real, dimension(3,maxsinks) :: tempAccel
   integer                     :: fixedi
   ! End JFG
@@ -161,12 +160,6 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
           endif
           call Driver_abortFlash('Error: Unable to find fixed particle tag [1]')
       enddo
-      !fixed_vec(1) = particles_global(POSX_PART_PROP,fixedi)
-      !fixed_vec(2) = particles_global(POSY_PART_PROP,fixedi)
-      !fixed_vec(3) = particles_global(POSZ_PART_PROP,fixedi)
-      !fixed_vec(4) = particles_global(VELX_PART_PROP,fixedi)
-      !fixed_vec(5) = particles_global(VELY_PART_PROP,fixedi)
-      !fixed_vec(6) = particles_global(VELZ_PART_PROP,fixedi)
   endif
   ! End JFG
 
@@ -195,11 +188,13 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
 
         call pt_sinkGetSubCycleTimeStep(dt, dt_global, local_min_radius, local_max_accel)
 
-        ! JFG
-        call pt_sinkGatherGlobal()
-        particles_local(ACCX_PART_PROP, 1:np) = particles_local(ACCX_PART_PROP, 1:np) - particles_global(ACCX_PART_PROP, fixedi)
-        particles_local(ACCY_PART_PROP, 1:np) = particles_local(ACCY_PART_PROP, 1:np) - particles_global(ACCY_PART_PROP, fixedi)
-        particles_local(ACCZ_PART_PROP, 1:np) = particles_local(ACCZ_PART_PROP, 1:np) - particles_global(ACCZ_PART_PROP, fixedi)
+        ! JFG (this needs to be rewritten to match integrator 3's code)
+        if (sim_fixedPartTag .ne. 0) then
+            call pt_sinkGatherGlobal()
+            particles_local(ACCX_PART_PROP, 1:np) = particles_local(ACCX_PART_PROP, 1:np) - particles_global(ACCX_PART_PROP, fixedi)
+            particles_local(ACCY_PART_PROP, 1:np) = particles_local(ACCY_PART_PROP, 1:np) - particles_global(ACCY_PART_PROP, fixedi)
+            particles_local(ACCZ_PART_PROP, 1:np) = particles_local(ACCZ_PART_PROP, 1:np) - particles_global(ACCZ_PART_PROP, fixedi)
+        endif
         ! End JFG
 
         ! check whether we have reached the global (hydro) timestep for exiting
@@ -277,18 +272,20 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
         ! Add sink-sink acceleration at new position of particle
         call pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
 
-        ! JFG
-        call pt_sinkGatherGlobal()
-        
-        if (sim_fixedPartTag .ne. 0 .and. t_sub + dt .ge. dt_global) then
-            sim_comAccel(1) = particles_global(ACCX_PART_PROP,fixedi)
-            sim_comAccel(2) = particles_global(ACCY_PART_PROP,fixedi)
-            sim_comAccel(3) = particles_global(ACCZ_PART_PROP,fixedi)
-        endif
+        ! JFG (this needs to be fixed to match integrator 3)
+        if (sim_fixedPartTag .ne. 0) then
+            call pt_sinkGatherGlobal()
+            
+            if (sim_fixedPartTag .ne. 0 .and. t_sub + dt .ge. dt_global) then
+                sim_comAccel(1) = particles_global(ACCX_PART_PROP,fixedi)
+                sim_comAccel(2) = particles_global(ACCY_PART_PROP,fixedi)
+                sim_comAccel(3) = particles_global(ACCZ_PART_PROP,fixedi)
+            endif
 
-        particles_local(ACCX_PART_PROP, 1:np) = particles_local(ACCX_PART_PROP, 1:np) - particles_global(ACCX_PART_PROP, fixedi)
-        particles_local(ACCY_PART_PROP, 1:np) = particles_local(ACCY_PART_PROP, 1:np) - particles_global(ACCY_PART_PROP, fixedi)
-        particles_local(ACCZ_PART_PROP, 1:np) = particles_local(ACCZ_PART_PROP, 1:np) - particles_global(ACCZ_PART_PROP, fixedi)
+            particles_local(ACCX_PART_PROP, 1:np) = particles_local(ACCX_PART_PROP, 1:np) - particles_global(ACCX_PART_PROP, fixedi)
+            particles_local(ACCY_PART_PROP, 1:np) = particles_local(ACCY_PART_PROP, 1:np) - particles_global(ACCY_PART_PROP, fixedi)
+            particles_local(ACCZ_PART_PROP, 1:np) = particles_local(ACCZ_PART_PROP, 1:np) - particles_global(ACCZ_PART_PROP, fixedi)
+        endif
         ! End JFG
 
         ! Second step of leapfrog
@@ -439,35 +436,35 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
         call pt_sinkGetSubCycleTimeStep(dt, dt_global, local_min_radius, local_max_accel)
 
         ! JFG
-        tempAccel(1,1:np) = particles_local(ACCX_PART_PROP,1:np)
-        tempAccel(2,1:np) = particles_local(ACCY_PART_PROP,1:np)
-        tempAccel(3,1:np) = particles_local(ACCZ_PART_PROP,1:np)
+        if (sim_fixedPartTag .ne. 0) then
+            tempAccel(1,1:np) = particles_local(ACCX_PART_PROP,1:np)
+            tempAccel(2,1:np) = particles_local(ACCY_PART_PROP,1:np)
+            tempAccel(3,1:np) = particles_local(ACCZ_PART_PROP,1:np)
 
-        particles_local(ACCX_PART_PROP,1:np) = particles_local(ACCX_PART_PROP,1:np) - ax_gas(1:np)
-        particles_local(ACCY_PART_PROP,1:np) = particles_local(ACCY_PART_PROP,1:np) - ay_gas(1:np)
-        particles_local(ACCZ_PART_PROP,1:np) = particles_local(ACCZ_PART_PROP,1:np) - az_gas(1:np)
+            particles_local(ACCX_PART_PROP,1:np) = particles_local(ACCX_PART_PROP,1:np) - ax_gas(1:np)
+            particles_local(ACCY_PART_PROP,1:np) = particles_local(ACCY_PART_PROP,1:np) - ay_gas(1:np)
+            particles_local(ACCZ_PART_PROP,1:np) = particles_local(ACCZ_PART_PROP,1:np) - az_gas(1:np)
 
-        call pt_sinkGatherGlobal()
+            call pt_sinkGatherGlobal()
 
-        sim_comAccel(1) = particles_global(ACCX_PART_PROP,fixedi)
-        sim_comAccel(2) = particles_global(ACCY_PART_PROP,fixedi)
-        sim_comAccel(3) = particles_global(ACCZ_PART_PROP,fixedi)
+            sim_comAccel(1) = particles_global(ACCX_PART_PROP,fixedi)
+            sim_comAccel(2) = particles_global(ACCY_PART_PROP,fixedi)
+            sim_comAccel(3) = particles_global(ACCZ_PART_PROP,fixedi)
 
-        particles_local(ACCX_PART_PROP,1:np) = tempAccel(1,1:np)
-        particles_local(ACCY_PART_PROP,1:np) = tempAccel(2,1:np)
-        particles_local(ACCZ_PART_PROP,1:np) = tempAccel(3,1:np)
+            particles_local(ACCX_PART_PROP,1:np) = tempAccel(1,1:np)
+            particles_local(ACCY_PART_PROP,1:np) = tempAccel(2,1:np)
+            particles_local(ACCZ_PART_PROP,1:np) = tempAccel(3,1:np)
 
-        if (sim_fixedPartTag .ne. 0 .and. t_sub + dt .ge. dt_global) then
-            if (dr_globalMe .eq. MASTER_PE) then
-                print *, 'sim_comAccel', sim_comAccel
-                print *, 'a_gas', ax_gas(fixedi), ay_gas(fixedi), az_gas(fixedi)
-            !    print *, 'particle', particles_global(:,fixedi)
+            if (t_sub + dt .ge. dt_global) then
+                if (dr_globalMe .eq. MASTER_PE) then
+                    print *, 'sim_comAccel', sim_comAccel
+                endif
             endif
-        endif
 
-        particles_local(ACCX_PART_PROP, 1:np) = particles_local(ACCX_PART_PROP, 1:np) - sim_comAccel(1)
-        particles_local(ACCY_PART_PROP, 1:np) = particles_local(ACCY_PART_PROP, 1:np) - sim_comAccel(2)
-        particles_local(ACCZ_PART_PROP, 1:np) = particles_local(ACCZ_PART_PROP, 1:np) - sim_comAccel(3)
+            particles_local(ACCX_PART_PROP, 1:np) = particles_local(ACCX_PART_PROP, 1:np) - sim_comAccel(1)
+            particles_local(ACCY_PART_PROP, 1:np) = particles_local(ACCY_PART_PROP, 1:np) - sim_comAccel(2)
+            particles_local(ACCZ_PART_PROP, 1:np) = particles_local(ACCZ_PART_PROP, 1:np) - sim_comAccel(3)
+        endif
         ! End JFG
 
         ! check whether we have reached the global (hydro) timestep for exiting
@@ -591,43 +588,6 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
      end do
 
   end if ! leapfrog cosmo
-
-  ! Added by JFG
-  !if (sim_fixedPartTag .ne. 0) then
-  !    call pt_sinkGatherGlobal()
-  !    do i = 1, localnpf
-  !        if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) then
-  !            fixedi = i
-  !            exit
-  !        else
-  !            cycle
-  !        endif
-  !        call Driver_abortFlash('Error: Unable to find fixed particle tag [2]')
-  !    enddo
-  !    !fixed_vec(1) = particles_global(POSX_PART_PROP,fixedi) - fixed_vec(1)
-  !    !fixed_vec(2) = particles_global(POSY_PART_PROP,fixedi) - fixed_vec(2)
-  !    !fixed_vec(3) = particles_global(POSZ_PART_PROP,fixedi) - fixed_vec(3)
-  !    !fixed_vec(4) = particles_global(VELX_PART_PROP,fixedi) - fixed_vec(4)
-  !    !fixed_vec(5) = particles_global(VELY_PART_PROP,fixedi) - fixed_vec(5)
-  !    !fixed_vec(6) = particles_global(VELZ_PART_PROP,fixedi) - fixed_vec(6)
-
-  !    !if (sink_AdvanceSerialComputation) then
-  !    !    particles_global(POSX_PART_PROP,1:localnp) = particles_global(POSX_PART_PROP,1:localnp) - fixed_vec(1)
-  !    !    particles_global(POSY_PART_PROP,1:localnp) = particles_global(POSY_PART_PROP,1:localnp) - fixed_vec(2)
-  !    !    particles_global(POSZ_PART_PROP,1:localnp) = particles_global(POSZ_PART_PROP,1:localnp) - fixed_vec(3)
-  !    !    particles_global(VELX_PART_PROP,1:localnp) = particles_global(VELX_PART_PROP,1:localnp) - fixed_vec(4)
-  !    !    particles_global(VELY_PART_PROP,1:localnp) = particles_global(VELY_PART_PROP,1:localnp) - fixed_vec(5)
-  !    !    particles_global(VELZ_PART_PROP,1:localnp) = particles_global(VELZ_PART_PROP,1:localnp) - fixed_vec(6)
-  !    !else
-  !    !    particles_local(POSX_PART_PROP,1:localnp) = particles_local(POSX_PART_PROP,1:localnp) - fixed_vec(1)
-  !    !    particles_local(POSY_PART_PROP,1:localnp) = particles_local(POSY_PART_PROP,1:localnp) - fixed_vec(2)
-  !    !    particles_local(POSZ_PART_PROP,1:localnp) = particles_local(POSZ_PART_PROP,1:localnp) - fixed_vec(3)
-  !    !    particles_local(VELX_PART_PROP,1:localnp) = particles_local(VELX_PART_PROP,1:localnp) - fixed_vec(4)
-  !    !    particles_local(VELY_PART_PROP,1:localnp) = particles_local(VELY_PART_PROP,1:localnp) - fixed_vec(5)
-  !    !    particles_local(VELZ_PART_PROP,1:localnp) = particles_local(VELZ_PART_PROP,1:localnp) - fixed_vec(6)
-  !    !endif
-  !endif
-  ! End JFG
 
   ! in case of serial computation, copy global list into local list, so we leave updated
   if (sink_AdvanceSerialComputation) then

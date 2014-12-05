@@ -145,6 +145,9 @@ subroutine Simulation_init()
     call RuntimeParameters_get('sim_profFile',sim_profFile)
 
     sim_comAccel = 0.d0
+    sim_mpoleVX = 0.d0
+    sim_mpolyVY = 0.d0
+    sim_mpolyVZ = 0.d0
 
     if (gr_globalMe .eq. MASTER_PE) then
         call read_table_dims(sim_profFile, sim_tableRows, sim_tableCols)

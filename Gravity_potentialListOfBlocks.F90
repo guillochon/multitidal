@@ -106,7 +106,7 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList, potentialIndex)
   !JFG
   use pt_sinkInterface, only: pt_sinkGatherGlobal
   use gr_mpoleData, ONLY: gr_mpoleXcenterOfMass, gr_mpoleYcenterOfMass, gr_mpoleZcenterOfMass
-  use Simulation_data, ONLY: sim_fixedPartTag, sim_moveFixedToCOM
+  use Simulation_data, ONLY: sim_fixedPartTag, sim_moveFixedToCOM, sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ
   use Particles_sinkData, ONLY: particles_local, particles_global, localnpf
   !End JFG
   implicit none
@@ -257,6 +257,12 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList, potentialIndex)
       particles_local(POSX_PART_PROP,fixedi) = gr_mpoleXcenterOfMass
       particles_local(POSY_PART_PROP,fixedi) = gr_mpoleYcenterOfMass
       particles_local(POSZ_PART_PROP,fixedi) = gr_mpoleZcenterOfMass
+      do i = 1, localnpf
+          if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) cycle
+          particles_local(VELX_PART_PROP,i) = particles_local(VELX_PART_PROP,i) - sim_mpoleVX
+          particles_local(VELY_PART_PROP,i) = particles_local(VELY_PART_PROP,i) - sim_mpoleVY
+          particles_local(VELZ_PART_PROP,i) = particles_local(VELZ_PART_PROP,i) - sim_mpoleVZ
+      enddo
       call pt_sinkGatherGlobal()
   endif
   !End JFG

@@ -289,7 +289,8 @@ subroutine Simulation_init()
     bhvec = 0.d0
 
     if (gr_globalMe .eq. MASTER_PE) then
-        call calc_orbit(0.d0, sim_objMass, sim_ptMass, obvec, ptvec)
+        call calc_orbit(0.d0, sim_objMass, sim_ptMass, sim_periDist, sim_periTime, &
+                        sim_orbEcc, obvec, ptvec)
         ptvec = ptvec - obvec
         if (sim_fixedParticle .eq. 1) then
             stvec = -ptvec

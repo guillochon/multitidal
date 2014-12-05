@@ -134,6 +134,9 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_ptMass", sim_ptMass)
     call RuntimeParameters_get("sim_starPtMass", sim_starPtMass)
 
+    call RuntimeParameters_get("sim_parentMass", sim_parentMass)
+    call RuntimeParameters_get("sim_parentPeri", sim_parentPeri)
+
     if (sim_powerLawExponent .le. -3.d0) then
         call Driver_abortFlash('Error: sim_powerLawExponent must be greater than -3.0')
     endif
@@ -285,40 +288,65 @@ subroutine Simulation_init()
 
     sim_fixedPartTag = 0
 
-    stvec = 0.d0
-    bhvec = 0.d0
+    if (sim_parentMass .eq. 0.d0) then
+        sim_nPtMasses = 1
+    else
+        sim_nPtMasses = 2
+    endif
+    allocate(ptvecs(sim_nPtMasses, 6))
+
+    stvec  = 0.d0
+    ptvec  = 0.d0
+    obvec  = 0.d0
+    ptvecs = 0.d0
 
     if (gr_globalMe .eq. MASTER_PE) then
         call calc_orbit(0.d0, sim_objMass, sim_ptMass, sim_periDist, sim_periTime, &
                         sim_orbEcc, obvec, ptvec)
         ptvec = ptvec - obvec
         if (sim_fixedParticle .eq. 1) then
-            stvec = -ptvec
+            ptvecs(1,:) = ptvec
         else
-            bhvec = ptvec
+            stvec = -ptvec
         endif
         print *, 'stvec', stvec
-        print *, 'bhvec', bhvec
+        print *, 'ptvec', ptvecs(1,:)
+
+        ptvec  = 0.d0
+        obvec  = 0.d0
+        if (sim_parentMass .ne. 0) then
+            call calc_orbit(0.d0, sim_objMass, sim_parentMass, sim_parentPeri, 0.d0, &
+                            0.000001, obvec, ptvec)
+            ptvec = ptvec - obvec
+            if (sim_fixedParticle .eq. 1) then
+                ptvecs(2,:) = ptvec
+            elseif (sim_fixedParticle .eq. 2) then
+                stvec = stvec - ptvec
+                ptvecs(1,:) = ptvecs(1,:) - ptvec
+            endif
+        endif
     endif
 
-    call MPI_BCAST(bhvec, 6, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
+    call MPI_BCAST(ptvecs, 6*sim_nPtMasses, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
     call MPI_BCAST(stvec, 6, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
 
     if (dr_restart) then
         call NameValueLL_getInt(io_scalar, "fixedparttag", sim_fixedPartTag, .true., ierr)
         if (ierr /= NORMAL) then
             sim_fixedPartTag = 0
-            if (gr_globalMe .eq. MASTER_PE) &
+            if (gr_globalMe .eq. MASTER_PE) then
                 print *, 'Could not find fixedparttag, searching by mass instead'
-            do i=1, localnp
-                ! A bit worrisome, should be saving tags to checkpoint.
-                if (particles_local(ipm,i) .eq. sim_ptMass .and. sim_fixedParticle .eq. 1) then
-                    sim_fixedPartTag = particles_local(iptag,i)
-                endif
-                if (particles_local(ipm,i) .eq. sim_objMass .and. sim_fixedParticle .eq. 2) then
-                    sim_fixedPartTag = particles_local(iptag,i)
-                endif
-            enddo
+                call Driver_abortFlash('Could not find fixedparttag, ABORTING!')
+                do i=1, localnp
+                    ! A bit worrisome, should be saving tags to checkpoint.
+                    if (particles_local(ipm,i) .eq. sim_objMass .and. sim_fixedParticle .eq. 1) then
+                        sim_fixedPartTag = particles_local(iptag,i)
+                    endif
+                    if (particles_local(ipm,i) .eq. sim_ptMass .and. sim_fixedParticle .eq. 2) then
+                        sim_fixedPartTag = particles_local(iptag,i)
+                    endif
+                enddo
+            endif
             if (sim_fixedPartTag .ne. 0) then
                 nsend = 0
                 do i = 1, gr_globalNumProcs
@@ -339,16 +367,6 @@ subroutine Simulation_init()
         endif
     else
         if (gr_globalMe .eq. MASTER_PE) then
-            pno = pt_sinkCreateParticle(sim_xCenter + bhvec(1), sim_yCenter + bhvec(2), &
-                sim_zCenter + bhvec(3), 0., 1, gr_globalMe)
-            if (sim_fixedParticle .eq. 1) then
-                sim_fixedPartTag = particles_local(iptag,pno)
-            endif
-            particles_local(ipm,pno) = sim_ptMass
-            particles_local(ipvx,pno) = bhvec(4)
-            particles_local(ipvy,pno) = bhvec(5)
-            particles_local(ipvz,pno) = bhvec(6)
-
             if (sim_kind .ne. 'cylinder') then
                 pno = pt_sinkCreateParticle(sim_xCenter + stvec(1), sim_yCenter + stvec(2), &
                     sim_zCenter + stvec(3), 0., 1, gr_globalMe)
@@ -356,11 +374,23 @@ subroutine Simulation_init()
                 particles_local(ipvx,pno) = stvec(4)
                 particles_local(ipvy,pno) = stvec(5)
                 particles_local(ipvz,pno) = stvec(6)
-                if (sim_fixedParticle .eq. 2) then
+                if (sim_fixedParticle .eq. 1) then
                     sim_fixedPartTag = particles_local(iptag,pno)
                 endif
                 print *, "Fixed particle's tag: ", sim_fixedPartTag
             endif
+
+            do i = 2, sim_nPtMasses+1
+                pno = pt_sinkCreateParticle(sim_xCenter + ptvecs(i-1,1), sim_yCenter + ptvecs(i-1,2), &
+                    sim_zCenter + ptvecs(i-1,3), 0., 1, gr_globalMe)
+                if (sim_fixedParticle .eq. i) then
+                    sim_fixedPartTag = particles_local(iptag,pno)
+                endif
+                particles_local(ipm,pno) = sim_ptMass
+                particles_local(ipvx,pno) = ptvecs(i-1,4)
+                particles_local(ipvy,pno) = ptvecs(i-1,5)
+                particles_local(ipvz,pno) = ptvecs(i-1,6)
+            enddo
         endif
         call MPI_BCAST(sim_fixedPartTag, 1, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)                
     endif
@@ -368,7 +398,7 @@ subroutine Simulation_init()
     if (gr_globalMe .eq. MASTER_PE) then
         write(logstr, fmt='(A30, 2ES15.8)') 'Start distance:', start_dist
         call Logfile_stampMessage(logstr)
-        write(logstr, fmt='(A30, 6ES15.8)') 'Pt. mass start pos:', ptvec
+        write(logstr, fmt='(A30, 6ES15.8)') 'Pt. mass start pos:', ptvecs(1,:)
         call Logfile_stampMessage(logstr)
         write(logstr, fmt='(A30, 2ES15.8)') 'Semimajor axis, eccentricity:', a, sim_orbEcc
         call Logfile_stampMessage(logstr)

@@ -48,7 +48,8 @@ module Simulation_data
                             sim_cylinderTemperature, sim_cylinderRadius, sim_condCoeff, &
                             sim_cylinderNCells, sim_cylinderMDot, sim_windVelocity, &
                             sim_windMdot, sim_windTemperature, sim_windNCells, &
-                            sim_windLaunchRadius, sim_windKernel, sim_tDelay
+                            sim_windLaunchRadius, sim_windKernel, sim_tDelay, &
+                            sim_parentMass, sim_parentPeri
   double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
   double precision, save :: sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ
   double precision, dimension(NDIM), save                :: sim_comAccel
@@ -59,13 +60,15 @@ module Simulation_data
   double precision, dimension(SPECIES_BEGIN:SPECIES_END) :: obj_xn
   double precision, dimension(np), save                  :: obj_radius, obj_rhop, obj_prss
   integer, save                                          :: obj_ipos, sim_tableRows, sim_tableCols
+  integer, save                                          :: sim_nPtMasses
   character(len=MAX_STRING_LENGTH), save                 :: sim_profFile, sim_kind
 
   !! *** Variables pertaining to this Simulation *** !!
 
   double precision, save    :: sim_inSubInv
   double precision, save    :: sim_inszd
-  double precision, dimension(6), save :: bhvec, stvec
+  double precision, dimension(6), save :: stvec
+  double precision, dimension(:,:), allocatable, save    :: ptvecs
   logical, save :: sim_useInitialPeakDensity, sim_useRadialProfile, sim_moveFixedToCOM
 
   double precision, parameter :: sim_msun = 1.9889225d33

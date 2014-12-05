@@ -130,7 +130,9 @@ subroutine Simulation_initBlock (blockId, myPE)
      endif
      zz = zCoord(k)
 
-     bhzDist = zCoord(k) - (sim_zCenter + bhvec(3))
+     ! Always use first ptvecs element as particle for determining radial
+     ! profile (if enabled)
+     bhzDist = zCoord(k) - (sim_zCenter + ptvecs(1,3))
      
      do j = blkLimitsGC(LOW, JAXIS), blkLimitsGC(HIGH, JAXIS)
         ! Find a real difference between y's if problem is >= 2D
@@ -146,7 +148,7 @@ subroutine Simulation_initBlock (blockId, myPE)
         endif
         yy = yCoord(j)
         
-        bhyDist = yCoord(j) - (sim_yCenter + bhvec(2))
+        bhyDist = yCoord(j) - (sim_yCenter + ptvecs(1,2))
 
         do i = blkLimitsGC(LOW,IAXIS), blkLimitsGC(HIGH, IAXIS)
            xx = xCoord(i)
@@ -172,7 +174,7 @@ subroutine Simulation_initBlock (blockId, myPE)
 
            within_radius = .false.
 
-           bhxDist = xCoord(i) - (sim_xCenter + bhvec(1))
+           bhxDist = xCoord(i) - (sim_xCenter + ptvecs(1,1))
 
            bhDist = dsqrt(bhxDist**2 + bhyDist**2 + bhzDist**2)
 
@@ -307,9 +309,9 @@ subroutine Simulation_initBlock (blockId, myPE)
                !t   = max (1.d8*(bhDist/1.2d16)**(-0.75d0), sim_tAmbient)
                p   = t*rho/mp/obj_mu*kb
                if (sim_fixedParticle .eq. 2) then
-                   vx = bhvec(4)
-                   vy = bhvec(5)
-                   vz = bhvec(6)
+                   vx = ptvecs(1,4)
+                   vy = ptvecs(1,5)
+                   vz = ptvecs(1,6)
                endif
            endif
 

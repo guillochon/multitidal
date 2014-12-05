@@ -60,7 +60,7 @@ subroutine Simulation_init()
     double precision :: cfl, rho0, a, period, start_dist, ecc_anom, newton
     integer mode,iend,pno
     character(len=200) :: logstr
-    double precision, dimension(6) :: obvec, ptvec
+    double precision, dimension(6) :: obvec, ptvec, bvec
     integer, dimension(gr_globalNumProcs-1) :: reqs
     integer :: stats(MPI_STATUS_SIZE,gr_globalNumProcs-1)
     integer :: statr(MPI_STATUS_SIZE)
@@ -299,6 +299,7 @@ subroutine Simulation_init()
     ptvec  = 0.d0
     obvec  = 0.d0
     ptvecs = 0.d0
+    bvec   = 0.d0
 
     if (gr_globalMe .eq. MASTER_PE) then
         call calc_orbit(0.d0, sim_objMass, sim_ptMass, sim_periDist, sim_periTime, &
@@ -309,20 +310,21 @@ subroutine Simulation_init()
         else
             stvec = -ptvec
         endif
+        bvec = (ptvecs(1,:)*sim_ptMass + stvec*sim_objMass)/(sim_ptMass + sim_objMass)
         print *, 'stvec', stvec
         print *, 'ptvec', ptvecs(1,:)
+        print *, 'bvec',  bvec
 
         ptvec  = 0.d0
         obvec  = 0.d0
         if (sim_parentMass .ne. 0) then
-            call calc_orbit(0.d0, sim_objMass, sim_parentMass, sim_parentPeri, 0.d0, &
+            call calc_orbit(0.d0, sim_objMass + sim_ptMass, sim_parentMass, sim_parentPeri, 0.d0, &
                             0.000001, obvec, ptvec)
             ptvec = ptvec - obvec
             if (sim_fixedParticle .eq. 1) then
-                ptvecs(2,:) = ptvec
+                ptvecs(2,:) = ptvec + bvec
             elseif (sim_fixedParticle .eq. 2) then
-                stvec = stvec - ptvec
-                ptvecs(1,:) = ptvecs(1,:) - ptvec
+                call Driver_abortFlash('Fixed particle must be 1 when parent mass included')
             endif
         endif
     endif

@@ -388,7 +388,11 @@ subroutine Simulation_init()
                 if (sim_fixedParticle .eq. i) then
                     sim_fixedPartTag = particles_local(iptag,pno)
                 endif
-                particles_local(ipm,pno) = sim_ptMass
+                if (i .eq. 2) then
+                    particles_local(ipm,pno) = sim_ptMass
+                elseif (i .eq. 3) then
+                    particles_local(ipm,pno) = sim_parentMass
+                endif
                 particles_local(ipvx,pno) = ptvecs(i-1,4)
                 particles_local(ipvy,pno) = ptvecs(i-1,5)
                 particles_local(ipvz,pno) = ptvecs(i-1,6)

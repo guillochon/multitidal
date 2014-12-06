@@ -106,8 +106,10 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList, potentialIndex)
   !JFG
   use pt_sinkInterface, only: pt_sinkGatherGlobal
   use gr_mpoleData, ONLY: gr_mpoleXcenterOfMass, gr_mpoleYcenterOfMass, gr_mpoleZcenterOfMass
-  use Simulation_data, ONLY: sim_fixedPartTag, sim_moveFixedToCOM, sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ
+  use Simulation_data, ONLY: sim_fixedPartTag, sim_moveFixedToCOM, sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ, &
+                             sim_tRelax
   use Particles_sinkData, ONLY: particles_local, particles_global, localnpf
+  use Driver_data, ONLY: dr_simTime
   !End JFG
   implicit none
 
@@ -136,6 +138,7 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList, potentialIndex)
 
   !JFG
   integer       :: fixedi, i
+  real          :: dxs(3)
   !End JFG
 
   saveLastPot = (.NOT. present(potentialIndex))
@@ -254,15 +257,23 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList, potentialIndex)
           endif
           call Driver_abortFlash('Error: Unable to find fixed particle tag [2]')
       enddo
-      particles_local(POSX_PART_PROP,fixedi) = gr_mpoleXcenterOfMass
-      particles_local(POSY_PART_PROP,fixedi) = gr_mpoleYcenterOfMass
-      particles_local(POSZ_PART_PROP,fixedi) = gr_mpoleZcenterOfMass
-      do i = 1, localnpf
-          if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) cycle
-          particles_local(VELX_PART_PROP,i) = particles_local(VELX_PART_PROP,i) - sim_mpoleVX
-          particles_local(VELY_PART_PROP,i) = particles_local(VELY_PART_PROP,i) - sim_mpoleVY
-          particles_local(VELZ_PART_PROP,i) = particles_local(VELZ_PART_PROP,i) - sim_mpoleVZ
-      enddo
+      if (dr_simTime .lt. sim_tRelax) then
+          dxs = (/ gr_mpoleXcenterOfMass, gr_mpoleYcenterOfMass, gr_mpoleZcenterOfMass /) - &
+              particles_global(POSX_PART_PROP:POSZ_PART_PROP,fixedi)
+          do i = 1, localnpf
+              particles_local(POSX_PART_PROP:POSZ_PART_PROP,i) = &
+                  particles_local(POSX_PART_PROP:POSZ_PART_PROP,i) + dxs
+          enddo
+      else
+          particles_local(POSX_PART_PROP:POSZ_PART_PROP,fixedi) = &
+              (/ gr_mpoleXcenterOfMass, gr_mpoleYcenterOfMass, gr_mpoleZcenterOfMass /)
+          do i = 1, localnpf
+              if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) cycle
+              particles_local(VELX_PART_PROP:VELZ_PART_PROP,i) = &
+                  particles_local(VELX_PART_PROP:VELZ_PART_PROP,i) - &
+                  (/ sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ /)
+          enddo
+      endif
       call pt_sinkGatherGlobal()
   endif
   !End JFG

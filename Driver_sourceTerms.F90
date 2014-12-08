@@ -230,6 +230,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                             solnData(VELX_VAR,i,j,k) = solnData(VELX_VAR,i,j,k)*relax_rate
                             solnData(VELY_VAR,i,j,k) = solnData(VELY_VAR,i,j,k)*relax_rate
                             solnData(VELZ_VAR,i,j,k) = solnData(VELZ_VAR,i,j,k)*relax_rate
+                            solnData(EINT_VAR,i,j,k) = solnData(EINT_VAR,i,j,k)*relax_rate
                             solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
                                 0.5*(solnData(VELX_VAR,i,j,k)**2. + solnData(VELY_VAR,i,j,k)**2. + solnData(VELZ_VAR,i,j,k)**2.)
                         endif

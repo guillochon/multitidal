@@ -133,60 +133,73 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
 
     if (dr_simTime .lt. tinitial + sim_tRelax) then
         relax_rate = max(0.0d0, dr_simTime - sim_tSpinup)/(sim_tRelax - sim_tSpinup)*(1.0 - sim_relaxRate) + sim_relaxRate 
-        do lb = 1, blockCount
-            call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
-            sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
-            allocate(xCoord(sizeX),stat=istat)
-            sizeY = blkLimitsGC(HIGH,JAXIS) - blkLimitsGC(LOW,JAXIS) + 1
-            allocate(yCoord(sizeY),stat=istat)
-            sizeZ = blkLimitsGC(HIGH,KAXIS) - blkLimitsGC(LOW,KAXIS) + 1
-            allocate(zCoord(sizeZ),stat=istat)
+        if (sim_kind .eq. "polytrope") then
+            do lb = 1, blockCount
+                call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
+                sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
+                allocate(xCoord(sizeX),stat=istat)
+                sizeY = blkLimitsGC(HIGH,JAXIS) - blkLimitsGC(LOW,JAXIS) + 1
+                allocate(yCoord(sizeY),stat=istat)
+                sizeZ = blkLimitsGC(HIGH,KAXIS) - blkLimitsGC(LOW,KAXIS) + 1
+                allocate(zCoord(sizeZ),stat=istat)
   
-            if (NDIM == 3) call Grid_getCellCoords&
-                                (KAXIS, blockList(lb), CENTER, gcell, zCoord, sizeZ)
-            if (NDIM >= 2) call Grid_getCellCoords&
-                                (JAXIS, blockList(lb), CENTER,gcell, yCoord, sizeY)
-            call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
-            call Grid_getBlkPtr(blockList(lb),solnData)
+                if (NDIM == 3) call Grid_getCellCoords&
+                                    (KAXIS, blockList(lb), CENTER, gcell, zCoord, sizeZ)
+                if (NDIM >= 2) call Grid_getCellCoords&
+                                    (JAXIS, blockList(lb), CENTER,gcell, yCoord, sizeY)
+                call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
+                call Grid_getBlkPtr(blockList(lb),solnData)
 
-            do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
-                do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
-                    do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                        ! Need to work out math.
-                        x = xCoord(i) - gr_mpoleXcenterOfMass
-                        y = (yCoord(j) - gr_mpoleYcenterOfMass)*dcos(rotang) - (zCoord(k) - gr_mpoleZcenterOfMass)*dsin(rotang)
-                        !z = (yCoord(j) - gr_mpoleYcenterOfMass)*dsin(rotang) + (zCoord(k) - gr_mpoleZcenterOfMass)*dcos(rotang)
-                        vx = solnData(VELX_VAR,i,j,k)
-                        vy = solnData(VELY_VAR,i,j,k)*dcos(rotang) - solnData(VELZ_VAR,i,j,k)*dsin(rotang)
-                        vz = solnData(VELY_VAR,i,j,k)*dsin(rotang) + solnData(VELZ_VAR,i,j,k)*dcos(rotang)
+                do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
+                    do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
+                        do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                            ! subtract out COM motion
+                            solnData(VELX_VAR,i,j,k) = solnData(VELX_VAR,i,j,k) - sim_mpoleVX
+                            solnData(VELY_VAR,i,j,k) = solnData(VELY_VAR,i,j,k) - sim_mpoleVY
+                            solnData(VELZ_VAR,i,j,k) = solnData(VELZ_VAR,i,j,k) - sim_mpoleVZ
 
-                        distxy = dsqrt(x**2 + y**2)
-                        vpara = (x*vx + y*vy)/distxy
-                        if (dr_simTime .lt. sim_tSpinup) then
-                            vspin = dr_simTime/sim_tSpinup*sim_rotFac*&
-                                min(dsqrt(newton*sim_objMass*sim_msun/obj_radius(obj_ipos)**3.d0)*distxy, &
-                                    dsqrt(newton*sim_objMass*sim_msun/obj_radius(obj_ipos)))
-                            solnData(VELX_VAR,i,j,k) = -vspin*y/distxy + x/distxy*vpara*relax_rate
-                            velprojy =                  vspin*x/distxy + y/distxy*vpara*relax_rate
-                        else
-                            solnData(VELX_VAR,i,j,k) = vx - x/distxy*vpara*(1.d0 - relax_rate)
-                            velprojy =                 vy - y/distxy*vpara*(1.d0 - relax_rate)
-                        endif
-                        velprojz = vz*relax_rate
-                        solnData(VELY_VAR,i,j,k) =  dcos(rotang)*velprojy + dsin(rotang)*velprojz
-                        solnData(VELZ_VAR,i,j,k) = -dsin(rotang)*velprojy + dcos(rotang)*velprojz
+                            ! Need to work out math.
+                            if (sim_rotFac .gt. 0.d0) then
+                                x = xCoord(i) - gr_mpoleXcenterOfMass
+                                y = (yCoord(j) - gr_mpoleYcenterOfMass)*dcos(rotang) - (zCoord(k) - gr_mpoleZcenterOfMass)*dsin(rotang)
+                                !z = (yCoord(j) - gr_mpoleYcenterOfMass)*dsin(rotang) + (zCoord(k) - gr_mpoleZcenterOfMass)*dcos(rotang)
+                                vx = solnData(VELX_VAR,i,j,k)
+                                vy = solnData(VELY_VAR,i,j,k)*dcos(rotang) - solnData(VELZ_VAR,i,j,k)*dsin(rotang)
+                                vz = solnData(VELY_VAR,i,j,k)*dsin(rotang) + solnData(VELZ_VAR,i,j,k)*dcos(rotang)
 
-                        solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
-                            0.5*(solnData(VELX_VAR,i,j,k)**2. + solnData(VELY_VAR,i,j,k)**2. + solnData(VELZ_VAR,i,j,k)**2.)
+                                distxy = dsqrt(x**2 + y**2)
+                                vpara = (x*vx + y*vy)/distxy
+                                if (dr_simTime .lt. sim_tSpinup) then
+                                    vspin = dr_simTime/sim_tSpinup*sim_rotFac*&
+                                        min(dsqrt(newton*sim_objMass*sim_msun/obj_radius(obj_ipos)**3.d0)*distxy, &
+                                            dsqrt(newton*sim_objMass*sim_msun/obj_radius(obj_ipos)))
+                                    solnData(VELX_VAR,i,j,k) = -vspin*y/distxy - x/distxy*vpara*(1.d0 - sim_relaxRate)
+                                    velprojy =                  vspin*x/distxy - y/distxy*vpara*(1.d0 - sim_relaxRate)
+                                else
+                                    solnData(VELX_VAR,i,j,k) = vx - x/distxy*vpara*(1.d0 - relax_rate)
+                                    velprojy =                 vy - y/distxy*vpara*(1.d0 - relax_rate)
+                                endif
+                                velprojz = vz*relax_rate
+                                solnData(VELY_VAR,i,j,k) =  dcos(rotang)*velprojy + dsin(rotang)*velprojz
+                                solnData(VELZ_VAR,i,j,k) = -dsin(rotang)*velprojy + dcos(rotang)*velprojz
+                            else
+                                solnData(VELX_VAR,i,j,k) = solnData(VELX_VAR,i,j,k)*relax_rate
+                                solnData(VELY_VAR,i,j,k) = solnData(VELY_VAR,i,j,k)*relax_rate
+                                solnData(VELZ_VAR,i,j,k) = solnData(VELZ_VAR,i,j,k)*relax_rate
+                            endif
+
+                            solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
+                                0.5*(solnData(VELX_VAR,i,j,k)**2. + solnData(VELY_VAR,i,j,k)**2. + solnData(VELZ_VAR,i,j,k)**2.)
+                        enddo
                     enddo
                 enddo
-            enddo
   
-            call Grid_releaseBlkPtr(blockList(lb), solnData)
-            deallocate(xCoord)
-            deallocate(yCoord)
-            deallocate(zCoord)
-        enddo
+                call Grid_releaseBlkPtr(blockList(lb), solnData)
+                deallocate(xCoord)
+                deallocate(yCoord)
+                deallocate(zCoord)
+            enddo
+        endif
     else
         !pt_pos = grv_exactvec - grv_obvec + grv_ptvec !Used for calculating properties of mass accreted onto point mass
         relax_rate = sim_fluffDampCoeff

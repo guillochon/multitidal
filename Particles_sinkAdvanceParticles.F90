@@ -95,8 +95,6 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
     end subroutine
   end interface
 
-  if (dr_simTime .lt. sim_tRelax) return
-
   call Cosmology_getOldRedshift(redshift_old)
   a0 = 1./(1. + redshift_old)
 
@@ -464,7 +462,10 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
             particles_local(ACCX_PART_PROP, 1:np) = particles_local(ACCX_PART_PROP, 1:np) - sim_comAccel(1)
             particles_local(ACCY_PART_PROP, 1:np) = particles_local(ACCY_PART_PROP, 1:np) - sim_comAccel(2)
             particles_local(ACCZ_PART_PROP, 1:np) = particles_local(ACCZ_PART_PROP, 1:np) - sim_comAccel(3)
+
         endif
+
+        if (dr_simTime .lt. sim_tRelax) exit
         ! End JFG
 
         ! check whether we have reached the global (hydro) timestep for exiting
@@ -484,6 +485,7 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
         ! Advances particle positions fully over the sink particle
         ! subcycle timestep
         ! Velocities are defined in center of timestep
+
 
         if (sink_AdvanceSerialComputation) then
 

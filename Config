@@ -10,7 +10,8 @@ REQUIRES physics/Hydro
 REQUIRES Simulation/SimulationComposition
 REQUIRES Multispecies/MultispeciesMain
 REQUIRES physics/sourceTerms/Cool/CoolMain
-REQUIRES IO/IOMain/hdf5/parallel/PM
+REQUIRES IO
+REQUIRES IO/IOMain/hdf5/parallel/PM  #Note: Requires +parallelIO in setup
 #REQUIRES physics/Diffuse/DiffuseMain/Split
 #REQUIRES physics/Diffuse/DiffuseFluxBased
 #REQUIRES physics/materialProperties/Conductivity/ConductivityMain/SpitzerHighZJFG

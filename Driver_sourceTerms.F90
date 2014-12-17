@@ -171,8 +171,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                                 vpara = (x*vx + y*vy)/distxy
                                 if (dr_simTime .lt. sim_tSpinup) then
                                     vspin = dr_simTime/sim_tSpinup*sim_rotFac*&
-                                        min(dsqrt(newton*sim_objMass*sim_msun/obj_radius(obj_ipos)**3.d0)*distxy, &
-                                            dsqrt(newton*sim_objMass*sim_msun/obj_radius(obj_ipos)))
+                                        min(dsqrt(newton*sim_objMass/obj_radius(obj_ipos)**3.d0)*distxy, &
+                                            dsqrt(newton*sim_objMass/obj_radius(obj_ipos)))
                                     solnData(VELX_VAR,i,j,k) = -vspin*y/distxy - x/distxy*vpara*(1.d0 - sim_relaxRate)
                                     velprojy =                  vspin*x/distxy - y/distxy*vpara*(1.d0 - sim_relaxRate)
                                 else

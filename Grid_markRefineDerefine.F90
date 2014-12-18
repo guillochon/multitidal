@@ -54,6 +54,7 @@ subroutine Grid_markRefineDerefine()
       sim_softenRadius, sim_fixedPartTag, sim_windNCells, &
       sim_tDelay, sim_periDist, sim_ptMass, sim_cylinderType
   use pt_sinkInterface, ONLY : pt_sinkGatherGlobal
+  use Multitidal_interface, ONLY : Multitidal_findExtrema
   use Particles_sinkData, ONLY : localnpf, particles_global
   use PhysicalConstants_interface, ONLY : PhysicalConstants_get
   ! End JFG
@@ -74,7 +75,7 @@ subroutine Grid_markRefineDerefine()
   ! Added by JFG
   real,dimension(7) :: specs
   real,dimension(3) :: pvec
-  real :: mcs, flow_dist, newton
+  real :: mcs, flow_dist, newton, max_dens
 
   call PhysicalConstants_get("Newton", newton)
   call Grid_getMinCellSize(mcs)
@@ -160,7 +161,12 @@ subroutine Grid_markRefineDerefine()
           call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
       endif
   else
-      specs = (/ real(DENS_VAR), sim_fluffRefineCutoff, -1., 0., 0., 0., 0. /)
+      if (sim_kind .eq. 'polytrope') then
+          call Multitidal_findExtrema(DENS_VAR, 1, max_dens)
+          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff*max_dens, -1., 0., 0., 0., 0. /)
+      else
+          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff, -1., 0., 0., 0., 0. /)
+      endif
       call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
   endif
 

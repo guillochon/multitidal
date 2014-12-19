@@ -6,10 +6,10 @@ DATAFILES *.dek
 DATAFILES *.h
 
 REQUIRES Driver
-REQUIRES physics/Hydro
 REQUIRES Simulation/SimulationComposition
 REQUIRES Multispecies/MultispeciesMain
 REQUIRES physics/sourceTerms/Cool/CoolMain
+#REQUIRES physics/Hydro/HydroMain/unsplit/Hydro_Unsplit
 REQUIRES IO
 REQUIRES IO/IOMain/hdf5/parallel/PM  #Note: Requires +parallelIO in setup
 #REQUIRES physics/Diffuse/DiffuseMain/Split

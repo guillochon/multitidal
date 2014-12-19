@@ -42,6 +42,7 @@ subroutine pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
     use Driver_data, ONLY : dr_globalMe
     use Cosmology_interface, ONLY : Cosmology_getRedshift
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
+    use Simulation_data, ONLY : sim_fixedPartTag
 
     implicit none
 
@@ -65,12 +66,29 @@ subroutine pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
     real          :: redshift, oneplusz3
 
     real          :: vxp, vyp, vzp, dvx, dvy, dvz, rsch, dvr, phi2
+    integer       :: fixedi, i
 
     integer, parameter :: gather_nprops = 4
     integer, dimension(gather_nprops), save :: gather_propinds = &
       (/ integer :: POSX_PART_PROP, POSY_PART_PROP, POSZ_PART_PROP, MASS_PART_PROP /)
     ! ACCX_PART_PROP, ACCY_PART_PROP, ACCZ_PART_PROP do not have to be communicated,
     ! because they are set in Particles_sinkAdvanceParticles
+
+    ! Added by JFG
+    ! NOTE: THIS ONLY CURRENTLY WORKS IF ADVANCE SERIAL IS FALSE!
+    if (sim_fixedPartTag .ne. 0) then
+        call pt_sinkGatherGlobal()
+        do i = 1, localnpf
+            if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) then
+                fixedi = i
+                exit
+            else
+                cycle
+            endif
+            call Driver_abortFlash('Error: Unable to find fixed particle tag [1]')
+        enddo
+    endif
+    ! End JFG
 
     if (first_call) then
 
@@ -192,20 +210,22 @@ subroutine pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
                    end if
                 else    ! Newtonian gravity of point mass
                    r3 = 1.0 / radius**3
-                   !ax = dx*r3
-                   !ay = dy*r3
-                   !az = dz*r3
-
-                   ! Schwarzschild metric (Gafton 2015)
-                   rsch = 2.d0*newton*masspf/c2
-                   dvr = dsqrt(dvx**2+dvy**2+dvz**2)
-                   phi2 = ((dx*dvy-dy*dvx)**2+(dx*dvz-dz*dvx)**2+(dz*dvy-dy*dvz)**2)/radius**4
-                   ax = -(-newton*masspf*dx*r3*(1.d0-rsch/radius) + rsch*dvx*dvr/(radius*(radius - rsch)) + &
-                        rsch*dx*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dx*phi2/radius)/(newton*masspf)
-                   ay = -(-newton*masspf*dy*r3*(1.d0-rsch/radius) + rsch*dvy*dvr/(radius*(radius - rsch)) + &
-                        rsch*dy*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dy*phi2/radius)/(newton*masspf)
-                   az = -(-newton*masspf*dz*r3*(1.d0-rsch/radius) + rsch*dvz*dvr/(radius*(radius - rsch)) + &
-                        rsch*dz*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dz*phi2/radius)/(newton*masspf)
+                   if (pf .eq. fixedi) then ! ADD case when wanting to turn relativity off
+                       ax = dx*r3
+                       ay = dy*r3
+                       az = dz*r3
+                   else
+                       ! Schwarzschild metric (Gafton 2015)
+                       rsch = 2.d0*newton*masspf/c2
+                       dvr = dsqrt(dvx**2+dvy**2+dvz**2)
+                       phi2 = ((dx*dvy-dy*dvx)**2+(dx*dvz-dz*dvx)**2+(dz*dvy-dy*dvz)**2)/radius**4
+                       ax = -(-newton*masspf*dx*r3*(1.d0-rsch/radius) + rsch*dvx*dvr/(radius*(radius - rsch)) + &
+                            rsch*dx*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dx*phi2/radius)/(newton*masspf)
+                       ay = -(-newton*masspf*dy*r3*(1.d0-rsch/radius) + rsch*dvy*dvr/(radius*(radius - rsch)) + &
+                            rsch*dy*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dy*phi2/radius)/(newton*masspf)
+                       az = -(-newton*masspf*dz*r3*(1.d0-rsch/radius) + rsch*dvz*dvr/(radius*(radius - rsch)) + &
+                            rsch*dz*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dz*phi2/radius)/(newton*masspf)
+                   endif
                 end if
 
                 if (grav_boundary_type .eq. "periodic") then

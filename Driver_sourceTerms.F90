@@ -80,6 +80,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     real    :: distxy, vpara, vspin, x, y, z, vx, vy, vz, velprojy, velprojz, rotang
     real    :: tinitial, vol, ldenscut, denscut, extrema, newton, mcs, new_dens
     real    :: flow_dist, flow_vel, polyk, rho0, kb, mp, yr, mdot, perp_dist, flow_ecc
+    real    :: damp_dens
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
@@ -128,6 +129,13 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 pvec(4:6) = particles_global(VELX_PART_PROP:VELZ_PART_PROP,i)
             endif
         enddo
+    endif
+
+    if (sim_kind .eq. 'polytrope') then
+        call Multitidal_findExtrema(DENS_VAR, 1, damp_dens)
+        damp_dens = damp_dens*sim_fluffDampCutoff
+    else
+        damp_dens = sim_fluffDampCutoff
     endif
 
     if (dr_simTime .lt. tinitial + sim_tRelax) then
@@ -237,7 +245,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                        if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) then
+                        if (solnData(DENS_VAR,i,j,k) .lt. damp_dens) then
                             !reduce by constant factor
                             solnData(VELX_VAR,i,j,k) = solnData(VELX_VAR,i,j,k)*relax_rate
                             solnData(VELY_VAR,i,j,k) = solnData(VELY_VAR,i,j,k)*relax_rate

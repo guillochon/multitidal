@@ -61,6 +61,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use Eos_data, ONLY : eos_gasConstant
     use pt_sinkInterface, ONLY : pt_sinkGatherGlobal
     use Particles_sinkData, ONLY : localnpf, particles_global
+    use Multitidal_interface, ONLY : Multitidal_findExtrema
     implicit none
 
 #include "Eos.h"

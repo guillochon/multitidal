@@ -50,7 +50,7 @@ subroutine Simulation_initBlock (blockId, myPE)
                bhxDist, bhyDist, bhzDist, bhDist
   real     ::  xx, dxx, yy, dyy, zz, dzz, frac, softening_radius
   real     ::  x1,x2,x3,cos_ang,sin_ang,lambda,radius,rot
-  real     ::  dx, dy, dz
+  real     ::  dx, dy, dz, magx, magy, magz, magp, divb
   real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb, newton
   real     ::  dist, gam, rho0, T0, rsc, rho0in, T0in
   integer  ::  istat
@@ -62,7 +62,10 @@ subroutine Simulation_initBlock (blockId, myPE)
   integer :: sizeX,sizeY,sizeZ
   integer,dimension(MDIM) :: axis
   real, dimension(MDIM) :: del
-  real, pointer, dimension(:,:,:,:) :: solnData,facexData,faceyData,facezData
+  real, pointer, dimension(:,:,:,:) :: facexData,faceyData,facezData
+#ifdef FL_NON_PERMANENT_GUARDCELLS
+  real, pointer, dimension(:,:,:,:) :: solnData
+#endif
 #ifdef FIXEDBLOCKSIZE
   real, dimension(GRID_IHI_GC+1,GRID_JHI_GC+1,GRID_KHI_GC+1) :: Az,Ax,Ay
 #else
@@ -164,7 +167,6 @@ subroutine Simulation_initBlock (blockId, myPE)
   !     For each cell
   !  
 #ifdef FL_NON_PERMANENT_GUARDCELLS
-  print *, "i'm here"
   call Grid_getBlkPtr(blockId,solnData)
 #endif
   do k = blkLimitsGC(LOW,KAXIS), blkLimitsGC(HIGH,KAXIS)
@@ -430,11 +432,6 @@ subroutine Simulation_initBlock (blockId, myPE)
      enddo
   enddo
 
-#ifdef FL_NON_PERMANENT_GUARDCELLS
-  call Grid_releaseBlkPtr(blockID, solnData)
-#endif
-
-  call Grid_getBlkPtr(blockId,solnData,CENTER)
   ! JFG --- Now initialize the magnetic fields, based on magnetoHD setup
 
   !------------------------------------------------------------------------------
@@ -455,7 +452,6 @@ subroutine Simulation_initBlock (blockId, myPE)
   else
      lambda = (sim_zMax-sim_zMin)*sin_ang
   endif
-
 
   call Grid_getDeltas(blockID,del)
   dx = del(1)
@@ -635,25 +631,6 @@ subroutine Simulation_initBlock (blockId, myPE)
   do k = blkLimitsGC(LOW,KAXIS),blkLimitsGC(HIGH,KAXIS)
      do j = blkLimitsGC(LOW,JAXIS),blkLimitsGC(HIGH,JAXIS)
         do i = blkLimitsGC(LOW,IAXIS),blkLimitsGC(HIGH,IAXIS)
-
-#if NFACE_VARS == 0
-           solnData(MAGX_VAR,i,j,k)=  .5*(Az(i,j+1,k)-Az(i,j,k) + Az(i+1,j+1,k)-Az(i+1,j,k))/dy
-           solnData(MAGY_VAR,i,j,k)= -.5*(Az(i+1,j,k)-Az(i,j,k) + Az(i+1,j+1,k)-Az(i,j+1,k))/dx
-           solnData(MAGZ_VAR,i,j,k)= 0.
-           solnData(MAGP_VAR,i,j,k) = .5*dot_product(solnData(MAGX_VAR:MAGZ_VAR,i,j,k),&
-                                                     solnData(MAGX_VAR:MAGZ_VAR,i,j,k))
-           solnData(DIVB_VAR,i,j,k) = 0.
-#endif
-
-#ifdef VECZ_VAR
-           ! vector potential Az
-           if (NFACE_VARS > 1) then
-              solnData(VECZ_VAR,i,j,k) = .25*(Az(i,j,k)+Az(i+1,j,k)+Az(i,j+1,k)+Az(i+1,j+1,k))
-           else
-              solnData(VECZ_VAR,i,j,k) = Az(i,j,k)
-           endif
-#endif
-
 #if NFACE_VARS > 0
            !! In this case we initialized Az using the cell-cornered coordinates.
            if (sim_killdivb) then
@@ -669,67 +646,89 @@ subroutine Simulation_initBlock (blockId, myPE)
 #else
            !! In this case we initialized Az using the cell-centered coordinates.
            if (NDIM == 2) then
-              solnData(MAGX_VAR,i,j,k)= 0.5*(Az(i,j+1,k)-Az(i,j-1,k))/dy
-              solnData(MAGY_VAR,i,j,k)=-0.5*(Az(i+1,j,k)-Az(i-1,j,k))/dx
+              magx = 0.5*(Az(i,j+1,k)-Az(i,j-1,k))/dy
+              magy =-0.5*(Az(i+1,j,k)-Az(i-1,j,k))/dx
            elseif (NDIM == 3) then
-              solnData(MAGX_VAR,i,j,k)= -0.5*((Ay(i,j,k+1)-Ay(i,j,k-1))/dz + (Az(i,j+1,k)-Az(i,j-1,k))/dy)
-              solnData(MAGY_VAR,i,j,k)=  0.5*((Ax(i,j,k+1)-Ax(i,j,k-1))/dz - (Az(i+1,j,k)-Az(i-1,j,k))/dx)
-              solnData(MAGZ_VAR,i,j,k)= -0.5*((Ax(i,j+1,k)-Ax(i,j-1,k))/dy + (Ay(i+1,j,k)-Ay(i-1,j,k))/dx)
+              magx = -0.5*((Ay(i,j,k+1)-Ay(i,j,k-1))/dz + (Az(i,j+1,k)-Az(i,j-1,k))/dy)
+              magy =  0.5*((Ax(i,j,k+1)-Ax(i,j,k-1))/dz - (Az(i+1,j,k)-Az(i-1,j,k))/dx)
+              magz = -0.5*((Ax(i,j+1,k)-Ax(i,j-1,k))/dy + (Ay(i+1,j,k)-Ay(i-1,j,k))/dx)
            endif
-#endif
+           magp = .5*dot_product((/ magx, magy, magz /),&
+                                 (/ magx, magy, magz /))
+           divb = 0.
+#ifdef FL_NON_PERMANENT_GUARDCELLS
+           solnData(MAGX_VAR,i,j,k) = magx
+           solnData(MAGY_VAR,i,j,k) = magy
+           solnData(MAGZ_VAR,i,j,k) = magz
+           solnData(MAGP_VAR,i,j,k) = magp
+           solnData(DIVB_VAR,i,j,k) = divb
+#else
+           axis(IAXIS)=i
+           axis(JAXIS)=j
+           axis(KAXIS)=k
 
+           call Grid_putPointData(blockId, CENTER, MAGX_VAR, EXTERIOR, axis, magx)
+           call Grid_putPointData(blockId, CENTER, MAGY_VAR, EXTERIOR, axis, magy)
+           call Grid_putPointData(blockId, CENTER, MAGZ_VAR, EXTERIOR, axis, magz)
+           call Grid_putPointData(blockId, CENTER, MAGP_VAR, EXTERIOR, axis, magp)
+           call Grid_putPointData(blockId, CENTER, DIVB_VAR, EXTERIOR, axis, divb)
+#endif
+#endif
         enddo
      enddo
   enddo
 
 
+#if NFACE_VARS > 0
   do k=blkLimits(LOW,KAXIS),blkLimits(HIGH,KAXIS)
      do j = blkLimits(LOW,JAXIS),blkLimits(HIGH,JAXIS)
         do i = blkLimits(LOW,IAXIS),blkLimits(HIGH,IAXIS)
-
-#if NFACE_VARS > 0
-           solnData(MAGX_VAR,i,j,k) = 0.5*(facexData(MAG_FACE_VAR,i,j,k)+facexData(MAG_FACE_VAR,i+1,j,k))
-           solnData(MAGY_VAR,i,j,k) = 0.5*(faceyData(MAG_FACE_VAR,i,j,k)+faceyData(MAG_FACE_VAR,i,j+1,k))
+           magx = 0.5*(facexData(MAG_FACE_VAR,i,j,k)+facexData(MAG_FACE_VAR,i+1,j,k))
+           magy = 0.5*(faceyData(MAG_FACE_VAR,i,j,k)+faceyData(MAG_FACE_VAR,i,j+1,k))
            if (NDIM == 3) then
-              solnData(MAGZ_VAR,i,j,k) = 0.5*(facezData(MAG_FACE_VAR,i,j,k)+facezData(MAG_FACE_VAR,i,j,k+1))
+              magz = 0.5*(facezData(MAG_FACE_VAR,i,j,k)+facezData(MAG_FACE_VAR,i,j,k+1))
            endif
 
 #if NDIM == 1
-           solnData(DIVB_VAR,i,j,k) = 0.
+           divb = 0.
 #elif NDIM >= 2
-           solnData(DIVB_VAR,i,j,k)= &
+           divb = &
                      (facexData(MAG_FACE_VAR,i+1,j,  k  ) - facexData(MAG_FACE_VAR,i,j,k))/dx &
                    + (faceyData(MAG_FACE_VAR,i,  j+1,k  ) - faceyData(MAG_FACE_VAR,i,j,k))/dy
 #if NDIM == 3
-           solnData(DIVB_VAR,i,j,k)= solnData(DIVB_VAR,i,j,k) &
-                   + (facezData(MAG_FACE_VAR,i,  j,  k+1) - facezData(MAG_FACE_VAR,i,j,k))/dz
+           divb = divb + (facezData(MAG_FACE_VAR,i,  j,  k+1) - facezData(MAG_FACE_VAR,i,j,k))/dz
 #endif
 #endif
-
-#else !NFACE_VARS == 0
-           solnData(DIVB_VAR,i,j,k) = 0.
-#endif !NFACE_VARS
 
            ! Update the magnetic pressure
-           solnData(MAGP_VAR,i,j,k) = .5*dot_product(solnData(MAGX_VAR:MAGZ_VAR,i,j,k),&
-                                                     solnData(MAGX_VAR:MAGZ_VAR,i,j,k))
+           magp = .5*dot_product((/ magx, magy, magz /),&
+                                 (/ magx, magy, magz /))
 
+#ifdef FL_NON_PERMANENT_GUARDCELLS
+           solnData(MAGX_VAR,i,j,k) = magx
+           solnData(MAGY_VAR,i,j,k) = magy
+           solnData(MAGZ_VAR,i,j,k) = magz
+           solnData(MAGP_VAR,i,j,k) = magp
+           solnData(DIVB_VAR,i,j,k) = divb
+#else
+           axis(IAXIS)=i
+           axis(JAXIS)=j
+           axis(KAXIS)=k
+
+           call Grid_putPointData(blockId, CENTER, MAGX_VAR, EXTERIOR, axis, magx)
+           call Grid_putPointData(blockId, CENTER, MAGY_VAR, EXTERIOR, axis, magy)
+           call Grid_putPointData(blockId, CENTER, MAGZ_VAR, EXTERIOR, axis, magz)
+           call Grid_putPointData(blockId, CENTER, MAGP_VAR, EXTERIOR, axis, magp)
+           call Grid_putPointData(blockId, CENTER, DIVB_VAR, EXTERIOR, axis, divb)
+#endif
         enddo
      enddo
   enddo
+#endif !NFACE_VARS
 
-#ifdef CURJ_VAR
-  k=1
-  do j = blkLimits(LOW,JAXIS),blkLimits(HIGH,JAXIS)
-     do i = blkLimits(LOW,IAXIS),blkLimits(HIGH,IAXIS)
-        solnData(CURJ_VAR,i,j,k) =&
-               (faceyData(MAG_FACE_VAR,i+1,j,k)-faceyData(MAG_FACE_VAR,i,j,k))/dx &
-              -(facexData(MAG_FACE_VAR,i,j+1,k)-facexData(MAG_FACE_VAR,i,j,k))/dy
-     enddo
-  enddo
+#ifdef FL_NON_PERMANENT_GUARDCELLS
+  call Grid_releaseBlkPtr(blockID, solnData)
 #endif
-
-  call Grid_releaseBlkPtr(blockID, solnData, CENTER)
 
 #if NFACE_VARS > 0
   if (sim_killdivb) then

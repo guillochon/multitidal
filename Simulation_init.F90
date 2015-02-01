@@ -150,6 +150,8 @@ subroutine Simulation_init()
     call RuntimeParameters_get('sim_kind',sim_kind)
     call RuntimeParameters_get('sim_tAmbient', sim_tAmbient)
 
+    sim_gCell = .true.
+
 #ifdef LOADPROFILE
     call RuntimeParameters_get('sim_profFile',sim_profFile)
 
@@ -157,8 +159,6 @@ subroutine Simulation_init()
     sim_mpoleVX = 0.d0
     sim_mpolyVY = 0.d0
     sim_mpolyVZ = 0.d0
-
-    sim_gCell = .true.
 
     if (gr_globalMe .eq. MASTER_PE) then
         call read_table_dims(sim_profFile, sim_tableRows, sim_tableCols)

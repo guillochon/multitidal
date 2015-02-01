@@ -69,7 +69,9 @@ module Simulation_data
   double precision, save    :: sim_inszd
   double precision, dimension(6), save :: stvec
   double precision, dimension(:,:), allocatable, save    :: ptvecs
-  logical, save :: sim_useInitialPeakDensity, sim_useRadialProfile, sim_moveFixedToCOM
+  logical, save :: sim_useInitialPeakDensity, sim_useRadialProfile, sim_moveFixedToCOM, sim_killdivb, sim_gCell
+
+  double precision, save    :: sim_Az_initial, sim_fieldLoopRadius, sim_rx, sim_ry
 
   double precision, parameter :: sim_msun = 1.9889225d33
 

@@ -16,6 +16,7 @@ REQUIRES IO/IOMain/hdf5/parallel/PM  #Note: Requires +parallelIO in setup
 #REQUIRES physics/Diffuse/DiffuseFluxBased
 #REQUIRES physics/materialProperties/Conductivity/ConductivityMain/SpitzerHighZJFG
 #REQUIRES physics/materialProperties/Conductivity/ConductivityMain/PowerLaw
+REQUIRES physics/Hydro/HydroMain/unsplit/MHD_StaggeredMesh
 
 REQUIRES Particles/ParticlesMain/active/Sink
 
@@ -116,6 +117,11 @@ PARAMETER grv_bndMassIters    INTEGER 5
 D sim_nsubzones       Number of `sub-zones' in cells for applying 1d profile
 PARAMETER sim_nsubzones     INTEGER 7
 
+PARAMETER rx	       REAL     1.
+PARAMETER ry           REAL     2.
+PARAMETER Az_initial   REAL     0.001
+PARAMETER R_fieldLoop  REAL     5.E10
+
 PARAMETER plot_var_13 STRING "none"
 PARAMETER plot_var_14 STRING "none"
 PARAMETER plot_var_15 STRING "none"
@@ -129,3 +135,6 @@ PARAMETER plot_var_22 STRING "none"
 PARAMETER plot_var_23 STRING "none"
 
 PPDEFINE HIDE_SANITIZE
+
+VARIABLE VECZ
+VARIABLE CURZ

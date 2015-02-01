@@ -137,6 +137,12 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_parentMass", sim_parentMass)
     call RuntimeParameters_get("sim_parentPeri", sim_parentPeri)
 
+    call RuntimeParameters_get('Az_initial',  sim_Az_initial)
+    call RuntimeParameters_get('R_fieldLoop', sim_fieldLoopRadius)
+    call RuntimeParameters_get('killdivb', sim_killdivb)
+    call RuntimeParameters_get('rx',      sim_rx)
+    call RuntimeParameters_get('ry',      sim_ry)
+
     if (sim_powerLawExponent .le. -3.d0) then
         call Driver_abortFlash('Error: sim_powerLawExponent must be greater than -3.0')
     endif
@@ -151,6 +157,8 @@ subroutine Simulation_init()
     sim_mpoleVX = 0.d0
     sim_mpolyVY = 0.d0
     sim_mpolyVZ = 0.d0
+
+    sim_gCell = .true.
 
     if (gr_globalMe .eq. MASTER_PE) then
         call read_table_dims(sim_profFile, sim_tableRows, sim_tableCols)

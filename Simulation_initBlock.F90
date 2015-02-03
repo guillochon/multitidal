@@ -59,6 +59,7 @@ subroutine Simulation_initBlock (blockId, myPE)
                                     yCoord,yCoordL,yCoordR,&
                                     zCoord,zCoordL,zCoordR
   integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
+  character(4), save :: unitSystem
   integer :: sizeX,sizeY,sizeZ
   integer,dimension(MDIM) :: axis
   real, dimension(MDIM) :: del
@@ -86,6 +87,7 @@ subroutine Simulation_initBlock (blockId, myPE)
   call PhysicalConstants_get("Newton", newton)
   
   call RuntimeParameters_get("sink_softening_radius", softening_radius)
+  call RuntimeParameters_get("UnitSystem", unitSystem)
 
   ! Anninos 2012
   if (sim_useRadialProfile) then
@@ -653,8 +655,13 @@ subroutine Simulation_initBlock (blockId, myPE)
               magy =  0.5*((Ax(i,j,k+1)-Ax(i,j,k-1))/dz - (Az(i+1,j,k)-Az(i-1,j,k))/dx)
               magz = -0.5*((Ax(i,j+1,k)-Ax(i,j-1,k))/dy + (Ay(i+1,j,k)-Ay(i-1,j,k))/dx)
            endif
-           magp = .5*dot_product((/ magx, magy, magz /),&
-                                 (/ magx, magy, magz /))
+           if (unitSystem .eq. 'cgs') then
+               magp = .5/(4.*PI)*dot_product((/ magx, magy, magz /),&
+                                             (/ magx, magy, magz /))
+           else
+               magp = .5*dot_product((/ magx, magy, magz /),&
+                                     (/ magx, magy, magz /))
+           endif
            divb = 0.
 #ifdef FL_NON_PERMANENT_GUARDCELLS
            solnData(MAGX_VAR,i,j,k) = magx
@@ -701,8 +708,13 @@ subroutine Simulation_initBlock (blockId, myPE)
 #endif
 
            ! Update the magnetic pressure
-           magp = .5*dot_product((/ magx, magy, magz /),&
-                                 (/ magx, magy, magz /))
+           if (unitSystem .eq. 'cgs') then
+               magp = .5/(4.*PI)*dot_product((/ magx, magy, magz /),&
+                                             (/ magx, magy, magz /))
+           else
+               magp = .5*dot_product((/ magx, magy, magz /),&
+                                     (/ magx, magy, magz /))
+           endif
 
 #ifdef FL_NON_PERMANENT_GUARDCELLS
            solnData(MAGX_VAR,i,j,k) = magx

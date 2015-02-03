@@ -52,7 +52,7 @@ subroutine Simulation_initBlock (blockId, myPE)
   real     ::  x1,x2,x3,cos_ang,sin_ang,lambda,radius,rot
   real     ::  dx, dy, dz, magx, magy, magz, magp, divb
   real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb, newton
-  real     ::  dist, gam, rho0, T0, rsc, rho0in, T0in
+  real     ::  dist, gam, rho0, T0, rsc, rho0in, T0in, distxy
   integer  ::  istat
 
   real, allocatable,dimension(:) :: xCoord,xCoordL,xCoordR,&
@@ -564,17 +564,18 @@ subroutine Simulation_initBlock (blockId, myPE)
               endif
 #endif
               ! define radius of the field loop
-              radius = sqrt((xx-sim_xCenter)**2 + (yy-sim_yCenter)**2)
+              radius = sqrt((xx-sim_xCenter)**2 + (yy-sim_yCenter)**2 + (zz-sim_zCenter)**2)
+              distxy = sqrt((xx-sim_xCenter)**2 + (yy-sim_yCenter)**2)
 
-              if (radius <= sim_fieldLoopRadius) then
-                 Ax(i,j,k) = 0.
-                 Ay(i,j,k) = 0.
-                 Az(i,j,k) = sim_Az_initial*(sim_fieldLoopRadius - radius)
+              Ax(i,j,k) = 0.
+              Ay(i,j,k) = 0.
+              if (radius < obj_radius(obj_ipos)) then
+                  Az(i,j,k) = sim_Az_initial*(obj_radius(obj_ipos) - distxy)*&
+                              0.5*(1.+tanh(50.*(sim_fieldLoopRadius - radius)/sim_fieldLoopRadius))
               else
-                 Ax(i,j,k) = 0.
-                 Ay(i,j,k) = 0.
-                 Az(i,j,k) = 0.
+                  Az(i,j,k) = 0.
               endif
+
               !! For Ax and Ay
               !x1 = (cos_ang*xCoord(i) + sin_ang*zz) ! with rotation
               !!x1 = xx !without any rotation

@@ -44,7 +44,7 @@ subroutine Simulation_initBlock (blockId, myPE)
   integer,intent(IN) ::  blockId
   integer,intent(IN) ::  myPE
   
-  integer  ::  i, j, k, jLo, jHi
+  integer  ::  i, j, k, jLo, jHi, boxi, boxj, boxk
   integer  ::  ii, jj, kk, put
   real     ::  distInv, xDist, yDist, zDist, &
                bhxDist, bhyDist, bhzDist, bhDist
@@ -171,6 +171,33 @@ subroutine Simulation_initBlock (blockId, myPE)
 #ifdef FL_NON_PERMANENT_GUARDCELLS
   call Grid_getBlkPtr(blockId,solnData)
 #endif
+
+  ! JFG --- Now initialize the magnetic fields, based on magnetoHD setup
+
+  !------------------------------------------------------------------------------
+  ! Construct Az at each cell corner
+  ! Bx = dAz/dy - dAy/dz
+  ! By = dAx/dz - dAz/dx
+  ! Bz = dAy/dx - dAx/dy
+  Az = 0.
+  Ax = 0.
+  Ay = 0.
+
+  rot = atan(sim_rx/sim_ry)
+  cos_ang = cos(rot)
+  sin_ang = sin(rot)
+
+  if (cos_ang >= sin_ang) then
+     lambda = (sim_xMax-sim_xMin)*cos_ang
+  else
+     lambda = (sim_zMax-sim_zMin)*sin_ang
+  endif
+
+  call Grid_getDeltas(blockID,del)
+  dx = del(1)
+  dy = del(2)
+  dz = del(3)
+
   do k = blkLimitsGC(LOW,KAXIS), blkLimitsGC(HIGH,KAXIS)
      ! Find a real difference between z's if problem is >= 3D
      if (NDIM > 2) then
@@ -430,197 +457,73 @@ subroutine Simulation_initBlock (blockId, myPE)
            call Grid_putPointData(blockId, CENTER, VELY_VAR, EXTERIOR, axis, vy)
            call Grid_putPointData(blockId, CENTER, VELZ_VAR, EXTERIOR, axis, vz)
 #endif
-        enddo
-     enddo
-  enddo
 
-  ! JFG --- Now initialize the magnetic fields, based on magnetoHD setup
-
-  !------------------------------------------------------------------------------
-  ! Construct Az at each cell corner
-  ! Bx = dAz/dy - dAy/dz
-  ! By = dAx/dz - dAz/dx
-  ! Bz = dAy/dx - dAx/dy
-  Az = 0.
-  Ax = 0.
-  Ay = 0.
-
-  rot = atan(sim_rx/sim_ry)
-  cos_ang = cos(rot)
-  sin_ang = sin(rot)
-
-  if (cos_ang >= sin_ang) then
-     lambda = (sim_xMax-sim_xMin)*cos_ang
-  else
-     lambda = (sim_zMax-sim_zMin)*sin_ang
-  endif
-
-  call Grid_getDeltas(blockID,del)
-  dx = del(1)
-  dy = del(2)
-  dz = del(3)
-
-
-  if (NDIM == 2) then
-     k = 1
-     do j = blkLimitsGC(LOW,JAXIS),blkLimitsGC(HIGH,JAXIS)+1
-        do i = blkLimitsGC(LOW,IAXIS),blkLimitsGC(HIGH,IAXIS)+1
-
-#if NFACE_VARS > 1
+#if NFACE_VARS > 0
            ! x Coord at cell corner
            if (i <=blkLimitsGC(HIGH,IAXIS)) then
-              x1 = xCoordL(i)
+              axx = xCoordL(i)
            else
-              x1 = xCoordR(i-1)
+              axx = xCoordR(i-1)
            endif
 
            ! y Coord at cell corner
            if (j <=blkLimitsGC(HIGH,JAXIS)) then
-              x2 = yCoordL(j)
+              ayy = yCoordL(j)
            else
-              x2 = yCoordR(j-1)
+              ayy = yCoordR(j-1)
            endif
+
+           ! z Coord at cell corner
+           if (k <=blkLimitsGC(HIGH,KAXIS)) then
+              azz = zCoordL(k)
+           else
+              azz = zCoordR(k-1)
+           endif
+
 #else
            ! x Coord at cell center
            if (i <=blkLimitsGC(HIGH,IAXIS)) then
-              x1 = xCoord(i)
+              axx = xCoord(i)
            else
-              x1 = xCoord(i-1) + dx
+              axx = xCoord(i-1) + dx
            endif
 
            ! y Coord at cell center
            if (j <=blkLimitsGC(HIGH,JAXIS)) then
-              x2 = yCoord(j)
+              ayy = yCoord(j)
            else
-              x2 = yCoord(j-1) + dy
+              ayy = yCoord(j-1) + dy
+           endif
+
+           ! z Coord at cell center
+           if (k <=blkLimitsGC(HIGH,KAXIS)) then
+              azz = zCoord(k)
+           else
+              azz = zCoord(k-1) + dz
            endif
 #endif
            ! define radius of the field loop
-           radius = sqrt((x1-sim_xCenter)**2 + (x2-sim_yCenter)**2)
+           radius = sqrt((axx-sim_xCenter)**2 + (ayy-sim_yCenter)**2 + (azz-sim_zCenter)**2)
+           distxy = sqrt((axx-sim_xCenter)**2 + (ayy-sim_yCenter)**2)
 
-           if (radius <= sim_fieldLoopRadius) then
-              Ax(i,j,k) = 0.
-              Ay(i,j,k) = 0.
-              Az(i,j,k) = sim_Az_initial*(sim_fieldLoopRadius - radius)
+           boxi = nint((axx - sim_xCenter - 0.5)/dx) + specn/2
+           boxj = nint((ayy - sim_yCenter - 0.5)/dy) + specn/2
+           boxk = nint((azz - sim_zCenter - 0.5)/dz) + specn/2
+
+           if (radius < obj_radius(obj_ipos)) then
+               Ax(i,j,k) = 8.*PI*sim_Az_initial*p*magsspec(1,boxi,boxj,boxk)
+               Ay(i,j,k) = 8.*PI*sim_Az_initial*p*magsspec(2,boxi,boxj,boxk)
+               Az(i,j,k) = 8.*PI*sim_Az_initial*p*magsspec(3,boxi,boxj,boxk)
+                           !0.5*(1.+tanh(50.*(sim_fieldLoopRadius - radius)/sim_fieldLoopRadius))
            else
-              Ax(i,j,k) = 0.
-              Ay(i,j,k) = 0.
-              Az(i,j,k) = 0.
+               Ax(i,j,k) = 0.
+               Ay(i,j,k) = 0.
+               Az(i,j,k) = 0.
            endif
         enddo
      enddo
-  elseif (NDIM == 3) then
-     do k = blkLimitsGC(LOW,KAXIS),blkLimitsGC(HIGH,KAXIS)+1
-        do j = blkLimitsGC(LOW,JAXIS),blkLimitsGC(HIGH,JAXIS)+1
-           do i = blkLimitsGC(LOW,IAXIS),blkLimitsGC(HIGH,IAXIS)+1
+  enddo
 
-              !! Rotated coordinate system
-              !! / x1 \    / cos  0  sin \
-              !! | x2 |  = |  0   1   0  |
-              !! \ x3 /    \ -sin 0  cos /
-
-#if NFACE_VARS > 0
-              ! x Coord at cell corner
-              if (i <=blkLimitsGC(HIGH,IAXIS)) then
-                 xx = xCoordL(i)
-              else
-                 xx = xCoordR(i-1)
-              endif
-
-              ! y Coord at cell corner
-              if (j <=blkLimitsGC(HIGH,JAXIS)) then
-                 yy = yCoordL(j)
-              else
-                 yy = yCoordR(j-1)
-              endif
-
-              ! z Coord at cell corner
-              if (k <=blkLimitsGC(HIGH,KAXIS)) then
-                 zz = zCoordL(k)
-              else
-                 zz = zCoordR(k-1)
-              endif
-
-#else
-              ! x Coord at cell center
-              if (i <=blkLimitsGC(HIGH,IAXIS)) then
-                 xx = xCoord(i)
-              else
-                 xx = xCoord(i-1) + dx
-              endif
-
-              ! y Coord at cell center
-              if (j <=blkLimitsGC(HIGH,JAXIS)) then
-                 yy = yCoord(j)
-              else
-                 yy = yCoord(j-1) + dy
-              endif
-
-              ! z Coord at cell center
-              if (k <=blkLimitsGC(HIGH,KAXIS)) then
-                 zz = zCoord(k)
-              else
-                 zz = zCoord(k-1) + dz
-              endif
-#endif
-              ! define radius of the field loop
-              radius = sqrt((xx-sim_xCenter)**2 + (yy-sim_yCenter)**2 + (zz-sim_zCenter)**2)
-              distxy = sqrt((xx-sim_xCenter)**2 + (yy-sim_yCenter)**2)
-
-              Ax(i,j,k) = 0.
-              Ay(i,j,k) = 0.
-              if (radius < obj_radius(obj_ipos)) then
-                  Az(i,j,k) = sim_Az_initial*(obj_radius(obj_ipos) - distxy)*&
-                              0.5*(1.+tanh(50.*(sim_fieldLoopRadius - radius)/sim_fieldLoopRadius))
-              else
-                  Az(i,j,k) = 0.
-              endif
-
-              !! For Ax and Ay
-              !x1 = (cos_ang*xCoord(i) + sin_ang*zz) ! with rotation
-              !!x1 = xx !without any rotation
-              !x2 = yy
-
-
-              !do while (x1 > 0.5*lambda)
-              !   x1 = x1 - lambda
-              !enddo
-              !do while (x1 < -0.5*lambda)
-              !   x1 = x1 + lambda
-              !enddo
-
-              !radius = sqrt(x1**2 + x2**2)
-
-              !if (radius < sim_fieldLoopRadius) then
-              !   Ax(i,j,k) = sim_Az_initial*(sim_fieldLoopRadius - radius)*(-sin_ang)
-              !   print *, 'Ax', Ax(i,j,k), radius, sim_fieldLoopRadius
-              !endif
-              !Ay(i,j,k) = 0.
-
-              !! For Az
-              !x1 = (cos_ang*xx + sin_ang*zCoord(k)) ! with rotation
-              !!x1 = xx !without any rotation
-              !x2 = yy
-
-
-              !do while (x1 > 0.5*lambda)
-              !   x1 = x1 - lambda
-              !enddo
-              !do while (x1 < -0.5*lambda)
-              !   x1 = x1 + lambda
-              !enddo
-
-              !radius = sqrt(x1**2 + x2**2)
-
-              !if (radius < sim_fieldLoopRadius) then
-              !   Az(i,j,k) = sim_Az_initial*(sim_fieldLoopRadius - radius)*cos_ang
-              !   print *, 'Az', Az(i,j,k), radius, sim_fieldLoopRadius
-              !endif
-
-           enddo
-        enddo
-     enddo
-  endif
 
 #if NFACE_VARS > 0
   if (sim_killdivb) then

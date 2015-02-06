@@ -70,6 +70,8 @@ module Simulation_data
   double precision, dimension(6), save :: stvec
   double precision, dimension(:,:), allocatable, save    :: ptvecs
   logical, save :: sim_useInitialPeakDensity, sim_useRadialProfile, sim_moveFixedToCOM, sim_killdivb, sim_gCell
+  integer, parameter :: specn = 100
+  double precision, dimension(3,specn,specn,specn) :: velsspec, magsspec
 
   double precision, save    :: sim_Az_initial, sim_fieldLoopRadius, sim_rx, sim_ry
 

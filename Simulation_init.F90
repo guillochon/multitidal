@@ -51,7 +51,7 @@ subroutine Simulation_init()
 #include "Starprof.h"
 #include "Particles.h"
 
-    integer             :: ierr, i, nsend, reqr
+    integer             :: ierr, i, nsend, reqr, j, k, l
     double precision  polyk, &
                     x(np),y(np),yp(np), &
                     mass(np),ebind(np), &
@@ -151,6 +151,28 @@ subroutine Simulation_init()
     call RuntimeParameters_get('sim_tAmbient', sim_tAmbient)
 
     sim_gCell = .true.
+
+    if (gr_globalMe .eq. MASTER_PE) then
+        open(25, file="vels.dat", status="old", action="read")
+        open(26, file="mags.dat", status="old", action="read")
+        do l = 1, 3
+            do k = 1, specn
+                do j = 1, specn
+                    do i = 1, specn
+                        read(25,*) velsspec(i,j,k,l)
+                        read(26,*) magsspec(i,j,k,l)
+                    enddo
+                enddo
+            enddo
+        enddo
+        close(25)
+        close(26)
+    endif
+
+    print *, magsspec
+
+    call MPI_BCAST(velsspec, specn*specn*specn*3, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
+    call MPI_BCAST(magsspec, specn*specn*specn*3, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
 
 #ifdef LOADPROFILE
     call RuntimeParameters_get('sim_profFile',sim_profFile)

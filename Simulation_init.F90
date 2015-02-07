@@ -169,8 +169,6 @@ subroutine Simulation_init()
         close(26)
     endif
 
-    print *, magsspec
-
     call MPI_BCAST(velsspec, specn*specn*specn*3, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
     call MPI_BCAST(magsspec, specn*specn*specn*3, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
 

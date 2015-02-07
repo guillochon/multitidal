@@ -53,6 +53,7 @@ subroutine Simulation_initBlock (blockId, myPE)
   real     ::  dx, dy, dz, magx, magy, magz, magp, divb
   real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb, newton
   real     ::  dist, gam, rho0, T0, rsc, rho0in, T0in, distxy
+  real     ::  axx, ayy, azz
   integer  ::  istat
 
   real, allocatable,dimension(:) :: xCoord,xCoordL,xCoordR,&
@@ -506,14 +507,14 @@ subroutine Simulation_initBlock (blockId, myPE)
            radius = sqrt((axx-sim_xCenter)**2 + (ayy-sim_yCenter)**2 + (azz-sim_zCenter)**2)
            distxy = sqrt((axx-sim_xCenter)**2 + (ayy-sim_yCenter)**2)
 
-           boxi = nint((axx - sim_xCenter - 0.5)/dx) + specn/2
-           boxj = nint((ayy - sim_yCenter - 0.5)/dy) + specn/2
-           boxk = nint((azz - sim_zCenter - 0.5)/dz) + specn/2
+           boxi = nint((axx - sim_xCenter)/dx) + specn/2
+           boxj = nint((ayy - sim_yCenter)/dy) + specn/2
+           boxk = nint((azz - sim_zCenter)/dz) + specn/2
 
            if (radius < obj_radius(obj_ipos)) then
-               Ax(i,j,k) = 8.*PI*sim_Az_initial*p*magsspec(1,boxi,boxj,boxk)
-               Ay(i,j,k) = 8.*PI*sim_Az_initial*p*magsspec(2,boxi,boxj,boxk)
-               Az(i,j,k) = 8.*PI*sim_Az_initial*p*magsspec(3,boxi,boxj,boxk)
+               Ax(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*magsspec(boxi,boxj,boxk,1)
+               Ay(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*magsspec(boxi,boxj,boxk,2)
+               Az(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*magsspec(boxi,boxj,boxk,3)
                            !0.5*(1.+tanh(50.*(sim_fieldLoopRadius - radius)/sim_fieldLoopRadius))
            else
                Ax(i,j,k) = 0.

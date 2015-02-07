@@ -511,7 +511,7 @@ subroutine Simulation_initBlock (blockId, myPE)
            boxj = nint((ayy - sim_yCenter)/dy) + specn/2
            boxk = nint((azz - sim_zCenter)/dz) + specn/2
 
-           if (radius < obj_radius(obj_ipos)) then
+           if (radius < obj_radius(obj_ipos) - dx) then
                Ax(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dx*magsspec(boxi,boxj,boxk,1)
                Ay(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dy*magsspec(boxi,boxj,boxk,2)
                Az(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dz*magsspec(boxi,boxj,boxk,3)

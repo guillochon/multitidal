@@ -512,9 +512,9 @@ subroutine Simulation_initBlock (blockId, myPE)
            boxk = nint((azz - sim_zCenter)/dz) + specn/2
 
            if (radius < obj_radius(obj_ipos)) then
-               Ax(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*magsspec(boxi,boxj,boxk,1)
-               Ay(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*magsspec(boxi,boxj,boxk,2)
-               Az(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*magsspec(boxi,boxj,boxk,3)
+               Ax(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dx*magsspec(boxi,boxj,boxk,1)
+               Ay(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dy*magsspec(boxi,boxj,boxk,2)
+               Az(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dz*magsspec(boxi,boxj,boxk,3)
                            !0.5*(1.+tanh(50.*(sim_fieldLoopRadius - radius)/sim_fieldLoopRadius))
            else
                Ax(i,j,k) = 0.

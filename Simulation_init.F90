@@ -159,8 +159,8 @@ subroutine Simulation_init()
             do k = 1, specn
                 do j = 1, specn
                     do i = 1, specn
-                        read(25,*) velsspec(i,j,k,l)
-                        read(26,*) magsspec(i,j,k,l)
+                        read(25,*) velsspec(k,j,i,l)
+                        read(26,*) magsspec(k,j,i,l)
                     enddo
                 enddo
             enddo

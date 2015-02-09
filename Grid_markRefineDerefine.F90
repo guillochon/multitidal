@@ -38,8 +38,8 @@ subroutine Grid_markRefineDerefine()
                         gr_lrefineMaxRedDoByTime,&
                         gr_lrefineMaxRedDoByLogR,&
                         gr_lrefineCenterI,gr_lrefineCenterJ,gr_lrefineCenterK,&
-                        gr_eosModeNow
-  use tree, ONLY : newchild, refine, derefine, stay
+                        gr_eosModeNow, gr_maxRefine, gr_globalComm
+  use tree, ONLY : newchild, refine, derefine, stay, lnblocks
 !!$  use physicaldata, ONLY : force_consistency
   use Logfile_interface, ONLY : Logfile_stampVarMask
   use Grid_interface, ONLY : Grid_fillGuardCells
@@ -52,7 +52,8 @@ subroutine Grid_markRefineDerefine()
       sim_fluffRefineCutoff, sim_fluffDampCutoff, sim_cylinderRadius, &
       sim_xCenter, sim_yCenter, sim_zCenter, sim_kind, stvec, &
       sim_softenRadius, sim_fixedPartTag, sim_windNCells, &
-      sim_tDelay, sim_periDist, sim_ptMass, sim_cylinderType
+      sim_tDelay, sim_periDist, sim_ptMass, sim_cylinderType, &
+      sim_maxBlocks
   use pt_sinkInterface, ONLY : pt_sinkGatherGlobal
   use Multitidal_interface, ONLY : Multitidal_findExtrema
   use Particles_sinkData, ONLY : localnpf, particles_global
@@ -61,11 +62,12 @@ subroutine Grid_markRefineDerefine()
   implicit none
 
 #include "constants.h"
+#include "Flash_mpi.h"
 #include "Flash.h"
 
   
   real :: ref_cut,deref_cut,ref_filter
-  integer       :: l,i,iref
+  integer       :: l,i,iref,max_blocks,ierr
   logical,save :: gcMaskArgsLogged = .FALSE.
   integer,save :: eosModeLast = 0
   logical :: doEos=.true.
@@ -88,6 +90,11 @@ subroutine Grid_markRefineDerefine()
   
   if(gr_lrefineMaxByTime) then
      call gr_setMaxRefineByTime()
+  end if
+
+  call MPI_ALLREDUCE(lnblocks,max_blocks,1,MPI_INTEGER,MPI_SUM,gr_globalComm,ierr)
+  if (max_blocks .gt. sim_maxBlocks) then
+     gr_maxRefine = gr_maxRefine - 1
   end if
 
   if (gr_eosModeNow .NE. eosModeLast) then

@@ -150,6 +150,9 @@ subroutine Grid_markRefineDerefine()
 
   if(gr_enforceMaxRefinement) call gr_enforceMaxRefine(gr_maxRefine)
 
+  !! JFG
+  if(gr_maxRefine .lt. lrefine_max) call gr_enforceMaxRefine(gr_maxRefine)
+
   if(gr_lrefineMaxRedDoByLogR) &
        call gr_unmarkRefineByLogRadius(gr_lrefineCenterI,&
        gr_lrefineCenterJ,gr_lrefineCenterK)
@@ -159,13 +162,13 @@ subroutine Grid_markRefineDerefine()
   if (dr_simTime .eq. 0.d0) then
       if (sim_kind .eq. 'polytrope') then
           specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_objRadius, 0., 0., 0. /)
-          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
+          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
       elseif (sim_kind .eq. 'powerlaw') then
           specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_softenRadius, 0., 0., 0. /)
-          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
+          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
           specs = (/ sim_xCenter + stvec(1), sim_yCenter + stvec(2), sim_zCenter + stvec(3), &
                      sim_objRadius, 0., 0., 0. /)
-          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
+          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
       endif
   else
       if (sim_kind .eq. 'polytrope') then
@@ -196,7 +199,7 @@ subroutine Grid_markRefineDerefine()
                      sim_zCenter + sim_cylinderRadius, 0. /)
       endif
 
-      call Grid_markRefineSpecialized(RECTANGLE, 7, specs(1:7), lrefine_max)
+      call Grid_markRefineSpecialized(RECTANGLE, 7, specs(1:7), gr_maxRefine)
   elseif (sim_kind .eq. 'wind') then
       call pt_sinkGatherGlobal()
       do i = 1, localnpf
@@ -206,12 +209,12 @@ subroutine Grid_markRefineDerefine()
       enddo
 
       specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_softenRadius, 0., 0., 0. /)
-      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
+      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
       specs = (/ pvec(1), pvec(2), pvec(3), sim_windNCells*mcs, 0., 0., 0. /)
-      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
+      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
   elseif (sim_kind .eq. 'polytrope') then
       specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_objRadius, 0., 0., 0. /)
-      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), lrefine_max)
+      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
   endif
   
   return

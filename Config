@@ -19,6 +19,7 @@ REQUIRES IO/IOParticles/hdf5/parallel
 #REQUIRES physics/materialProperties/Conductivity/ConductivityMain/SpitzerHighZJFG
 #REQUIRES physics/materialProperties/Conductivity/ConductivityMain/PowerLaw
 REQUIRES physics/Hydro/HydroMain/unsplit/MHD_StaggeredMesh
+REQUIRES physics/materialProperties/MagneticResistivity/MagneticResistivityMain
 
 REQUIRES Particles/ParticlesMain/active/Sink
 

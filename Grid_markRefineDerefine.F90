@@ -173,11 +173,16 @@ subroutine Grid_markRefineDerefine()
   else
       if (sim_kind .eq. 'polytrope') then
           call Multitidal_findExtrema(DENS_VAR, 1, max_dens)
-          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff*max_dens, -1., 0., 0., 0., 0. /)
+          specs = (/ real(DENS_VAR), 0., 1., 0., 0., 0., 0. /) ! First mark everything for derefine
+          call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
+          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff*max_dens, -1., 0., 0., 0., 0. /) ! Then mark stuff that satisfies threshold for refine
+          call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), gr_maxRefine)
       else
-          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff, -1., 0., 0., 0., 0. /)
+          specs = (/ real(DENS_VAR), 0., 1., 0., 0., 0., 0. /) ! First mark everything for derefine
+          call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
+          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff, -1., 0., 0., 0., 0. /) ! Then mark stuff that satisfies threshold for refine
+          call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), gr_maxRefine)
       endif
-      call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
   endif
 
   if (sim_kind .eq. 'cylinder') then

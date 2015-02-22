@@ -58,7 +58,7 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
 
   integer :: b, llref, nsend, nrecv, ierr, j
   logical :: Grid_mark
-  logical :: unmark = .false.
+  logical :: unmark
   real val(maxblocks),val_par(maxblocks)
   integer reqr(maxblocks),reqs(maxblocks*nchild)
   integer :: statr(MPI_STATUS_SIZE,maxblocks)
@@ -66,23 +66,25 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
 
 !-------------------------------------------------------------------------------
 
-! Loop over all leaf-node blocks.
-
+  unmark = .false.
   if (lref < 0) unmark = .true.
   llref = abs(lref)
 
   do b = 1, lnblocks
-    if (unmark) then
-      if (icmp < 0) then
-        val(b) = maxval(unk(var,:,:,:,b))
+    val(b) = 0.
+    if (nodetype(b).eq.LEAF.or.nodetype(b).eq.PARENT_BLK) then
+      if (unmark) then
+        if (icmp < 0) then
+          val(b) = maxval(unk(var,:,:,:,b))
+        else
+          val(b) = minval(unk(var,:,:,:,b))
+        endif
       else
-        val(b) = minval(unk(var,:,:,:,b))
-      endif
-    else
-      if (icmp < 0) then
-        val(b) = minval(unk(var,:,:,:,b))
-      else
-        val(b) = maxval(unk(var,:,:,:,b))
+        if (icmp < 0) then
+          val(b) = minval(unk(var,:,:,:,b))
+        else
+          val(b) = maxval(unk(var,:,:,:,b))
+        endif
       endif
     endif
   enddo
@@ -135,7 +137,7 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
   end if
 
   do b = 1,lnblocks
-    if (nodetype(b).eq.1) then
+    if (nodetype(b).eq.LEAF .or. nodetype(b).eq.PARENT_BLK) then
       if (unmark) then
         if (icmp < 0) then
           Grid_mark = (val(b) <= var_th .and. val_par(b) <= var_th)
@@ -144,9 +146,9 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
         endif
       else
         if (icmp < 0) then
-          Grid_mark = (val(b) >= var_th .and. val_par(b) >= var_th)
+          Grid_mark = (val(b) <= var_th)
         else
-          Grid_mark = (val(b) <= var_th .and. val_par(b) <= var_th)
+          Grid_mark = (val(b) >= var_th)
         endif
       endif
 
@@ -168,6 +170,9 @@ subroutine gr_markVarThreshold (Var, var_th, icmp,lref)
             derefine(b) = .false.
           else if (llref <= 0) then
             refine(b) = .true.
+          endif
+          if (nodetype(b).eq.LEAF) then
+            stay(b) = .true.
           endif
         endif
       endif

@@ -24,6 +24,7 @@ subroutine Multitidal_findExtrema (ivar,flag,extrema)
                              Grid_getBlkBoundBox,&
                              Grid_getBlkIndexLimits,&
                              Grid_getListOfBlocks
+  use Grid_data, ONLY : gr_meshComm
 
   implicit none
   
@@ -79,7 +80,7 @@ subroutine Multitidal_findExtrema (ivar,flag,extrema)
      enddo
   enddo
 
-  call MPI_ALLREDUCE(extrema_local, extrema, 1, FLASH_REAL, MPI_MAX, MPI_COMM_WORLD, ierr)
+  call MPI_ALLREDUCE(extrema_local, extrema, 1, FLASH_REAL, MPI_MAX, gr_meshComm, ierr)
   
   !==========================================================================
   call Grid_releaseBlkPtr(blockID, solnData)

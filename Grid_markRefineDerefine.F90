@@ -172,15 +172,17 @@ subroutine Grid_markRefineDerefine()
       endif
   else
       if (sim_kind .eq. 'polytrope') then
-          call Multitidal_findExtrema(DENS_VAR, 1, max_dens)
-          specs = (/ real(DENS_VAR), 0., 1., 0., 0., 0., 0. /) ! First mark everything for derefine
+          ! First mark everything for derefine
+          specs = (/ real(DENS_VAR), 0., 1., 0., 0., 0., 0. /)
           call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
-          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff*max_dens, -1., 0., 0., 0., 0. /) ! Then mark stuff that satisfies threshold for refine
+          ! Then mark stuff that satisfies threshold for refine
+          call Multitidal_findExtrema(DENS_VAR, 1, max_dens)
+          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff*max_dens, 1., 0., 0., 0., 0. /)
           call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), gr_maxRefine)
       else
           specs = (/ real(DENS_VAR), 0., 1., 0., 0., 0., 0. /) ! First mark everything for derefine
           call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
-          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff, -1., 0., 0., 0., 0. /) ! Then mark stuff that satisfies threshold for refine
+          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff, 1., 0., 0., 0., 0. /) ! Then mark stuff that satisfies threshold for refine
           call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), gr_maxRefine)
       endif
   endif
@@ -217,9 +219,9 @@ subroutine Grid_markRefineDerefine()
       call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
       specs = (/ pvec(1), pvec(2), pvec(3), sim_windNCells*mcs, 0., 0., 0. /)
       call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
-  elseif (sim_kind .eq. 'polytrope') then
-      specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_objRadius, 0., 0., 0. /)
-      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
+  !elseif (sim_kind .eq. 'polytrope') then
+  !    specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_objRadius, 0., 0., 0. /)
+  !    call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
   endif
   
   return

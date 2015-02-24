@@ -172,8 +172,8 @@ subroutine Grid_markRefineDerefine()
       endif
   else
       if (sim_kind .eq. 'polytrope') then
-          ! First mark everything for derefine
-          specs = (/ real(DENS_VAR), 0., 1., 0., 0., 0., 0. /)
+          ! First mark stuff significantly below threshold for derefine. Should make user parameter. (JFG)
+          specs = (/ real(DENS_VAR), 0.1*sim_fluffRefineCutoff*max_dens, -1., 0., 0., 0., 0. /)
           call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
           ! Then mark stuff that satisfies threshold for refine
           call Multitidal_findExtrema(DENS_VAR, 1, max_dens)

@@ -362,6 +362,9 @@ subroutine Simulation_init()
 
     if (dr_restart) then
         call NameValueLL_getInt(io_scalar, "fixedparttag", sim_fixedPartTag, .true., ierr)
+        call NameValueLL_getReal(io_scalar, "sim_mpolevx", sim_mpoleVX, .true., ierr)
+        call NameValueLL_getReal(io_scalar, "sim_mpolevy", sim_mpoleVY, .true., ierr)
+        call NameValueLL_getReal(io_scalar, "sim_mpolevz", sim_mpoleVZ, .true., ierr)
         if (ierr /= NORMAL) then
             sim_fixedPartTag = 0
             if (gr_globalMe .eq. MASTER_PE) then

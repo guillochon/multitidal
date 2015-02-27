@@ -362,9 +362,6 @@ subroutine Simulation_init()
 
     if (dr_restart) then
         call NameValueLL_getInt(io_scalar, "fixedparttag", sim_fixedPartTag, .true., ierr)
-        call NameValueLL_getReal(io_scalar, "sim_mpolevx", sim_mpoleVX, .true., ierr)
-        call NameValueLL_getReal(io_scalar, "sim_mpolevy", sim_mpoleVY, .true., ierr)
-        call NameValueLL_getReal(io_scalar, "sim_mpolevz", sim_mpoleVZ, .true., ierr)
         if (ierr /= NORMAL) then
             sim_fixedPartTag = 0
             if (gr_globalMe .eq. MASTER_PE) then
@@ -392,12 +389,14 @@ subroutine Simulation_init()
                 if (nsend .gt. 0) call MPI_WAITALL(nsend, reqs, stats, ierr)
                 print *, gr_globalMe, 'finished waiting'
             else
-                print *, 'i am', gr_globalMe
                 call MPI_IRECV(sim_fixedPartTag, 1, FLASH_INTEGER, MPI_ANY_SOURCE, 86, gr_globalComm, reqr, ierr)
                 call MPI_WAIT(reqr, statr, ierr)
                 print *, gr_globalMe, 'received all data'
             endif
         endif
+        call NameValueLL_getReal(io_scalar, "sim_mpolevx", sim_mpoleVX, .true., ierr)
+        call NameValueLL_getReal(io_scalar, "sim_mpolevy", sim_mpoleVY, .true., ierr)
+        call NameValueLL_getReal(io_scalar, "sim_mpolevz", sim_mpoleVZ, .true., ierr)
     else
         if (gr_globalMe .eq. MASTER_PE) then
             if (sim_kind .ne. 'cylinder') then

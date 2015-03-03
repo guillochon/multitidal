@@ -67,6 +67,8 @@ subroutine Simulation_init()
 
     call PhysicalConstants_get("Newton", newton)
 
+    call RuntimeParameters_get('grv_cfl', grv_cfl)
+
     call RuntimeParameters_get('smallx', sim_smallX)
     call RuntimeParameters_get('smlrho', sim_smallRho)
     call RuntimeParameters_get('smallp', sim_smallP)
@@ -397,6 +399,11 @@ subroutine Simulation_init()
         call NameValueLL_getReal(io_scalar, "sim_mpolevx", sim_mpoleVX, .true., ierr)
         call NameValueLL_getReal(io_scalar, "sim_mpolevy", sim_mpoleVY, .true., ierr)
         call NameValueLL_getReal(io_scalar, "sim_mpolevz", sim_mpoleVZ, .true., ierr)
+        if (ierr /= NORMAL) then
+            sim_mpoleVX = 0.
+            sim_mpoleVY = 0.
+            sim_mpoleVZ = 0.
+        endif
     else
         if (gr_globalMe .eq. MASTER_PE) then
             if (sim_kind .ne. 'cylinder') then

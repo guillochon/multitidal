@@ -77,4 +77,6 @@ module Simulation_data
 
   double precision, parameter :: sim_msun = 1.9889225d33
 
+  double precision, save    :: grv_cfl
+
 end module Simulation_data

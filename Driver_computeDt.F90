@@ -75,6 +75,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
   use Burn_interface, ONLY : Burn_computeDt
   use RadTrans_interface, ONLY: RadTrans_computeDt
   use Particles_interface, ONLY: Particles_computeDt
+  use Gravity_interface, ONLY: Gravity_computeDt
 
   use SolidMechanics_interface, ONLY : SolidMechanics_computeDt
   use IncompNS_interface, ONLY : IncompNS_computeDt
@@ -165,6 +166,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
   data limiterName(DIFF) /'dt_Diff '/
   data limiterName(COSMO) /'dt_Cosm'/
   data limiterName(STIR) /'dt_Stir'/
+  data limiterName(GRAV) /'dt_Grav;'/
   data limiterName(HEATXCHG) /'dt_HeatXchg'/
   data limiterName(RADTRANS) /'dt_RadTrans'/
   data limiterName(STS)  /'dt_STS'/
@@ -294,6 +296,10 @@ subroutine Driver_computeDt(nbegin, nstep, &
                            dtLocal(1,BURN), lminloc(:,BURN) )
      
      call Gravity_computeDt ( blockList(i), &
+                           dx, &
+                           dy, &
+                           dz, &
+                           blkLimits,blkLimitsGC,  &
                            solnData, &
                            dtLocal(1,GRAV), lminloc(:,GRAV) )
      

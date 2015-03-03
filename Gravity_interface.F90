@@ -6,6 +6,7 @@
 
 Module Gravity_interface
 #include "constants.h"
+#include "Flash.h"
 
   interface
      subroutine Gravity_accelAtCoords (numPoints, iCoords,jCoords,kCoords, accelDir,&
@@ -52,8 +53,19 @@ Module Gravity_interface
 
 
   interface Gravity_computeDt
-     subroutine Gravity_computeDt (blockID, solnData, dt_grav, dt_minloc)
+     subroutine Gravity_computeDt (blockID, dx, dy, dz, &
+             blkLimits, blkLimitsGC, solnData, dt_grav, dt_minloc)
        real,intent(OUT)       ::  dt_grav
+#ifdef FIXEDBLOCKSIZE
+       real, dimension(GRID_ILO_GC:GRID_IHI_GC), intent(IN) :: dx
+       real, dimension(GRID_JLO_GC:GRID_JHI_GC), intent(IN) :: dy
+       real, dimension(GRID_KLO_GC:GRID_KHI_GC), intent(IN) :: dz
+#else
+       real, dimension(blkLimitsGC(LOW,IAXIS):blkLimitsGC(HIGH,IAXIS)), intent(IN) :: dx
+       real, dimension(blkLimitsGC(LOW,JAXIS):blkLimitsGC(HIGH,JAXIS)), intent(IN) :: dy
+       real, dimension(blkLimitsGC(LOW,KAXIS):blkLimitsGC(HIGH,KAXIS)), intent(IN) :: dz
+#endif
+       integer, intent(IN),dimension(2,MDIM)::blkLimits,blkLimitsGC
        real, pointer :: solnData(:,:,:,:) 
        integer, intent(IN)    ::  blockID
        integer, intent(INOUT) :: dt_minloc(5)

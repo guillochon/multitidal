@@ -227,8 +227,8 @@ subroutine Gravity_accelOneRow (pos, sweepDir, blockID, numCells, grav, &
       grav(ii) = grav(ii) + delxinv * (gpot(ii-1) - gpot(ii+1) + deld/(12.d0*dens(ii))*(gpot(ii-1) - 2.d0*gpot(ii) + gpot(ii+1)))
   enddo
   
-  !grav(iimin) = grav(iimin+1)     ! this is invalid data - must not be used
-  !grav(iimax) = grav(iimax-1)
+  grav(iimin) = grav(iimin+1)     ! this is invalid data - must not be used
+  grav(iimax) = grav(iimax-1)
   
   call Grid_releaseBlkPtr(blockID, solnVec)
   

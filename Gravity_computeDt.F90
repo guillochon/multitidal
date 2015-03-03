@@ -31,7 +31,9 @@
 !!
 !!***
 
-subroutine Gravity_computeDt (blockID, solnData, dt_grav, dt_minloc)
+subroutine Gravity_computeDt (blockID, &
+                              dx, dy, dz, blkLimits, blkLimitsGC, &
+                              solnData, dt_grav, dt_minloc)
 
 !==============================================================================
 
@@ -40,39 +42,38 @@ subroutine Gravity_computeDt (blockID, solnData, dt_grav, dt_minloc)
 
   use Simulation_data, ONLY : sim_gCell, grv_cfl, sim_comAccel
   use Gravity_data, ONLY : grv_meshMe
+  use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getCellCoords, Grid_getDeltas
   implicit none
   
   integer, intent(IN)    ::  blockID
+  integer,dimension(LOW:HIGH,MDIM), intent(IN) :: blkLimits,blkLimitsGC
   real, pointer :: solnData(:,:,:,:) 
   integer, intent(INOUT) ::  dt_minloc(5)
   real,intent(OUT)       ::  dt_grav
 
-  integer :: sizeX,sizeY,sizeZ,i,j,k,temploc(5)
+  integer :: i,j,k,temploc(5)
   real :: delxinv, delyinv, delzinv, dt_ltemp, dt_temp
-  real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
-  integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
   real, dimension(MDIM) :: del
 
-  call Grid_getBlkIndexLimits(blockId,blkLimits,blkLimitsGC)
-  
-  sizeX = blkLimitsGC(HIGH,IAXIS)-blkLimitsGC(LOW,IAXIS)+1
-  sizeY = blkLimitsGC(HIGH,JAXIS)-blkLimitsGC(LOW,JAXIS)+1
-  sizeZ = blkLimitsGC(HIGH,KAXIS)-blkLimitsGC(LOW,KAXIS)+1
-
-  call Grid_getCellCoords(IAXIS,blockId,CENTER,sim_gCell,xCoord,sizeX)
-  call Grid_getCellCoords(JAXIS,blockId,CENTER,sim_gCell,yCoord,sizeY)
-  call Grid_getCellCoords(KAXIS,blockId,CENTER,sim_gCell,zCoord,sizeZ)
-  call Grid_getDeltas(blockID,del)
+#ifdef FIXEDBLOCKSIZE
+  real, dimension(GRID_ILO_GC:GRID_IHI_GC), intent(IN) :: dx
+  real, dimension(GRID_JLO_GC:GRID_JHI_GC), intent(IN) :: dy
+  real, dimension(GRID_KLO_GC:GRID_KHI_GC), intent(IN) :: dz
+#else
+  real, dimension(blkLimitsGC(LOW,IAXIS):blkLimitsGC(HIGH,IAXIS)), intent(IN) :: dx
+  real, dimension(blkLimitsGC(LOW,JAXIS):blkLimitsGC(HIGH,JAXIS)), intent(IN) :: dy
+  real, dimension(blkLimitsGC(LOW,KAXIS):blkLimitsGC(HIGH,KAXIS)), intent(IN) :: dz
+#endif
 
   ! Only CARTESIAN works for now
   delyinv = 1.
   delzinv = 1.
 
-  delxinv = 1.0/del(1)
+  delxinv = 1.0/dx(blkLimits(LOW,IAXIS))
   if (NDIM > 1) &
-  delyinv = 1.0/del(2)
+  delyinv = 1.0/dy(blkLimits(LOW,JAXIS))
   if (NDIM > 2) &
-  delzinv = 1.0/del(3)
+  delzinv = 1.0/dz(blkLimits(LOW,KAXIS))
 
   dt_temp    = 0.
   temploc(:) = 0

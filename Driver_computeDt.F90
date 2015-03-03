@@ -166,7 +166,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
   data limiterName(DIFF) /'dt_Diff '/
   data limiterName(COSMO) /'dt_Cosm'/
   data limiterName(STIR) /'dt_Stir'/
-  data limiterName(GRAV) /'dt_Grav;'/
+  data limiterName(GRAV) /'dt_Grav'/
   data limiterName(HEATXCHG) /'dt_HeatXchg'/
   data limiterName(RADTRANS) /'dt_RadTrans'/
   data limiterName(STS)  /'dt_STS'/

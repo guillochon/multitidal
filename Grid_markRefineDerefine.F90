@@ -219,9 +219,9 @@ subroutine Grid_markRefineDerefine()
       call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
       specs = (/ pvec(1), pvec(2), pvec(3), sim_windNCells*mcs, 0., 0., 0. /)
       call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
-  !elseif (sim_kind .eq. 'polytrope') then
-  !    specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_objRadius, 0., 0., 0. /)
-  !    call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
+  elseif (sim_kind .eq. 'polytrope') then
+      specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, 1.5*sim_objRadius, 0., 0., 0. /)
+      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
   endif
   
   return

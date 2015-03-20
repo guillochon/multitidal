@@ -120,10 +120,11 @@ PARAMETER grv_bndMassIters    INTEGER 5
 D sim_nsubzones       Number of `sub-zones' in cells for applying 1d profile
 PARAMETER sim_nsubzones     INTEGER 7
 
-PARAMETER rx	       REAL     1.
-PARAMETER ry           REAL     2.
-PARAMETER Az_initial   REAL     0.001
-PARAMETER R_fieldLoop  REAL     5.E10
+PARAMETER rx	              REAL     1.
+PARAMETER ry                  REAL     2.
+PARAMETER Az_initial          REAL     0.001
+PARAMETER R_fieldLoop         REAL     5.E10
+PARAMETER sim_magResistCutoff REAL 0.E0
 
 PARAMETER plot_var_13 STRING "none"
 PARAMETER plot_var_14 STRING "none"

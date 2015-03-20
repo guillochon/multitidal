@@ -49,7 +49,7 @@ module Simulation_data
                             sim_cylinderNCells, sim_cylinderMDot, sim_windVelocity, &
                             sim_windMdot, sim_windTemperature, sim_windNCells, &
                             sim_windLaunchRadius, sim_windKernel, sim_tDelay, &
-                            sim_parentMass, sim_parentPeri
+                            sim_parentMass, sim_parentPeri, sim_magResistCutoff
   double precision, save :: sim_xCenter, sim_yCenter, sim_zCenter
   double precision, save :: sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ
   double precision, dimension(NDIM), save                :: sim_comAccel

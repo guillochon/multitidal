@@ -144,6 +144,7 @@ subroutine Simulation_init()
     call RuntimeParameters_get('killdivb', sim_killdivb)
     call RuntimeParameters_get('rx',      sim_rx)
     call RuntimeParameters_get('ry',      sim_ry)
+    call RuntimeParameters_get("sim_magResistCutoff", sim_magResistCutoff)
 
     if (sim_powerLawExponent .le. -3.d0) then
         call Driver_abortFlash('Error: sim_powerLawExponent must be greater than -3.0')

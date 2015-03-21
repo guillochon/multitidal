@@ -36,7 +36,6 @@ subroutine MagneticResistivity(temp,dens,xn,magResist)
 
   use MagneticResistivity_data, ONLY : mResistivity, mUnit, c
   use Simulation_data, ONLY : sim_magResistCutoff
-  use Multitidal_interface, ONLY : Multitidal_findExtrema
 
 #include "constants.h"
 #include "Flash.h"
@@ -49,12 +48,8 @@ subroutine MagneticResistivity(temp,dens,xn,magResist)
   real, intent(OUT):: magResist
   !! ----------------------------------------------
 
-  real :: damp_dens
-
-  call Multitidal_findExtrema(DENS_VAR, 1, damp_dens)
-
   !! Scale resistivity depending on units
-  if (dens .lt. sim_magResistCutoff*damp_dens) then
+  if (dens .lt. sim_magResistCutoff) then
       if (mUnit == "SI" .or. mUnit == "si" ) then
          magResist = mResistivity*1.e7/(4.*PI)
       elseif (mUnit == "CGS" .or. mUnit == "cgs" ) then

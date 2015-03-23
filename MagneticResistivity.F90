@@ -49,14 +49,16 @@ subroutine MagneticResistivity(temp,dens,xn,magResist)
   !! ----------------------------------------------
 
   !! Scale resistivity depending on units
-  if (dens .lt. sim_magResistCutoff) then
-      if (mUnit == "SI" .or. mUnit == "si" ) then
-         magResist = mResistivity*1.e7/(4.*PI)
-      elseif (mUnit == "CGS" .or. mUnit == "cgs" ) then
-         magResist = mResistivity*c*c/(4.*PI)
-      else !no unit
-         magResist = mResistivity
-      end if
+  if (mUnit == "SI" .or. mUnit == "si" ) then
+     magResist = mResistivity*1.e7/(4.*PI)
+  elseif (mUnit == "CGS" .or. mUnit == "cgs" ) then
+     magResist = mResistivity*c*c/(4.*PI)
+  else !no unit
+     magResist = mResistivity
+  end if
+
+  if (dens .gt. sim_magResistCutoff) then
+     magResist = sim_magResistCutoff/dens*magResist
   endif
 
 end subroutine MagneticResistivity

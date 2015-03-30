@@ -32,7 +32,7 @@ subroutine Simulation_init()
     use Particles_sinkData, ONLY : particles_local, ipm, ipvx, ipvy, ipvz, iptag, localnp
     use RuntimeParameters_interface, ONLY : RuntimeParameters_get
     use Multispecies_interface, ONLY : Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
-    use Grid_data, ONLY : gr_globalMe, gr_globalNumProcs, gr_globalComm
+    use Grid_data, ONLY : gr_globalMe, gr_globalNumProcs, gr_globalComm, gr_maxRefine
     use Logfile_interface, ONLY : Logfile_stampMessage
     use tree, ONLY : lrefine_max
     use Eos_data, ONLY : eos_gasConstant
@@ -145,6 +145,11 @@ subroutine Simulation_init()
     call RuntimeParameters_get('rx',      sim_rx)
     call RuntimeParameters_get('ry',      sim_ry)
     call RuntimeParameters_get("sim_magResistCutoff", sim_magResistCutoff)
+
+    ! In case we have a max refine less than what the grid supports
+    if (sim_maxrefine .ne. 0) then
+        call RuntimeParameters_get("sim_maxRefine", gr_maxRefine)
+    endif
 
     if (sim_powerLawExponent .le. -3.d0) then
         call Driver_abortFlash('Error: sim_powerLawExponent must be greater than -3.0')

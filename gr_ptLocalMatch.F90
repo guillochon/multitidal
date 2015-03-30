@@ -112,7 +112,13 @@ subroutine gr_ptLocalMatch(dataBuf,localCount,propCount,maxCount,&
         if(gr_ptKeepLostParticles) then
            call Grid_outsideBoundBox(pos,gr_globalDomain,outside,Negh)
            !! JFG
-           if(outside)blockID=oblockID ! Move to block 1, which should always exist?
+           if(outside) then
+               if (oblockID==NONEXISTENT) then
+                   blockID=gr_ptBlkList(1) ! Move to block 1, which should always exist?
+               else
+                   blockID=oblockID
+               endif
+           endif
         end if
      end if
 #ifdef DEBUG_ELEMENTS

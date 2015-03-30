@@ -60,7 +60,7 @@ module Simulation_data
   double precision, dimension(SPECIES_BEGIN:SPECIES_END) :: obj_xn
   double precision, dimension(np), save                  :: obj_radius, obj_rhop, obj_prss
   integer, save                                          :: obj_ipos, sim_tableRows, sim_tableCols
-  integer, save                                          :: sim_nPtMasses
+  integer, save                                          :: sim_nPtMasses, sim_maxRefine
   character(len=MAX_STRING_LENGTH), save                 :: sim_profFile, sim_kind
 
   !! *** Variables pertaining to this Simulation *** !!

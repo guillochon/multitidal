@@ -1,0 +1,144 @@
+#       Configuration file for MultiTidalPoly
+#       MultiTidalPoly is originally written by James Guillochon
+
+DATAFILES *.dat
+DATAFILES *.dek
+DATAFILES *.h
+
+REQUIRES Driver
+REQUIRES Simulation/SimulationComposition
+REQUIRES Multispecies/MultispeciesMain
+REQUIRES physics/sourceTerms/Cool/CoolMain
+#REQUIRES physics/Hydro/HydroMain/unsplit/Hydro_Unsplit
+#REQUIRES IO/IOMain
+#REQUIRES IO/IOParticles
+REQUIRES IO/IOMain/hdf5/parallel/PM  #Note: Requires +parallelIO in setup
+REQUIRES IO/IOParticles/hdf5/parallel
+#REQUIRES physics/Diffuse/DiffuseMain/Split
+#REQUIRES physics/Diffuse/DiffuseFluxBased
+#REQUIRES physics/materialProperties/Conductivity/ConductivityMain/SpitzerHighZJFG
+#REQUIRES physics/materialProperties/Conductivity/ConductivityMain/PowerLaw
+REQUIRES physics/Hydro/HydroMain/unsplit/MHD_StaggeredMesh
+REQUIRES physics/materialProperties/MagneticResistivity/MagneticResistivityMain
+
+REQUIRES Particles/ParticlesMain/active/Sink
+
+USESETUPVARS loadProfile
+
+SPECIES H1
+SPECIES HE4
+
+IF loadProfile
+
+REQUIRES physics/Eos/EosMain/Helmholtz
+PARAMETER sim_profFile          STRING  "sm.dat"
+PPDEFINE LOADPROFILE
+SPECIES C12
+SPECIES O16
+
+ELSE
+
+REQUIRES physics/Eos/EosMain/Multigamma
+PARAMETER sim_objMass           REAL    1.E0
+PARAMETER sim_objPolyN          REAL    3.E0
+PARAMETER sim_objCentDens       REAL    1.E2
+
+ENDIF
+
+LINKIF eos_initHelmholtz.F90  physics/Eos/EosMain/Helmholtz
+LINKIF eos_helmData.F90       physics/Eos/EosMain/Helmholtz
+
+PARAMETER sim_xCenter               REAL    0.E0
+PARAMETER sim_yCenter               REAL    0.E0
+PARAMETER sim_zCenter               REAL    0.E0
+PARAMETER sim_periDist              REAL    0.E0
+PARAMETER sim_periBeta              REAL    0.E0
+PARAMETER sim_periodFac             REAL    0.E0
+PARAMETER sim_orbEcc                REAL    0.E0
+PARAMETER sim_startBeta             REAL    0.1E0
+PARAMETER sim_ptMass                REAL    2.E39
+PARAMETER sim_starPtMass            REAL    2.E33
+PARAMETER sim_parentMass            REAL    0.E0
+PARAMETER sim_parentPeri            REAL    1.E13
+PARAMETER sim_rhoAmbient            REAL    1.E-15
+PARAMETER sim_pAmbient              REAL    1.E-4
+PARAMETER sim_tAmbient              REAL    1.E4
+PARAMETER sim_tRelax                REAL    1.E3
+PARAMETER sim_relaxRate             REAL    0.99E0
+PARAMETER larget                    REAL    1.E10
+PARAMETER sim_softenRadius          REAL    0.E0
+PARAMETER sim_accRadius             REAL    0.E0
+PARAMETER sim_accCoeff              REAL    0.95E0
+PARAMETER sim_fluidGamma            REAL    1.666666667E0
+PARAMETER sim_fluffDampCoeff        REAL    0.95E0
+PARAMETER sim_fluffDampCutoff       REAL    0.E0
+PARAMETER sim_fluffRefineCutoff     REAL    1.E1
+PARAMETER sim_maxBlocks             INTEGER 40000
+PARAMETER sim_useInitialPeakDensity BOOLEAN TRUE
+PARAMETER sim_useRadialProfile      BOOLEAN TRUE
+PARAMETER sim_ptMassRefine          INTEGER 1
+PARAMETER sim_totForceSub           INTEGER 1
+PARAMETER sim_ptMassRefRad          REAL    1.E0
+PARAMETER sim_rotFac                REAL    0.E0
+PARAMETER sim_rotAngle              REAL    0.E0
+PARAMETER sim_tSpinup               REAL    0.E0
+PARAMETER sim_powerLawScale         REAL    1.E13
+PARAMETER sim_powerLawExponent      REAL    -2.E0
+PARAMETER sim_powerLawExtent        REAL    1.E14
+PARAMETER sim_powerLawMass          REAL    1.E27
+PARAMETER sim_powerLawTemperature   REAL    1.E4
+PARAMETER sim_windVelocity          REAL    3.e7
+PARAMETER sim_windMdot              REAL    1.E-5
+PARAMETER sim_windTemperature       REAL    1.E4
+PARAMETER sim_windNCells            REAL    8.E0   
+PARAMETER sim_windLaunchRadius      REAL    1.E13
+PARAMETER sim_windKernel            REAL    2.E0
+PARAMETER sim_cylinderScale         REAL    1.E16
+PARAMETER sim_cylinderDensity       REAL    1.E-20
+PARAMETER sim_cylinderTemperature   REAL    1.E4
+PARAMETER sim_cylinderMDot          REAL    1.E-6
+PARAMETER sim_cylinderNCells        REAL    4.E0   
+PARAMETER sim_cylinderRadius        REAL    3.E16
+PARAMETER sim_cylinderType          INTEGER 1
+PARAMETER sim_tDelay                REAL    0.E0
+PARAMETER sim_xRayFraction          REAL    1.E0
+PARAMETER sim_fixedParticle         INTEGER 0
+PARAMETER sim_moveFixedToCOM        BOOLEAN FALSE
+PARAMETER sim_condCoeff             REAL    1.E0
+
+PARAMETER sim_kind            STRING  "polytrope"
+
+PARAMETER grv_orbTol          REAL    1.E-12
+PARAMETER grv_orbMinForce     REAL    1.E-12
+PARAMETER grv_comCutoff       REAL    0.E0
+PARAMETER grv_comPeakCut      REAL    0.E0
+PARAMETER grv_orb3D           BOOLEAN TRUE
+PARAMETER grv_cfl             REAL    0.1E0
+PARAMETER grv_orbStepFrac     REAL    1.0E-4
+PARAMETER grv_bndMassIters    INTEGER 5
+
+D sim_nsubzones       Number of `sub-zones' in cells for applying 1d profile
+PARAMETER sim_nsubzones     INTEGER 7
+
+PARAMETER rx	              REAL     1.
+PARAMETER ry                  REAL     2.
+PARAMETER Az_initial          REAL     0.001
+PARAMETER R_fieldLoop         REAL     5.E10
+PARAMETER sim_magResistCutoff REAL 0.E0
+
+PARAMETER sim_maxRefine       INTEGER  0
+
+PARAMETER plot_var_13 STRING "none"
+PARAMETER plot_var_14 STRING "none"
+PARAMETER plot_var_15 STRING "none"
+PARAMETER plot_var_16 STRING "none"
+PARAMETER plot_var_17 STRING "none"
+PARAMETER plot_var_18 STRING "none"
+PARAMETER plot_var_19 STRING "none"
+PARAMETER plot_var_20 STRING "none"
+PARAMETER plot_var_21 STRING "none"
+PARAMETER plot_var_22 STRING "none"
+PARAMETER plot_var_23 STRING "none"
+
+PPDEFINE HIDE_SANITIZE
+

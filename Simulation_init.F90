@@ -339,6 +339,9 @@ subroutine Simulation_init()
     bvec   = 0.d0
 
     if (gr_globalMe .eq. MASTER_PE) then
+        ! Note: This actually starts the star a little further than startBeta
+        ! since periTime includes the relax time. This should be changed in the
+        ! future.
         call calc_orbit(0.d0, sim_objMass, sim_ptMass, sim_periDist, sim_periTime, &
                         sim_orbEcc, obvec, ptvec)
         ptvec = ptvec - obvec

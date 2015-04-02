@@ -42,7 +42,7 @@ subroutine pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
     use Driver_data, ONLY : dr_globalMe
     use Cosmology_interface, ONLY : Cosmology_getRedshift
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
-    use Simulation_data, ONLY : sim_fixedPartTag
+    use Simulation_data, ONLY : sim_fixedPartTag, sim_gravityType
 
     implicit none
 
@@ -208,9 +208,9 @@ subroutine pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
                       ay = dy*slope
                       az = dz*slope
                    end if
-                else    ! Newtonian gravity of point mass
+                else    
                    r3 = 1.0 / radius**3
-                   if (pf .eq. fixedi) then ! ADD case when wanting to turn relativity off
+                   if (sim_gravityType .eq. "newton") then ! Newtonian gravity of point mass
                        ax = dx*r3
                        ay = dy*r3
                        az = dz*r3

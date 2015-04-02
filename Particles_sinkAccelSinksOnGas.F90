@@ -54,6 +54,10 @@ subroutine Particles_sinkAccelSinksOnGas(blockCount,blockList, accelVars)
  use Cosmology_interface, ONLY : Cosmology_getRedshift
  use PhysicalConstants_interface, ONLY : PhysicalConstants_get
 
+ !JFG
+ use Simulation_data, ONLY : sim_gravityType
+ !End JFG
+
  implicit none
 
 #include "constants.h"
@@ -240,20 +244,22 @@ include "Flash_mpi.h"
                      endif
                   else
                      r3 = 1.0/radius**3
-                     !ax = dx*r3
-                     !ay = dy*r3
-                     !az = dz*r3
-
-                     ! Schwarzschild metric (Gafton 2015)
-                     rsch = 2.d0*newton*mass/c2
-                     dvr = dsqrt(dvx**2+dvy**2+dvz**2)
-                     phi2 = ((dx*dvy-dy*dvx)**2+(dx*dvz-dz*dvx)**2+(dz*dvy-dy*dvz)**2)/radius**4
-                     ax = -(-newton*mass*dx*r3*(1.d0-rsch/radius) + rsch*dvx*dvr/(radius*(radius - rsch)) + &
-                          rsch*dx*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dx*phi2/radius)/(newton*mass)
-                     ay = -(-newton*mass*dy*r3*(1.d0-rsch/radius) + rsch*dvy*dvr/(radius*(radius - rsch)) + &
-                          rsch*dy*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dy*phi2/radius)/(newton*mass)
-                     az = -(-newton*mass*dz*r3*(1.d0-rsch/radius) + rsch*dvz*dvr/(radius*(radius - rsch)) + &
-                          rsch*dz*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dz*phi2/radius)/(newton*mass)
+                     if (sim_gravityType .eq. "newton") then ! Newtonian gravity of point mass
+                        ax = dx*r3
+                        ay = dy*r3
+                        az = dz*r3
+                     else
+                        ! Schwarzschild metric (Gafton 2015)
+                        rsch = 2.d0*newton*mass/c2
+                        dvr = dsqrt(dvx**2+dvy**2+dvz**2)
+                        phi2 = ((dx*dvy-dy*dvx)**2+(dx*dvz-dz*dvx)**2+(dz*dvy-dy*dvz)**2)/radius**4
+                        ax = -(-newton*mass*dx*r3*(1.d0-rsch/radius) + rsch*dvx*dvr/(radius*(radius - rsch)) + &
+                             rsch*dx*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dx*phi2/radius)/(newton*mass)
+                        ay = -(-newton*mass*dy*r3*(1.d0-rsch/radius) + rsch*dvy*dvr/(radius*(radius - rsch)) + &
+                             rsch*dy*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dy*phi2/radius)/(newton*mass)
+                        az = -(-newton*mass*dz*r3*(1.d0-rsch/radius) + rsch*dvz*dvr/(radius*(radius - rsch)) + &
+                             rsch*dz*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dz*phi2/radius)/(newton*mass)
+                     endif
                   endif
 
                   if (grav_boundary_type .eq. "periodic") then

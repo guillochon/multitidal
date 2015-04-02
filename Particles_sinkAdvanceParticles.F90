@@ -45,7 +45,8 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
   use Driver_interface, ONLY : Driver_getSimTime, Driver_abortFlash
   ! Added by JFG
   use pt_sinkInterface, only: pt_sinkGatherGlobal
-  use Simulation_data, only: sim_fixedPartTag, sim_tRelax, sim_comAccel
+  use Simulation_data, only: sim_fixedPartTag, sim_tRelax, sim_comAccel, &
+                             sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ
   use Driver_data, ONLY : dr_simTime
   ! End JFG
   
@@ -414,6 +415,20 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
      ! simTime should be time at start of global timestep
      simTime = simTime - dt_global
      sOld = a0
+
+     ! JFG - Add velocities subtracted in Driver_sourceTerms back into particle
+     ! motion.
+     !if (sink_AdvanceSerialComputation) then
+     !    call Driver_abortFlash('not implemented')
+     !else
+     !    do i = 1, np
+     !      if (i .ne. fixedi) then
+     !          particles_local(VELX_PART_PROP, i) = particles_local(VELX_PART_PROP, i) - sim_mpoleVX
+     !          particles_local(VELY_PART_PROP, i) = particles_local(VELY_PART_PROP, i) - sim_mpoleVY
+     !          particles_local(VELZ_PART_PROP, i) = particles_local(VELZ_PART_PROP, i) - sim_mpoleVZ
+     !      endif
+     !    end do
+     !endif
 
      do while (.not. end_subcycling)
 

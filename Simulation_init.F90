@@ -158,6 +158,7 @@ subroutine Simulation_init()
 
     call RuntimeParameters_get('sim_kind',sim_kind)
     call RuntimeParameters_get('sim_tAmbient', sim_tAmbient)
+    call RuntimeParameters_get('sim_gravityType',sim_gravityType)
 
     sim_gCell = .true.
 
@@ -339,10 +340,7 @@ subroutine Simulation_init()
     bvec   = 0.d0
 
     if (gr_globalMe .eq. MASTER_PE) then
-        ! Note: This actually starts the star a little further than startBeta
-        ! since periTime includes the relax time. This should be changed in the
-        ! future.
-        call calc_orbit(0.d0, sim_objMass, sim_ptMass, sim_periDist, sim_periTime, &
+        call calc_orbit(0.d0, sim_objMass, sim_ptMass, sim_periDist, sim_periTime - sim_tRelax, &
                         sim_orbEcc, obvec, ptvec)
         ptvec = ptvec - obvec
         if (sim_fixedParticle .eq. 1) then
@@ -410,6 +408,9 @@ subroutine Simulation_init()
         call NameValueLL_getReal(io_scalar, "sim_mpolevy", sim_mpoleVY, .true., ierr)
         call NameValueLL_getReal(io_scalar, "sim_mpolevz", sim_mpoleVZ, .true., ierr)
         if (ierr /= NORMAL) then
+            if (gr_globalMe .eq. MASTER_PE) then
+                print *, 'Warning: mpole vels not loaded from checkpoint.'
+            endif
             sim_mpoleVX = 0.
             sim_mpoleVY = 0.
             sim_mpoleVZ = 0.

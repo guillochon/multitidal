@@ -217,7 +217,7 @@ subroutine pt_sinkAccelSinksOnSinks(local_min_radius, local_max_accel)
                    else
                        ! Schwarzschild metric (Gafton 2015)
                        rsch = 2.d0*newton*masspf/c2
-                       dvr = dsqrt(dvx**2+dvy**2+dvz**2)
+                       dvr = (dx*dvx + dy*dvy + dz*dvz)/radius
                        phi2 = ((dx*dvy-dy*dvx)**2+(dx*dvz-dz*dvx)**2+(dz*dvy-dy*dvz)**2)/radius**4
                        ax = -(-newton*masspf*dx*r3*(1.d0-rsch/radius) + rsch*dvx*dvr/(radius*(radius - rsch)) + &
                             rsch*dx*dvr**2/(2.d0*(radius - rsch)*radius**2) - rsch*dx*phi2/radius)/(newton*masspf)

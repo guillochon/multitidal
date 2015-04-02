@@ -416,17 +416,14 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
      simTime = simTime - dt_global
      sOld = a0
 
-     ! JFG - Add velocities subtracted in Driver_sourceTerms back into particle
-     ! motion.
+     ! JFG - Subtract velocities from Driver_sourceTerms from particle motion.
      !if (sink_AdvanceSerialComputation) then
      !    call Driver_abortFlash('not implemented')
      !else
      !    do i = 1, np
-     !      if (i .ne. fixedi) then
-     !          particles_local(VELX_PART_PROP, i) = particles_local(VELX_PART_PROP, i) - sim_mpoleVX
-     !          particles_local(VELY_PART_PROP, i) = particles_local(VELY_PART_PROP, i) - sim_mpoleVY
-     !          particles_local(VELZ_PART_PROP, i) = particles_local(VELZ_PART_PROP, i) - sim_mpoleVZ
-     !      endif
+     !       particles_local(VELX_PART_PROP, i) = particles_local(VELX_PART_PROP, i) - sim_mpoleVX
+     !       particles_local(VELY_PART_PROP, i) = particles_local(VELY_PART_PROP, i) - sim_mpoleVY
+     !       particles_local(VELZ_PART_PROP, i) = particles_local(VELZ_PART_PROP, i) - sim_mpoleVZ
      !    end do
      !endif
 

@@ -139,7 +139,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         damp_dens = sim_fluffDampCutoff
     endif
 
-    print *, 'mpole vels', sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ
+    !print *, 'mpole vels', sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ
     if (dr_simTime .lt. tinitial + sim_tRelax) then
         relax_rate = max(0.0d0, dr_simTime - sim_tSpinup)/(sim_tRelax - sim_tSpinup)*(1.0 - sim_relaxRate) + sim_relaxRate 
         if (sim_kind .eq. "polytrope") then

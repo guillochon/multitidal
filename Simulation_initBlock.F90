@@ -459,6 +459,7 @@ subroutine Simulation_initBlock (blockId, myPE)
            call Grid_putPointData(blockId, CENTER, VELZ_VAR, EXTERIOR, axis, vz)
 #endif
 
+#ifdef MAGX_VAR
 #if NFACE_VARS > 0
            ! x Coord at cell corner
            if (i <=blkLimitsGC(HIGH,IAXIS)) then
@@ -521,11 +522,13 @@ subroutine Simulation_initBlock (blockId, myPE)
                Ay(i,j,k) = 0.
                Az(i,j,k) = 0.
            endif
+#endif !MAGX_VAR
         enddo
      enddo
   enddo
 
 
+#ifdef MAGX_VAR
 #if NFACE_VARS > 0
   if (sim_killdivb) then
      call Grid_getBlkPtr(blockID,facexData,FACEX)
@@ -642,6 +645,7 @@ subroutine Simulation_initBlock (blockId, myPE)
      enddo
   enddo
 #endif !NFACE_VARS
+#endif !MAGX_VAR
 
 #ifdef FL_NON_PERMANENT_GUARDCELLS
   call Grid_releaseBlkPtr(blockID, solnData)

@@ -163,6 +163,7 @@ subroutine Simulation_init()
 
     sim_gCell = .true.
 
+#ifdef MAGX_VAR
     allocate(velsspec(sim_specN,sim_specN,sim_specN,3))
     allocate(magsspec(sim_specN,sim_specN,sim_specN,3))
 
@@ -185,6 +186,7 @@ subroutine Simulation_init()
 
     call MPI_BCAST(velsspec, sim_specN*sim_specN*sim_specN*3, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
     call MPI_BCAST(magsspec, sim_specN*sim_specN*sim_specN*3, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
+#endif
 
 #ifdef LOADPROFILE
     call RuntimeParameters_get('sim_profFile',sim_profFile)

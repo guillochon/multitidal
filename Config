@@ -9,17 +9,17 @@ REQUIRES Driver
 REQUIRES Simulation/SimulationComposition
 REQUIRES Multispecies/MultispeciesMain
 REQUIRES physics/sourceTerms/Cool/CoolMain
-#REQUIRES physics/Hydro/HydroMain/unsplit/Hydro_Unsplit
-#REQUIRES IO/IOMain
-#REQUIRES IO/IOParticles
 REQUIRES IO/IOMain/hdf5/parallel/PM  #Note: Requires +parallelIO in setup
 REQUIRES IO/IOParticles/hdf5/parallel
 #REQUIRES physics/Diffuse/DiffuseMain/Split
 #REQUIRES physics/Diffuse/DiffuseFluxBased
 #REQUIRES physics/materialProperties/Conductivity/ConductivityMain/SpitzerHighZJFG
 #REQUIRES physics/materialProperties/Conductivity/ConductivityMain/PowerLaw
-REQUIRES physics/Hydro/HydroMain/unsplit/MHD_StaggeredMesh
-REQUIRES physics/materialProperties/MagneticResistivity/MagneticResistivityMain
+
+# Use makefile flags to set these
+#REQUIRES physics/Hydro/HydroMain/unsplit/Hydro_Unsplit
+#REQUIRES physics/Hydro/HydroMain/unsplit/MHD_StaggeredMesh
+#REQUIRES physics/materialProperties/MagneticResistivity/MagneticResistivityMain
 
 REQUIRES Particles/ParticlesMain/active/Sink
 

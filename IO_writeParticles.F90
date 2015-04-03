@@ -156,8 +156,6 @@ subroutine IO_writeParticles( particlesToCheckpoint)
      endif
 
   end if
-  ! pull in sink particles
-  call Particles_sinkSyncWithParticles(sink_to_part=.true.)
 
 
   !map the particle property names from an int to a string

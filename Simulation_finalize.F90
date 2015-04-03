@@ -27,6 +27,8 @@ subroutine Simulation_finalize()
 #ifdef LOADPROFILE
   deallocate(sim_table)
 #endif
+  deallocate(velsspec)
+  deallocate(magsspec)
 
   return
 

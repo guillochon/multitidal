@@ -145,6 +145,7 @@ subroutine Simulation_init()
     call RuntimeParameters_get('rx',      sim_rx)
     call RuntimeParameters_get('ry',      sim_ry)
     call RuntimeParameters_get("sim_magResistCutoff", sim_magResistCutoff)
+    call RuntimeParameters_get("sim_specN", sim_specN)
 
     ! In case we have a max refine less than what the grid supports
     call RuntimeParameters_get("sim_maxRefine", sim_maxRefine)
@@ -162,13 +163,16 @@ subroutine Simulation_init()
 
     sim_gCell = .true.
 
+    allocate(velsspec(sim_specN,sim_specN,sim_specN,3))
+    allocate(magsspec(sim_specN,sim_specN,sim_specN,3))
+
     if (gr_globalMe .eq. MASTER_PE) then
         open(25, file="vels.dat", status="old", action="read")
         open(26, file="mags.dat", status="old", action="read")
         do l = 1, 3
-            do k = 1, specn
-                do j = 1, specn
-                    do i = 1, specn
+            do k = 1, sim_specN
+                do j = 1, sim_specN
+                    do i = 1, sim_specN
                         read(25,*) velsspec(k,j,i,l)
                         read(26,*) magsspec(k,j,i,l)
                     enddo
@@ -179,8 +183,8 @@ subroutine Simulation_init()
         close(26)
     endif
 
-    call MPI_BCAST(velsspec, specn*specn*specn*3, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
-    call MPI_BCAST(magsspec, specn*specn*specn*3, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
+    call MPI_BCAST(velsspec, sim_specN*sim_specN*sim_specN*3, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
+    call MPI_BCAST(magsspec, sim_specN*sim_specN*sim_specN*3, FLASH_REAL, MASTER_PE, MPI_COMM_WORLD, ierr)
 
 #ifdef LOADPROFILE
     call RuntimeParameters_get('sim_profFile',sim_profFile)

@@ -126,6 +126,7 @@ PARAMETER ry                  REAL     2.
 PARAMETER Az_initial          REAL     0.001
 PARAMETER R_fieldLoop         REAL     5.E10
 PARAMETER sim_magResistCutoff REAL 0.E0
+PARAMETER sim_specN           INTEGER  100
 
 PARAMETER sim_maxRefine       INTEGER  0
 

@@ -50,7 +50,7 @@ subroutine Simulation_initBlock (blockId, myPE)
                bhxDist, bhyDist, bhzDist, bhDist
   real     ::  xx, dxx, yy, dyy, zz, dzz, frac, softening_radius
   real     ::  x1,x2,x3,cos_ang,sin_ang,lambda,radius,rot
-  real     ::  dx, dy, dz, magx, magy, magz, magp, divb
+  real     ::  dx, dy, dz
   real     ::  vx, vy, vz, p, rho, e, ek, t, mp, kb, newton
   real     ::  dist, gam, rho0, T0, rsc, rho0in, T0in, distxy
   real     ::  axx, ayy, azz
@@ -64,14 +64,18 @@ subroutine Simulation_initBlock (blockId, myPE)
   integer :: sizeX,sizeY,sizeZ
   integer,dimension(MDIM) :: axis
   real, dimension(MDIM) :: del
-  real, pointer, dimension(:,:,:,:) :: facexData,faceyData,facezData
 #ifdef FL_NON_PERMANENT_GUARDCELLS
   real, pointer, dimension(:,:,:,:) :: solnData
 #endif
+
+#ifdef MAGX_VAR
+  real, pointer, dimension(:,:,:,:) :: facexData,faceyData,facezData
+  real :: magx, magy, magz, magp, divb
 #ifdef FIXEDBLOCKSIZE
   real, dimension(GRID_IHI_GC+1,GRID_JHI_GC+1,GRID_KHI_GC+1) :: Az,Ax,Ay
 #else
   real, allocatable, dimension(:,:,:) :: Az,Ax,Ay
+#endif
 #endif
 
   logical :: gcell = .true., within_radius
@@ -139,6 +143,7 @@ subroutine Simulation_initBlock (blockId, myPE)
   zCoordL = 0.0
   zCoordR = 0.0
 
+#ifdef MAGX_VAR
 #ifndef FIXEDBLOCKSIZE
   if (NDIM == 2) then
      allocate(Ax(sizeX+1,sizeY+1,1),stat=istat)
@@ -149,6 +154,10 @@ subroutine Simulation_initBlock (blockId, myPE)
      allocate(Ay(sizeX+1,sizeY+1,sizeZ+1),stat=istat)
      allocate(Az(sizeX+1,sizeY+1,sizeZ+1),stat=istat)
   endif
+#endif
+  Ax = 0.
+  Ay = 0.
+  Az = 0.
 #endif
 
   if (NDIM == 3) then
@@ -172,17 +181,6 @@ subroutine Simulation_initBlock (blockId, myPE)
 #ifdef FL_NON_PERMANENT_GUARDCELLS
   call Grid_getBlkPtr(blockId,solnData)
 #endif
-
-  ! JFG --- Now initialize the magnetic fields, based on magnetoHD setup
-
-  !------------------------------------------------------------------------------
-  ! Construct Az at each cell corner
-  ! Bx = dAz/dy - dAy/dz
-  ! By = dAx/dz - dAz/dx
-  ! Bz = dAy/dx - dAx/dy
-  Az = 0.
-  Ax = 0.
-  Ay = 0.
 
   rot = atan(sim_rx/sim_ry)
   cos_ang = cos(rot)
@@ -459,6 +457,14 @@ subroutine Simulation_initBlock (blockId, myPE)
            call Grid_putPointData(blockId, CENTER, VELZ_VAR, EXTERIOR, axis, vz)
 #endif
 
+           ! JFG --- Now initialize the magnetic fields, based on magnetoHD setup
+
+           !------------------------------------------------------------------------------
+           ! Construct Az at each cell corner
+           ! Bx = dAz/dy - dAy/dz
+           ! By = dAx/dz - dAz/dx
+           ! Bz = dAy/dx - dAx/dy
+
 #ifdef MAGX_VAR
 #if NFACE_VARS > 0
            ! x Coord at cell corner
@@ -645,11 +651,6 @@ subroutine Simulation_initBlock (blockId, myPE)
      enddo
   enddo
 #endif !NFACE_VARS
-#endif !MAGX_VAR
-
-#ifdef FL_NON_PERMANENT_GUARDCELLS
-  call Grid_releaseBlkPtr(blockID, solnData)
-#endif
 
 #if NFACE_VARS > 0
   if (sim_killdivb) then
@@ -657,6 +658,16 @@ subroutine Simulation_initBlock (blockId, myPE)
      call Grid_releaseBlkPtr(blockID,faceyData,FACEY)
      if (NDIM == 3) call Grid_releaseBlkPtr(blockID,facezData,FACEZ)
   endif
+#endif
+#ifndef FIXEDBLOCKSIZE
+  deallocate(Az)
+  deallocate(Ax)
+  deallocate(Ay)
+#endif
+#endif !MAGX_VAR
+
+#ifdef FL_NON_PERMANENT_GUARDCELLS
+  call Grid_releaseBlkPtr(blockID, solnData)
 #endif
 
   deallocate(xCoord)
@@ -671,11 +682,6 @@ subroutine Simulation_initBlock (blockId, myPE)
   deallocate(zCoordL)
   deallocate(zCoordR)
 
-#ifndef FIXEDBLOCKSIZE
-  deallocate(Az)
-  deallocate(Ax)
-  deallocate(Ay)
-#endif
 
   return
 end subroutine Simulation_initBlock

@@ -141,7 +141,6 @@ subroutine Simulation_init()
 
     call RuntimeParameters_get('Az_initial',  sim_Az_initial)
     call RuntimeParameters_get('R_fieldLoop', sim_fieldLoopRadius)
-    call RuntimeParameters_get('killdivb', sim_killdivb)
     call RuntimeParameters_get('rx',      sim_rx)
     call RuntimeParameters_get('ry',      sim_ry)
     call RuntimeParameters_get("sim_magResistCutoff", sim_magResistCutoff)
@@ -164,6 +163,8 @@ subroutine Simulation_init()
     sim_gCell = .true.
 
 #ifdef MAGX_VAR
+    call RuntimeParameters_get('killdivb', sim_killdivb)
+
     allocate(velsspec(sim_specN,sim_specN,sim_specN,3))
     allocate(magsspec(sim_specN,sim_specN,sim_specN,3))
 

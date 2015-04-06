@@ -81,7 +81,8 @@ subroutine gr_mpoleCen3Dcartesian (idensvar)
 
 
   ! JFG
-  use Simulation_data, ONLY: sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ, sim_fluffRefineCutoff
+  use Simulation_data, ONLY: sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ, &
+                             sim_fluffRefineCutoff, sim_kind
   use Multitidal_interface, ONLY : Multitidal_findExtrema
   ! End JFG
 
@@ -143,7 +144,9 @@ subroutine gr_mpoleCen3Dcartesian (idensvar)
 !
 !
 
-  call Multitidal_findExtrema(DENS_VAR, 1, max_dens)
+  if (sim_kind .eq. 'polytrope') then
+      call Multitidal_findExtrema(DENS_VAR, 1, max_dens)
+  endif
 
   localMsum   = ZERO
   localMDsum  = ZERO
@@ -193,11 +196,13 @@ subroutine gr_mpoleCen3Dcartesian (idensvar)
         do j = jmin,jmax
            x = bndBoxILow + DeltaIHalf
            do i = imin,imax
+              cellDensity     = solnData (idensvar,i,j,k)
 
               ! JFG: Ignore mass that's not at max refinement for determining the center of mass
-              if (cellDensity < max_dens*sim_fluffRefineCutoff) cycle
+              if (sim_kind .eq. 'polytrope') then
+                  if (cellDensity < max_dens*sim_fluffRefineCutoff) cycle
+              endif
 
-              cellDensity     = solnData (idensvar,i,j,k)
               cellMass        = cellDensity * cellVolume
               cellMassDensity = cellMass * cellDensity
 

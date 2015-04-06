@@ -68,6 +68,7 @@ module Simulation_data
 
   double precision, save    :: sim_inSubInv
   double precision, save    :: sim_inszd
+  double precision, save    :: sim_COMCutoff
   double precision, dimension(6), save :: stvec
   double precision, dimension(:,:), allocatable, save    :: ptvecs
   logical, save :: sim_useInitialPeakDensity, sim_useRadialProfile, sim_moveFixedToCOM, sim_killdivb, sim_gCell

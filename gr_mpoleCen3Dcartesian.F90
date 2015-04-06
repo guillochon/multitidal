@@ -82,7 +82,7 @@ subroutine gr_mpoleCen3Dcartesian (idensvar)
 
   ! JFG
   use Simulation_data, ONLY: sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ, &
-                             sim_fluffRefineCutoff, sim_kind
+                             sim_COMCutoff, sim_kind
   use Multitidal_interface, ONLY : Multitidal_findExtrema
   ! End JFG
 
@@ -200,7 +200,7 @@ subroutine gr_mpoleCen3Dcartesian (idensvar)
 
               ! JFG: Ignore mass that's not at max refinement for determining the center of mass
               if (sim_kind .eq. 'polytrope') then
-                  if (cellDensity < max_dens*sim_fluffRefineCutoff) cycle
+                  if (cellDensity < max_dens*sim_COMCutoff) cycle
               endif
 
               cellMass        = cellDensity * cellVolume

@@ -111,6 +111,7 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_xRayFraction", sim_xRayFraction)
     call RuntimeParameters_get("sim_useRadialProfile", sim_useRadialProfile)
     call RuntimeParameters_get("sim_moveFixedToCOM", sim_moveFixedToCOM)
+    call RuntimeParameters_get('sim_COMCutoff',sim_COMCutoff)
 
     call RuntimeParameters_get("sim_powerLawScale", sim_powerLawScale)
     call RuntimeParameters_get("sim_powerLawExponent", sim_powerLawExponent)

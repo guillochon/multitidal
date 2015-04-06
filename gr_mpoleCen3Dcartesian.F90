@@ -79,7 +79,11 @@ subroutine gr_mpoleCen3Dcartesian (idensvar)
                                 gr_mpoleYcenterOfMass,  &
                                 gr_mpoleZcenterOfMass
 
-  use Simulation_data, ONLY: sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ
+
+  ! JFG
+  use Simulation_data, ONLY: sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ, sim_fluffRefineCutoff
+  use Multitidal_interface, ONLY : Multitidal_findExtrema
+  ! End JFG
 
   implicit none
   
@@ -131,11 +135,16 @@ subroutine gr_mpoleCen3Dcartesian (idensvar)
 
   real, allocatable :: shifts   (:,:)
   real, pointer     :: solnData (:,:,:,:)
+
+  real    :: max_dens
 !
 !
 !     ...Sum quantities over all locally held leaf blocks.
 !
 !
+
+  call Multitidal_findExtrema(DENS_VAR, 1, max_dens)
+
   localMsum   = ZERO
   localMDsum  = ZERO
   localMDXsum = ZERO
@@ -184,6 +193,9 @@ subroutine gr_mpoleCen3Dcartesian (idensvar)
         do j = jmin,jmax
            x = bndBoxILow + DeltaIHalf
            do i = imin,imax
+
+              ! JFG: Ignore mass that's not at max refinement for determining the center of mass
+              if (cellDensity < max_dens*sim_fluffRefineCutoff) cycle
 
               cellDensity     = solnData (idensvar,i,j,k)
               cellMass        = cellDensity * cellVolume

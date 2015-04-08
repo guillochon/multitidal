@@ -147,12 +147,6 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_magResistCutoff", sim_magResistCutoff)
     call RuntimeParameters_get("sim_specN", sim_specN)
 
-    ! In case we have a max refine less than what the grid supports
-    call RuntimeParameters_get("sim_maxRefine", sim_maxRefine)
-    if (sim_maxRefine .ne. 0) then
-        gr_maxRefine = sim_maxRefine
-    endif
-
     if (sim_powerLawExponent .le. -3.d0) then
         call Driver_abortFlash('Error: sim_powerLawExponent must be greater than -3.0')
     endif

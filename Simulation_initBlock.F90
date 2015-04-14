@@ -519,10 +519,17 @@ subroutine Simulation_initBlock (blockId, myPE)
            boxk = nint((azz - sim_zCenter)/dz) + sim_specN/2
 
            if (radius < obj_radius(obj_ipos) - dx) then
-               Ax(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dx*magsspec(boxi,boxj,boxk,1)
-               Ay(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dy*magsspec(boxi,boxj,boxk,2)
-               Az(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dz*magsspec(boxi,boxj,boxk,3)
-                           !0.5*(1.+tanh(50.*(sim_fieldLoopRadius - radius)/sim_fieldLoopRadius))
+               if (sim_fieldGeometry .eq. 'random') then
+                   Ax(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dx*magsspec(boxi,boxj,boxk,1)
+                   Ay(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dy*magsspec(boxi,boxj,boxk,2)
+                   Az(i,j,k) = sqrt(8.*PI*p*sim_Az_initial)*dz*magsspec(boxi,boxj,boxk,3)
+               elseif (sim_fieldGeometry .eq. 'dipole') then
+                   Ax(i,j,k) = -sim_Az_initial*(ayy-sim_yCenter)
+                   Ay(i,j,k) = sim_Az_initial*(axx-sim_xCenter)
+                   Az(i,j,k) = 0.d0
+               else
+                   call Driver_abortFlash('Error: Invalid sim_fieldGeometry selected.')
+               endif
            else
                Ax(i,j,k) = 0.
                Ay(i,j,k) = 0.

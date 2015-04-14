@@ -110,6 +110,7 @@ PARAMETER sim_condCoeff             REAL    1.E0
 
 PARAMETER sim_kind            STRING  "polytrope"
 PARAMETER sim_gravityType     STRING  "newton"
+PARAMETER sim_fieldGeometry   STRING  "random"
 
 PARAMETER grv_orbTol          REAL    1.E-12
 PARAMETER grv_orbMinForce     REAL    1.E-12

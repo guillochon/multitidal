@@ -141,6 +141,7 @@ subroutine Simulation_init()
     call RuntimeParameters_get("sim_parentPeri", sim_parentPeri)
 
     call RuntimeParameters_get('Az_initial',  sim_Az_initial)
+    call RuntimeParameters_get('sim_fieldGeometry',  sim_fieldGeometry)
     call RuntimeParameters_get('R_fieldLoop', sim_fieldLoopRadius)
     call RuntimeParameters_get('rx',      sim_rx)
     call RuntimeParameters_get('ry',      sim_ry)

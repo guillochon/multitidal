@@ -48,7 +48,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         sim_cylinderMDot, sim_cylinderNCells, sim_ptMass, sim_cylinderRadius, &
         sim_kind, sim_windVelocity, sim_windMdot, sim_windTemperature, sim_windNCells, &
         sim_fixedPartTag, sim_windKernel, sim_cylinderType, sim_orbEcc, sim_periDist, &
-        sim_tDelay, sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ
+        sim_tDelay, sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ, sim_smallT
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
         Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_fillGuardCells
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
@@ -395,6 +395,18 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             endif
 
             call Eos_wrapped(MODE_DENS_EI, blkLimits, lb)
+
+            if (sim_smallT .gt. 0.d0) then
+                do k = blkLimits(LOW,KAXIS), blkLimits(HIGH,KAXIS)
+                   do j = blkLimits(LOW,JAXIS), blkLimits(HIGH,JAXIS)
+                      do i = blkLimits(LOW,IAXIS), blkLimits(HIGH,IAXIS)
+                         solnData(TEMP_VAR,i,j,k) = max(solnData(TEMP_VAR,i,j,k), sim_smallT)
+                      enddo
+                   enddo
+                enddo
+                call Eos_wrapped(MODE_DENS_TEMP,blkLimits,lb)
+            endif
+
             call Grid_releaseBlkPtr(blockList(lb), solnData)
             deallocate(xCoord)
             deallocate(yCoord)

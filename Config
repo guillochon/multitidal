@@ -82,6 +82,7 @@ PARAMETER sim_ptMassRefRad          REAL    1.E0
 PARAMETER sim_rotFac                REAL    0.E0
 PARAMETER sim_rotAngle              REAL    0.E0
 PARAMETER sim_tSpinup               REAL    0.E0
+PARAMETER sim_smallT                REAL    0.E0
 PARAMETER sim_powerLawScale         REAL    1.E13
 PARAMETER sim_powerLawExponent      REAL    -2.E0
 PARAMETER sim_powerLawExtent        REAL    1.E14

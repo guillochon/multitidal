@@ -209,6 +209,17 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                 deallocate(zCoord)
             enddo
         endif
+
+        if (sim_smallT .gt. 0.d0) then
+            do k = blkLimits(LOW,KAXIS), blkLimits(HIGH,KAXIS)
+               do j = blkLimits(LOW,JAXIS), blkLimits(HIGH,JAXIS)
+                  do i = blkLimits(LOW,IAXIS), blkLimits(HIGH,IAXIS)
+                     solnData(TEMP_VAR,i,j,k) = max(solnData(TEMP_VAR,i,j,k), sim_smallT)
+                  enddo
+               enddo
+            enddo
+            call Eos_wrapped(MODE_DENS_TEMP,blkLimits,lb)
+        endif
     else
         !pt_pos = grv_exactvec - grv_obvec + grv_ptvec !Used for calculating properties of mass accreted onto point mass
         relax_rate = sim_fluffDampCoeff

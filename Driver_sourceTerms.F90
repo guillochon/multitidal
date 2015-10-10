@@ -30,7 +30,7 @@
 
 subroutine Driver_sourceTerms(blockCount, blockList, dt, pass) 
     use Polytrope_interface, ONLY : Polytrope
-    use Driver_data, ONLY: dr_simTime, dr_meshComm
+    use Driver_data, ONLY: dr_simTime, dr_meshComm, dr_dt, dr_meshMe
     use Flame_interface, ONLY : Flame_step
     use Stir_interface, ONLY : Stir
     use Heat_interface, ONLY : Heat
@@ -43,17 +43,25 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     use Simulation_data, ONLY: sim_smallX, &
         sim_tRelax, sim_relaxRate, sim_fluffDampCoeff, sim_fluffDampCutoff, sim_accRadius, sim_accCoeff, &
         sim_fluidGamma, sim_softenRadius, sim_rotFac, sim_rotAngle, sim_tSpinup, obj_ipos, obj_radius, &
-        sim_objMass, sim_msun
+        sim_objMass, sim_msun, sim_xCenter, sim_yCenter, sim_zCenter, sim_cylinderScale, &
+        sim_cylinderDensity, sim_cylinderTemperature, obj_mu, obj_gamc, stvec, obj_xn, &
+        sim_cylinderMDot, sim_cylinderNCells, sim_ptMass, sim_cylinderRadius, &
+        sim_kind, sim_windVelocity, sim_windMdot, sim_windTemperature, sim_windNCells, &
+        sim_fixedPartTag, sim_windKernel, sim_cylinderType, sim_orbEcc, sim_periDist, &
+        sim_tDelay, sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ, sim_smallT
     use Grid_interface, ONLY : Grid_getBlkIndexLimits, Grid_getBlkPtr, Grid_releaseBlkPtr,&
-        Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize
-    use Multitidal_interface, ONLY : Multitidal_findExtrema
+        Grid_getCellCoords, Grid_putPointData, Grid_getMinCellSize, Grid_fillGuardCells
     use PhysicalConstants_interface, ONLY : PhysicalConstants_get
     use RuntimeParameters_interface, ONLY : RuntimeParameters_mapStrToInt, RuntimeParameters_get
-    use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec, grv_optmass, grv_momacc, &
-        grv_angmomacc, grv_eneracc, grv_massacc, grv_comPeakCut, grv_totmass, grv_totmass
-    use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass, Mtot
+    !use Gravity_data, ONLY: grv_ptvec, grv_obvec, grv_ptmass, grv_exactvec, grv_optmass, grv_momacc, &
+    !    grv_angmomacc, grv_eneracc, grv_massacc, grv_comPeakCut, grv_totmass, grv_totmass
+    use gr_mpoleData, ONLY: gr_mpoleXcenterOfMass, gr_mpoleYcenterOfMass, gr_mpoleZcenterOfMass
     use Grid_data, ONLY: gr_smalle, gr_meshMe
     use Eos_interface, ONLY: Eos_wrapped
+    use Eos_data, ONLY : eos_gasConstant
+    use pt_sinkInterface, ONLY : pt_sinkGatherGlobal
+    use Particles_sinkData, ONLY : localnpf, particles_global
+    use Multitidal_interface, ONLY : Multitidal_findExtrema
     implicit none
 
 #include "Eos.h"
@@ -71,10 +79,14 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     real    :: xx, yy, zz, dist, y2, z2, tot_mass, gtot_mass, peak_mass, gpeak_mass
     real    :: relax_rate, mass_acc, tot_mass_acc, gtot_mass_acc, tot_ener_acc, gtot_ener_acc
     real    :: distxy, vpara, vspin, x, y, z, vx, vy, vz, velprojy, velprojz, rotang
-    real    :: tinitial, vol, ldenscut, denscut, extrema, newton
+    real    :: tinitial, vol, ldenscut, denscut, extrema, newton, mcs, new_dens
+    real    :: flow_dist, flow_vel, polyk, rho0, kb, mp, yr, mdot, perp_dist, flow_ecc
+    real    :: damp_dens
   
     real,allocatable,dimension(:) :: xCoord,yCoord,zCoord
     integer,dimension(2,MDIM) :: blkLimits,blkLimitsGC
+    real, dimension(6) :: pvec
+    real, dimension(3) :: vvec
     real, dimension(:,:,:,:),pointer :: solnData
     real, dimension(MDIM) :: tot_avg_vel, peak_avg_vel, tot_mom_acc, gtot_mom_acc, tot_com_acc, gtot_com_acc, &
         tot_angmom_acc, gtot_angmom_acc, tot_mom, gtot_mom, peak_mom, gpeak_mom
@@ -101,83 +113,117 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
     gpeak_mass = 0.d0
     gpeak_mom = 0.d0
 
+    yr = 3.15569252E7
     call PhysicalConstants_get("Newton", newton)
+    call PhysicalConstants_get("Boltzmann", kb)
+    call PhysicalConstants_get("proton mass", mp)
     call RuntimeParameters_get('tinitial',tinitial)
+    call Grid_getMinCellSize(mcs)
 
     rotang = PI/180.*sim_rotAngle
 
+    if (sim_kind .eq. 'wind') then
+        call pt_sinkGatherGlobal()
+        do i = 1, localnpf
+            if (idnint(particles_global(TAG_PART_PROP,i)) .ne. sim_fixedPartTag) then
+                pvec(1:3) = particles_global(POSX_PART_PROP:POSZ_PART_PROP,i)
+                pvec(4:6) = particles_global(VELX_PART_PROP:VELZ_PART_PROP,i)
+            endif
+        enddo
+    endif
+
+    if (sim_kind .eq. 'polytrope') then
+        call Multitidal_findExtrema(DENS_VAR, 1, damp_dens)
+        damp_dens = damp_dens*sim_fluffDampCutoff
+    else
+        damp_dens = sim_fluffDampCutoff
+    endif
+
+    !print *, 'mpole vels', sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ
     if (dr_simTime .lt. tinitial + sim_tRelax) then
         relax_rate = max(0.0d0, dr_simTime - sim_tSpinup)/(sim_tRelax - sim_tSpinup)*(1.0 - sim_relaxRate) + sim_relaxRate 
-        do lb = 1, blockCount
-            call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
-            sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
-            allocate(xCoord(sizeX),stat=istat)
-            sizeY = blkLimitsGC(HIGH,JAXIS) - blkLimitsGC(LOW,JAXIS) + 1
-            allocate(yCoord(sizeY),stat=istat)
-            sizeZ = blkLimitsGC(HIGH,KAXIS) - blkLimitsGC(LOW,KAXIS) + 1
-            allocate(zCoord(sizeZ),stat=istat)
+        if (sim_kind .eq. "polytrope") then
+            do lb = 1, blockCount
+                call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
+                sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
+                allocate(xCoord(sizeX),stat=istat)
+                sizeY = blkLimitsGC(HIGH,JAXIS) - blkLimitsGC(LOW,JAXIS) + 1
+                allocate(yCoord(sizeY),stat=istat)
+                sizeZ = blkLimitsGC(HIGH,KAXIS) - blkLimitsGC(LOW,KAXIS) + 1
+                allocate(zCoord(sizeZ),stat=istat)
   
-            if (NDIM == 3) call Grid_getCellCoords&
-                                (KAXIS, blockList(lb), CENTER, gcell, zCoord, sizeZ)
-            if (NDIM >= 2) call Grid_getCellCoords&
-                                (JAXIS, blockList(lb), CENTER,gcell, yCoord, sizeY)
-            call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
-            call Grid_getBlkPtr(blockList(lb),solnData)
+                if (NDIM == 3) call Grid_getCellCoords&
+                                    (KAXIS, blockList(lb), CENTER, gcell, zCoord, sizeZ)
+                if (NDIM >= 2) call Grid_getCellCoords&
+                                    (JAXIS, blockList(lb), CENTER,gcell, yCoord, sizeY)
+                call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
+                call Grid_getBlkPtr(blockList(lb),solnData)
 
-            do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
-                do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
-                    do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                        ! Need to work out math.
-                        x = xCoord(i) - X_centerofmass
-                        y = (yCoord(j) - Y_centerofmass)*dcos(rotang) - (zCoord(k) - Z_centerofmass)*dsin(rotang)
-                        !z = (yCoord(j) - Y_centerofmass)*dsin(rotang) + (zCoord(k) - Z_centerofmass)*dcos(rotang)
-                        vx = solnData(VELX_VAR,i,j,k)
-                        vy = solnData(VELY_VAR,i,j,k)*dcos(rotang) - solnData(VELZ_VAR,i,j,k)*dsin(rotang)
-                        vz = solnData(VELY_VAR,i,j,k)*dsin(rotang) + solnData(VELZ_VAR,i,j,k)*dcos(rotang)
+                do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
+                    do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
+                        do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                            ! subtract out COM motion
+                            solnData(VELX_VAR,i,j,k) = solnData(VELX_VAR,i,j,k) - sim_mpoleVX
+                            solnData(VELY_VAR,i,j,k) = solnData(VELY_VAR,i,j,k) - sim_mpoleVY
+                            solnData(VELZ_VAR,i,j,k) = solnData(VELZ_VAR,i,j,k) - sim_mpoleVZ
 
-                        distxy = dsqrt(x**2 + y**2)
-                        vpara = (x*vx + y*vy)/distxy
-                        if (dr_simTime .lt. sim_tSpinup) then
-                            vspin = dr_simTime/sim_tSpinup*sim_rotFac*&
-                                min(dsqrt(newton*sim_objMass*sim_msun/obj_radius(obj_ipos)**3.d0)*distxy, &
-                                    dsqrt(newton*sim_objMass*sim_msun/obj_radius(obj_ipos)))
-                            solnData(VELX_VAR,i,j,k) = -vspin*y/distxy + x/distxy*vpara*relax_rate
-                            velprojy =                  vspin*x/distxy + y/distxy*vpara*relax_rate
-                        else
-                            solnData(VELX_VAR,i,j,k) = vx - x/distxy*vpara*(1.d0 - relax_rate)
-                            velprojy =                 vy - y/distxy*vpara*(1.d0 - relax_rate)
-                        endif
-                        velprojz = vz*relax_rate
-                        solnData(VELY_VAR,i,j,k) =  dcos(rotang)*velprojy + dsin(rotang)*velprojz
-                        solnData(VELZ_VAR,i,j,k) = -dsin(rotang)*velprojy + dcos(rotang)*velprojz
+                            ! Need to work out math.
+                            if (sim_rotFac .gt. 0.d0) then
+                                x = xCoord(i) - gr_mpoleXcenterOfMass
+                                y = (yCoord(j) - gr_mpoleYcenterOfMass)*dcos(rotang) - (zCoord(k) - gr_mpoleZcenterOfMass)*dsin(rotang)
+                                !z = (yCoord(j) - gr_mpoleYcenterOfMass)*dsin(rotang) + (zCoord(k) - gr_mpoleZcenterOfMass)*dcos(rotang)
+                                vx = solnData(VELX_VAR,i,j,k)
+                                vy = solnData(VELY_VAR,i,j,k)*dcos(rotang) - solnData(VELZ_VAR,i,j,k)*dsin(rotang)
+                                vz = solnData(VELY_VAR,i,j,k)*dsin(rotang) + solnData(VELZ_VAR,i,j,k)*dcos(rotang)
 
-                        solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
-                            0.5*(solnData(VELX_VAR,i,j,k)**2. + solnData(VELY_VAR,i,j,k)**2. + solnData(VELZ_VAR,i,j,k)**2.)
+                                distxy = dsqrt(x**2 + y**2)
+                                vpara = (x*vx + y*vy)/distxy
+                                if (dr_simTime .lt. sim_tSpinup) then
+                                    vspin = dr_simTime/sim_tSpinup*sim_rotFac*&
+                                        min(dsqrt(newton*sim_objMass/obj_radius(obj_ipos)**3.d0)*distxy, &
+                                            dsqrt(newton*sim_objMass/obj_radius(obj_ipos)))
+                                    solnData(VELX_VAR,i,j,k) = -vspin*y/distxy - x/distxy*vpara*(1.d0 - sim_relaxRate)
+                                    velprojy =                  vspin*x/distxy - y/distxy*vpara*(1.d0 - sim_relaxRate)
+                                else
+                                    solnData(VELX_VAR,i,j,k) = vx - x/distxy*vpara*(1.d0 - relax_rate)
+                                    velprojy =                 vy - y/distxy*vpara*(1.d0 - relax_rate)
+                                endif
+                                velprojz = vz*relax_rate
+                                solnData(VELY_VAR,i,j,k) =  dcos(rotang)*velprojy + dsin(rotang)*velprojz
+                                solnData(VELZ_VAR,i,j,k) = -dsin(rotang)*velprojy + dcos(rotang)*velprojz
+                            else
+                                solnData(VELX_VAR,i,j,k) = solnData(VELX_VAR,i,j,k)*relax_rate
+                                solnData(VELY_VAR,i,j,k) = solnData(VELY_VAR,i,j,k)*relax_rate
+                                solnData(VELZ_VAR,i,j,k) = solnData(VELZ_VAR,i,j,k)*relax_rate
+                            endif
+
+                            solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
+                                0.5*(solnData(VELX_VAR,i,j,k)**2. + solnData(VELY_VAR,i,j,k)**2. + solnData(VELZ_VAR,i,j,k)**2.)
+                        enddo
                     enddo
                 enddo
-            enddo
   
-            call Grid_releaseBlkPtr(blockList(lb), solnData)
-            deallocate(xCoord)
-            deallocate(yCoord)
-            deallocate(zCoord)
-        enddo
+                call Grid_releaseBlkPtr(blockList(lb), solnData)
+                deallocate(xCoord)
+                deallocate(yCoord)
+                deallocate(zCoord)
+            enddo
+        endif
+
+        if (sim_smallT .gt. 0.d0) then
+            do k = blkLimits(LOW,KAXIS), blkLimits(HIGH,KAXIS)
+               do j = blkLimits(LOW,JAXIS), blkLimits(HIGH,JAXIS)
+                  do i = blkLimits(LOW,IAXIS), blkLimits(HIGH,IAXIS)
+                     solnData(TEMP_VAR,i,j,k) = max(solnData(TEMP_VAR,i,j,k), sim_smallT)
+                  enddo
+               enddo
+            enddo
+            call Eos_wrapped(MODE_DENS_TEMP,blkLimits,lb)
+        endif
     else
-        pt_pos = grv_exactvec - grv_obvec + grv_ptvec !Used for calculating properties of mass accreted onto point mass
+        !pt_pos = grv_exactvec - grv_obvec + grv_ptvec !Used for calculating properties of mass accreted onto point mass
         relax_rate = sim_fluffDampCoeff
 
-        ldenscut = -huge(0.d0)
-        do lb = 1,blockCount
-           call Multitidal_findExtrema (blockList(lb), DENS_VAR, 1, extrema)
-           if (extrema .gt. ldenscut) ldenscut = extrema
-        enddo
-
-        call MPI_ALLREDUCE(ldenscut, denscut, 1, FLASH_REAL, & 
-                           MPI_MAX, dr_meshComm, ierr)
-
-        denscut = denscut*grv_comPeakCut
-
-        ! Calculate the average velocity of the peak to subtract it
         do lb = 1, blockCount
             call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
             sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
@@ -194,108 +240,161 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
             call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
             call Grid_getBlkPtr(blockList(lb),solnData)
 
-            vol = (xCoord(2) - xCoord(1))**3.d0
-            do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
-                do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
-                    do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                        if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) cycle
-                        tot_mass = tot_mass + vol*solnData(DENS_VAR,i,j,k)
-                        tot_mom = tot_mom + vol*solnData(DENS_VAR,i,j,k)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
-                        if (solnData(DENS_VAR,i,j,k) .lt. denscut) cycle
-                        peak_mass = peak_mass + vol*solnData(DENS_VAR,i,j,k)
-                        peak_mom = peak_mom + vol*solnData(DENS_VAR,i,j,k)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
+            if (sim_kind .eq. 'polytrope') then
+                do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
+                    do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
+                        do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                            solnData(VELX_VAR,i,j,k) = solnData(VELX_VAR,i,j,k) - sim_mpoleVX
+                            solnData(VELY_VAR,i,j,k) = solnData(VELY_VAR,i,j,k) - sim_mpoleVY
+                            solnData(VELZ_VAR,i,j,k) = solnData(VELZ_VAR,i,j,k) - sim_mpoleVZ
+
+                            solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
+                                0.5*(solnData(VELX_VAR,i,j,k)**2. + solnData(VELY_VAR,i,j,k)**2. + solnData(VELZ_VAR,i,j,k)**2.)
+                        enddo
                     enddo
                 enddo
-            enddo
-
-            call Grid_releaseBlkPtr(blockList(lb), solnData)
-            deallocate(xCoord)
-            deallocate(yCoord)
-            deallocate(zCoord)
-        enddo
-
-        call MPI_ALLREDUCE(tot_mass, gtot_mass, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(tot_mom, gtot_mom, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(peak_mass, gpeak_mass, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        call MPI_ALLREDUCE(peak_mom, gpeak_mom, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-        
-        tot_avg_vel = gtot_mom/gtot_mass
-        peak_avg_vel = gpeak_mom/gpeak_mass
-
-        !if (gr_meshMe .eq. MASTER_PE) then
-        !    print *, 'peak_avg_vel', peak_avg_vel
-        !endif
-
-        do lb = 1, blockCount
-            call Grid_getBlkIndexLimits(blockList(lb),blkLimits,blkLimitsGC)
-            sizeX = blkLimitsGC(HIGH,IAXIS) - blkLimitsGC(LOW,IAXIS) + 1
-            allocate(xCoord(sizeX),stat=istat)
-            sizeY = blkLimitsGC(HIGH,JAXIS) - blkLimitsGC(LOW,JAXIS) + 1
-            allocate(yCoord(sizeY),stat=istat)
-            sizeZ = blkLimitsGC(HIGH,KAXIS) - blkLimitsGC(LOW,KAXIS) + 1
-            allocate(zCoord(sizeZ),stat=istat)
-  
-            if (NDIM == 3) call Grid_getCellCoords&
-                                (KAXIS, blockList(lb), CENTER, gcell, zCoord, sizeZ)
-            if (NDIM >= 2) call Grid_getCellCoords&
-                                (JAXIS, blockList(lb), CENTER,gcell, yCoord, sizeY)
-            call Grid_getCellCoords(IAXIS, blockList(lb), CENTER, gcell, xCoord, sizeX)
-            call Grid_getBlkPtr(blockList(lb),solnData)
+            endif
 
             do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
                 do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
                     do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                        if (solnData(DENS_VAR,i,j,k) .lt. sim_fluffDampCutoff) then
+                        if (solnData(DENS_VAR,i,j,k) .lt. damp_dens) then
                             !reduce by constant factor
                             solnData(VELX_VAR,i,j,k) = solnData(VELX_VAR,i,j,k)*relax_rate
                             solnData(VELY_VAR,i,j,k) = solnData(VELY_VAR,i,j,k)*relax_rate
                             solnData(VELZ_VAR,i,j,k) = solnData(VELZ_VAR,i,j,k)*relax_rate
-                        else
-                            ! Ensure total center of mass has no motion
-                            solnData(VELX_VAR:VELZ_VAR,i,j,k) = solnData(VELX_VAR:VELZ_VAR,i,j,k) - peak_avg_vel
+                            solnData(EINT_VAR,i,j,k) = max(solnData(EINT_VAR,i,j,k)*relax_rate, gr_smalle)
+                            solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
+                                0.5*(solnData(VELX_VAR,i,j,k)**2. + solnData(VELY_VAR,i,j,k)**2. + solnData(VELZ_VAR,i,j,k)**2.)
                         endif
-
-                        solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
-                            0.5*(solnData(VELX_VAR,i,j,k)**2. + solnData(VELY_VAR,i,j,k)**2. + solnData(VELZ_VAR,i,j,k)**2.)
                     enddo
                 enddo
             enddo
 
-            !print *, 'before', grv_obvec(4:6)
-            !print *, 'peak_avg_vel', peak_avg_vel
-            !print *, 'after', grv_obvec(4:6)
-            !call Driver_abortFlash('done')
+            if (sim_kind .eq. 'cylinder') then
+                !mdot = sim_cylinderMdot*8.726109204062576e-21*(-5.648776878000001e15 + &
+                !       2.2327568400807356e22*(1.d0/(5.993628868330768e9 + dr_simTime))**0.6666666666666666)**3* &
+                !       dlog(3.738175969361188e22/(-5.648776878000001e15 + &
+                !       2.2327568400807356e22*(1.d0/(5.993628868330768e9 + dr_simTime))**0.6666666666666666)**1.5d0) 
+                mdot = sim_cylinderMdot*1.456480385842967d40/(dexp(9.5414615205053d12/(dr_simTime+sim_tDelay)**(4.d0/3.d0))*&
+                       (dr_simTime+sim_tDelay)**(5.d0/3.d0))
+                !if (dr_meshMe .eq. MASTER_PE) print *, 'mdot', mdot
 
-            if (sim_accRadius .ne. 0.d0) then
+                if (mdot .gt. 0.d0) then
+                    if (sim_cylinderType .eq. 1) then
+                        flow_dist = dsqrt(stvec(1)**2 + stvec(2)**2 + stvec(3)**2)
+                        flow_vel = dsqrt(stvec(4)**2 + stvec(5)**2 + stvec(6)**2)
+                    else
+                        flow_dist = sim_periDist*((dr_simTime+sim_tDelay)/(2.d0*PI*dsqrt(sim_periDist**3.d0/(newton*sim_ptMass))))**(2.d0/3.d0)
+                        flow_ecc = 1.d0 - 2.d0*sim_periDist/flow_dist
+                        flow_vel = dsqrt((1.d0-flow_ecc)/(1.d0+flow_ecc)*newton*sim_ptMass/(0.5d0*flow_dist))
+                    endif
+
+                    polyk = kb*sim_cylinderTemperature/(mp*obj_mu)
+
+                    rho0 = dr_dt/mcs/sim_cylinderNCells*mdot/&
+                        (2.d0*PI*flow_dist**3*polyk/newton/sim_ptMass)
+                    !rho0 = dr_dt/mcs/sim_cylinderNCells*&
+                    !    sim_cylinderMDot*sim_msun/yr/&
+                    !    (2.d0*PI*flow_dist**3*polyk/newton/sim_ptMass)
+
+                    do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
+                        if (sim_cylinderType .eq. 1) then
+                            zz = zCoord(k) - (sim_zCenter + stvec(3))
+                        else
+                            zz = zCoord(k) - sim_zCenter
+                        endif
+                        do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
+                            if (sim_cylinderType .eq. 1) then
+                                yy = yCoord(j) - (sim_yCenter + stvec(2))
+                            else
+                                yy = yCoord(j) - (sim_yCenter + flow_dist)
+                            endif
+                            do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
+                                if (sim_cylinderType .eq. 1) then
+                                    xx = xCoord(i) - (sim_xCenter + stvec(1))
+                                else
+                                    xx = xCoord(i) - sim_xCenter
+                                endif
+                               
+                                if (sim_cylinderType .eq. 1) then
+                                    dist = dsqrt(xx**2 + zz**2)
+                                    perp_dist = yy
+                                else
+                                    dist = dsqrt(yy**2 + zz**2)
+                                    perp_dist = xx
+                                endif
+
+                                if (dist .le. sim_cylinderRadius .and. dabs(perp_dist) .le. 0.5d0*sim_cylinderNCells*mcs) then
+                                    new_dens = rho0*dexp(-0.5d0*newton*sim_ptMass*dist**2/(flow_dist**3*polyk))
+
+                                    !new_dens = dr_dt/(mcs/flow_vel)*sim_cylinderDensity*&
+                                    !    dexp(-(dist/sim_cylinderScale)**2)
+                                    solnData(EINT_VAR,i,j,k) = &
+                                        (solnData(EINT_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) + &
+                                        (eos_gasConstant*sim_cylinderTemperature/((obj_gamc-1.e0)*obj_mu))*&
+                                        new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                    if (sim_cylinderType .eq. 1) then
+                                        solnData(VELX_VAR,i,j,k) = (solnData(VELX_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                            + stvec(4)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                        solnData(VELY_VAR,i,j,k) = (solnData(VELY_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                            + stvec(5)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                        solnData(VELZ_VAR,i,j,k) = (solnData(VELZ_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                            + stvec(6)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                    else
+                                        solnData(VELX_VAR,i,j,k) = (solnData(VELX_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                            - flow_vel*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                    endif
+                                    solnData(DENS_VAR,i,j,k) = solnData(DENS_VAR,i,j,k) + new_dens
+                                    ! Not obvious why this needs to be done, but for
+                                    ! some reason xn changes in this part of the code.
+                                    solnData(SPECIES_BEGIN:SPECIES_END,i,j,k) = obj_xn
+
+                                    solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
+                                        0.5d0*(solnData(VELX_VAR,i,j,k)**2.d0 + &
+                                               solnData(VELY_VAR,i,j,k)**2.d0 + &
+                                               solnData(VELZ_VAR,i,j,k)**2.d0)
+                                endif
+                            enddo
+                        enddo
+                    enddo
+                endif
+            endif
+
+            if (sim_kind .eq. 'wind') then
+                rho0 = dr_dt*sim_windMdot*sim_msun/yr/((2.d0*PI)**1.5d0*(sim_windKernel*mcs)**3.)
+
                 do k = blkLimits(LOW, KAXIS), blkLimits(HIGH, KAXIS)
-                    zz = zCoord(k)
-                    z2 = (zz - (grv_exactvec(3) - grv_obvec(3) + grv_ptvec(3)))**2
+                    zz = zCoord(k) - pvec(3)
                     do j = blkLimits(LOW, JAXIS), blkLimits(HIGH, JAXIS)
-                        yy = yCoord(j)
-                        y2 = z2 + (yy - (grv_exactvec(2) - grv_obvec(2) + grv_ptvec(2)))**2
+                        yy = yCoord(j) - pvec(2)
                         do i = blkLimits(LOW, IAXIS), blkLimits(HIGH, IAXIS)
-                            xx = xCoord(i)
-                            dist = dsqrt(y2 + (xx - (grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1)))**2)
-                            if (dist .le. sim_accRadius) then
-                                vol = (xCoord(2) - xCoord(1))**3.d0
-                                mass_acc = vol*(solnData(DENS_VAR,i,j,k) - max(sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_fluffDampCutoff))
-                                tot_com_acc = tot_com_acc + mass_acc*((/ xx, yy, zz /) - pt_pos(1:3))
-                                tot_mom_acc = tot_mom_acc + mass_acc*(solnData(VELX_VAR:VELZ_VAR,i,j,k) - pt_pos(4:6))
-                                tot_angmom_acc = tot_angmom_acc + mass_acc*&
-                                    (/ (yy-pt_pos(2))*(solnData(VELZ_VAR,i,j,k)-pt_pos(6)) - &
-                                        (zz-pt_pos(3))*(solnData(VELY_VAR,i,j,k)-pt_pos(5)), &
-                                       (zz-pt_pos(3))*(solnData(VELX_VAR,i,j,k)-pt_pos(4)) - &
-                                        (xx-pt_pos(1))*(solnData(VELZ_VAR,i,j,k)-pt_pos(6)), &
-                                       (xx-pt_pos(1))*(solnData(VELY_VAR,i,j,k)-pt_pos(5)) - &
-                                        (yy-pt_pos(2))*(solnData(VELX_VAR,i,j,k)-pt_pos(4)) /)
-                                tot_mass_acc = tot_mass_acc + mass_acc
-                                tot_ener_acc = tot_ener_acc + mass_acc*(solnData(EINT_VAR,i,j,k) + &
-                                    0.5d0*sum((solnData(VELX_VAR:VELZ_VAR,i,j,k) - pt_pos(4:6))**2.d0) - &
-                                    newton*grv_ptmass/(max(dist, sim_softenRadius**2/dist)))
-                                solnData(DENS_VAR,i,j,k) = max(sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(DENS_VAR,i,j,k), sim_fluffDampCutoff)
-                                !solnData(EINT_VAR,i,j,k) = max(sim_accCoeff*dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)**(sim_fluidGamma - 1.d0)*&
-                                !    solnData(EINT_VAR,i,j,k), gr_smalle)
-                                !solnData(VELX_VAR:VELZ_VAR,i,j,k) = dexp(-((sim_accRadius-dist)/sim_accRadius)**2.d0)*solnData(VELX_VAR:VELZ_VAR,i,j,k)
+                            xx = xCoord(i) - pvec(1)
+                           
+                            dist = dsqrt( xx**2 + yy**2 + zz**2 )
+
+                            if (dist .le. sim_windNCells*mcs) then
+                                new_dens = rho0*dexp(-0.5d0*(dist/(sim_windKernel*mcs))**2)
+
+                                !new_dens = dr_dt/(mcs/flow_vel)*sim_cylinderDensity*&
+                                !    dexp(-(dist/sim_cylinderScale)**2)
+                                solnData(EINT_VAR,i,j,k) = &
+                                    (solnData(EINT_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) + &
+                                    (eos_gasConstant*sim_windTemperature/((obj_gamc-1.e0)*obj_mu))*&
+                                    new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+
+                                vvec = (/ xx, yy, zz /)/dist*sim_windVelocity + pvec(4:6)
+                                solnData(VELX_VAR,i,j,k) = (solnData(VELX_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                    + vvec(1)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                solnData(VELY_VAR,i,j,k) = (solnData(VELY_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                    + vvec(2)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                solnData(VELZ_VAR,i,j,k) = (solnData(VELZ_VAR,i,j,k)*solnData(DENS_VAR,i,j,k) &
+                                    + vvec(3)*new_dens)/(solnData(DENS_VAR,i,j,k) + new_dens)
+                                solnData(DENS_VAR,i,j,k) = solnData(DENS_VAR,i,j,k) + new_dens
+                                ! Not obvious why this needs to be done, but for
+                                ! some reason xn changes in this part of the code.
+                                solnData(SPECIES_BEGIN:SPECIES_END,i,j,k) = obj_xn
+
                                 solnData(ENER_VAR,i,j,k) = solnData(EINT_VAR,i,j,k) + &
                                     0.5d0*(solnData(VELX_VAR,i,j,k)**2.d0 + &
                                            solnData(VELY_VAR,i,j,k)**2.d0 + &
@@ -305,47 +404,25 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                     enddo
                 enddo
             endif
-  
+
             call Eos_wrapped(MODE_DENS_EI, blkLimits, lb)
+
+            if (sim_smallT .gt. 0.d0) then
+                do k = blkLimits(LOW,KAXIS), blkLimits(HIGH,KAXIS)
+                   do j = blkLimits(LOW,JAXIS), blkLimits(HIGH,JAXIS)
+                      do i = blkLimits(LOW,IAXIS), blkLimits(HIGH,IAXIS)
+                         solnData(TEMP_VAR,i,j,k) = max(solnData(TEMP_VAR,i,j,k), sim_smallT)
+                      enddo
+                   enddo
+                enddo
+                call Eos_wrapped(MODE_DENS_TEMP,blkLimits,lb)
+            endif
+
             call Grid_releaseBlkPtr(blockList(lb), solnData)
             deallocate(xCoord)
             deallocate(yCoord)
             deallocate(zCoord)
         enddo
-
-        ! Add subtracted velocity to tracking point
-        !grv_obvec(4:6) = grv_obvec(4:6) + peak_avg_vel
-
-        if (sim_accRadius .ne. 0.d0) then
-            call MPI_ALLREDUCE(tot_mass_acc, gtot_mass_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-            call MPI_ALLREDUCE(tot_ener_acc, gtot_ener_acc, 1, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-            call MPI_ALLREDUCE(tot_com_acc, gtot_com_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-            call MPI_ALLREDUCE(tot_mom_acc, gtot_mom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-            call MPI_ALLREDUCE(tot_angmom_acc, gtot_angmom_acc, 3, FLASH_REAL, MPI_SUM, dr_meshComm, ierr)
-
-            !if (gr_meshMe .eq. MASTER_PE) then
-            !    print *, 'Mass accreted this step: ', gtot_mass_acc
-            !    print *, 'COM accreted mass: ', gtot_com_acc/gtot_mass_acc
-            !    print *, 'Mom accreted mass: ', gtot_mom_acc/gtot_mass_acc
-            !    print *, 'Net shift: ', grv_ptvec(1:3) - (grv_ptmass*grv_ptvec(1:3) + &
-            !        (gtot_com_acc/gtot_mass_acc - grv_exactvec(1:3) + grv_obvec(1:3) - grv_ptvec(1:3))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
-            !    print *, 'Net vel: ', grv_ptvec(4:6) - (grv_ptmass*grv_ptvec(4:6) + &
-            !        (gtot_mom_acc/gtot_mass_acc - grv_exactvec(4:6) + grv_obvec(4:6) - grv_ptvec(4:6))*gtot_mass_acc) / (grv_ptmass + gtot_mass_acc)
-            !endif
-
-            grv_ptvec(1:3) = (grv_ptmass*grv_ptvec(1:3) + gtot_com_acc) / (grv_ptmass + gtot_mass_acc)
-            grv_ptvec(4:6) = (grv_ptmass*grv_ptvec(4:6) + gtot_mom_acc) / (grv_ptmass + gtot_mass_acc)
-            grv_obvec(1:3) = (grv_totmass*grv_obvec(1:3) - gtot_com_acc) / (grv_totmass - gtot_mass_acc)
-            grv_obvec(4:6) = (grv_totmass*grv_obvec(4:6) - gtot_mom_acc) / (grv_totmass - gtot_mass_acc)
-            grv_optmass = grv_ptmass
-            grv_ptmass = grv_ptmass + gtot_mass_acc
-            grv_massacc = grv_massacc + gtot_mass_acc
-            grv_momacc = grv_momacc + gtot_mom_acc
-            grv_angmomacc = grv_angmomacc + gtot_angmom_acc
-            grv_eneracc = grv_eneracc + gtot_ener_acc
-        else
-            grv_optmass = grv_ptmass
-        endif
 
         call Polytrope(blockCount, blockList, dt)
         call Stir(blockCount, blockList, dt) 
@@ -357,8 +434,7 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
         call Ionize(blockCount, blockList, dt, dr_simTime)
         call EnergyDeposition(blockCount, blockList, dt, dr_simTime)
         call Deleptonize(blockCount, blockList, dt, dr_simTime)
-
     endif
-  
+
     return
 end subroutine Driver_sourceTerms

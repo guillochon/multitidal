@@ -33,52 +33,76 @@ subroutine Grid_markRefineDerefine()
   use Grid_data, ONLY : gr_refine_cutoff, gr_derefine_cutoff,&
                         gr_refine_filter,&
                         gr_numRefineVars,gr_refine_var,gr_refineOnParticleCount,&
-                        gr_blkList, gr_refine_level, gr_meshMe
-  use tree, ONLY : newchild, refine, derefine, stay, nodetype,&
-      lrefine, lrefine_max, parent, nchild,child, lnblocks
-  use Grid_interface, ONLY : Grid_getBlkPtr, Grid_getListOfBlocks,&
-      Grid_releaseBlkPtr,Grid_fillGuardCells,Grid_getMinCellSize
-  use Driver_interface, ONLY: Driver_getSimTime
-  use RuntimeParameters_interface, ONLY : RuntimeParameters_get
-  use Simulation_data, ONLY: sim_objRadius, sim_objCentDens, &
-      sim_maxBlocks, sim_useInitialPeakDensity, sim_ptMassRefine, sim_fluffDampCutoff, &
-      sim_xCenter, sim_yCenter, sim_zCenter, sim_ptMassRefRad
-  use Multispecies_interface, ONLY:  Multispecies_getSumFrac, Multispecies_getSumInv, Multispecies_getAvg
-  use Gravity_data, ONLY: grv_densCut, grv_obvec, grv_ptvec, grv_dynRefineMax, &
-      grv_exactvec, grv_mpolevec, grv_periDist
-  use PhysicalConstants_interface, ONLY: PhysicalConstants_get
-  use gr_mpoleData, ONLY: X_centerofmass, Y_centerofmass, Z_centerofmass
-  use gr_isoMpoleData, ONLY: Xcm, Ycm, Zcm
-
+                        gr_enforceMaxRefinement, gr_maxRefine,&
+                        gr_lrefineMaxByTime,&
+                        gr_lrefineMaxRedDoByTime,&
+                        gr_lrefineMaxRedDoByLogR,&
+                        gr_lrefineCenterI,gr_lrefineCenterJ,gr_lrefineCenterK,&
+                        gr_eosModeNow, gr_maxRefine, gr_globalComm
+  use tree, ONLY : newchild, refine, derefine, stay, lnblocks
+!!$  use physicaldata, ONLY : force_consistency
+  use Logfile_interface, ONLY : Logfile_stampVarMask
+  use Grid_interface, ONLY : Grid_fillGuardCells
+  use Particles_interface, only: Particles_sinkMarkRefineDerefine
+  ! Added by JFG
+  use tree, ONLY: lrefine_max 
+  use Grid_interface, ONLY: Grid_markRefineSpecialized, Grid_getMinCellSize
+  use Driver_data, ONLY: dr_simTime
+  use Simulation_data, ONLY: sim_objRadius, &
+      sim_fluffRefineCutoff, sim_fluffDampCutoff, sim_cylinderRadius, &
+      sim_xCenter, sim_yCenter, sim_zCenter, sim_kind, stvec, &
+      sim_softenRadius, sim_fixedPartTag, sim_windNCells, &
+      sim_tDelay, sim_periDist, sim_ptMass, sim_cylinderType, &
+      sim_maxBlocks
+  use pt_sinkInterface, ONLY : pt_sinkGatherGlobal
+  use Multitidal_interface, ONLY : Multitidal_findExtrema
+  use Particles_sinkData, ONLY : localnpf, particles_global
+  use PhysicalConstants_interface, ONLY : PhysicalConstants_get
+  ! End JFG
   implicit none
 
 #include "constants.h"
 #include "Flash_mpi.h"
 #include "Flash.h"
-#include "Multispecies.h"
 
-  double precision, dimension(:,:,:,:), pointer :: solnData
-  double precision :: ref_val_cut,t
-  double precision :: dens_cut
-  integer       :: l,iref,blkCount,lb,i,j
+  
+  real :: ref_cut,deref_cut,ref_filter
+  integer       :: l,i,iref,max_blocks,ierr
+  logical,save :: gcMaskArgsLogged = .FALSE.
+  integer,save :: eosModeLast = 0
+  logical :: doEos=.true.
   integer,parameter :: maskSize = NUNK_VARS+NDIM*NFACE_VARS
   logical,dimension(maskSize) :: gcMask
-  double precision :: maxvals(MAXBLOCKS),maxvals_parent(MAXBLOCKS)
-  integer :: nsend,nrecv,ierr,nextref,prev_refmax
-  integer :: reqr(MAXBLOCKS),reqs(MAXBLOCKS)
-  integer :: statr(MPI_STATUS_SIZE,MAXBLOCKS)
-  integer :: stats(MPI_STATUS_SIZE,MAXBLOCKS)
 
-  double precision :: min_cell
-  integer :: ref_level,max_blocks
+  ! Added by JFG
+  real,dimension(7) :: specs
+  real,dimension(3) :: pvec
+  real :: mcs, flow_dist, newton, max_dens
+
+  call PhysicalConstants_get("Newton", newton)
+  call Grid_getMinCellSize(mcs)
+  ! End JFG
+
+
+  if(gr_lrefineMaxRedDoByTime) then
+     call gr_markDerefineByTime()
+  end if
+  
+  if(gr_lrefineMaxByTime) then
+     call gr_setMaxRefineByTime()
+  end if
+
+  call MPI_ALLREDUCE(lnblocks,max_blocks,1,MPI_INTEGER,MPI_SUM,gr_globalComm,ierr)
+  if (max_blocks .gt. sim_maxBlocks) then
+     gr_maxRefine = gr_maxRefine - 1
+  end if
+
+  if (gr_eosModeNow .NE. eosModeLast) then
+     gcMaskArgsLogged = .FALSE.
+     eosModeLast = gr_eosModeNow
+  end if
 
   ! that are implemented in this file need values in guardcells
-
-  if (sim_useInitialPeakDensity) then
-      dens_cut = sim_objCentDens
-  else
-      dens_cut = grv_densCut
-  endif
 
   gcMask=.false.
   do i = 1,gr_numRefineVars
@@ -86,145 +110,120 @@ subroutine Grid_markRefineDerefine()
      if (iref > 0) gcMask(iref) = .TRUE.
   end do
 
-  call Grid_getMinCellSize(min_cell)
+  gcMask(NUNK_VARS+1:min(maskSize,NUNK_VARS+NDIM*NFACE_VARS)) = .TRUE.
+!!$  gcMask(NUNK_VARS+1:maskSize) = .TRUE.
+
+
+  if (.NOT.gcMaskArgsLogged) then
+     call Logfile_stampVarMask(gcMask, .true., '[Grid_markRefineDerefine]', 'gcArgs')
+  end if
+
+!!$  force_consistency = .FALSE.
   call Grid_fillGuardCells(CENTER_FACES,ALLDIR,doEos=.true.,&
-       maskSize=maskSize, mask=gcMask, makeMaskConsistent=.true.)
+       maskSize=maskSize, mask=gcMask, makeMaskConsistent=.true.,doLogMask=.NOT.gcMaskArgsLogged,&
+       selectBlockType=ACTIVE_BLKS)
+     gcMaskArgsLogged = .TRUE.
+!!$  force_consistency = .TRUE.
 
   newchild(:) = .FALSE.
   refine(:)   = .FALSE.
   derefine(:) = .FALSE.
   stay(:)     = .FALSE.
 
-  !do l = 1,gr_numRefineVars
-  !   iref = gr_refine_var(l)
-  !   ref_cut = gr_refine_cutoff(l)
-  !   deref_cut = gr_derefine_cutoff(l)
-  !   ref_filter = gr_refine_filter(l)
-  !   ref_val_cut = gr_refine_cutoff(l)
-  !   call gr_markRefineDerefine(iref,ref_cut,deref_cut,ref_filter,&
-  !       ref_val_cut)
-  !end do
+  do l = 1,gr_numRefineVars
+     iref = gr_refine_var(l)
+     ref_cut = gr_refine_cutoff(l)
+     deref_cut = gr_derefine_cutoff(l)
+     ref_filter = gr_refine_filter(l)
+     call gr_markRefineDerefine(iref,ref_cut,deref_cut,ref_filter)
+  end do
 
-  call Driver_getSimTime(t)
-  call Grid_getListOfBlocks(ACTIVE_BLKS, gr_blkList,blkCount)
+#ifdef FLASH_GRID_PARAMESH2
+  ! For PARAMESH2, call gr_markRefineDerefine here if it hasn't been called above.
+  ! This is necessary to make sure lrefine_min and lrefine_max are obeyed - KW
+  if (gr_numRefineVars .LE. 0) then
+     call gr_markRefineDerefine(-1, 0.0, 0.0, 0.0)
+  end if
+#endif
 
-  if (t .eq. 0.0) then
-      call gr_markInRadius(sim_xCenter,sim_yCenter,sim_zCenter,1.2*sim_objRadius,lrefine_max,0)
-  else
-      Call MPI_ALLREDUCE (lnblocks,max_blocks,1,MPI_INTEGER,MPI_SUM,MPI_COMM_WORLD,ierr)
-      prev_refmax = grv_dynRefineMax
-      if (max_blocks .gt. sim_maxBlocks) then
-          grv_dynRefineMax = grv_dynRefineMax - 1
+  if(gr_refineOnParticleCount)call gr_ptMarkRefineDerefine()
+
+  if(gr_enforceMaxRefinement) call gr_enforceMaxRefine(gr_maxRefine)
+
+  !! JFG
+  if(gr_maxRefine .lt. lrefine_max) call gr_enforceMaxRefine(gr_maxRefine)
+
+  if(gr_lrefineMaxRedDoByLogR) &
+       call gr_unmarkRefineByLogRadius(gr_lrefineCenterI,&
+       gr_lrefineCenterJ,gr_lrefineCenterK)
+  
+  call Particles_sinkMarkRefineDerefine()
+
+  if (dr_simTime .eq. 0.d0) then
+      if (sim_kind .eq. 'polytrope') then
+          specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_objRadius, 0., 0., 0. /)
+          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
+      elseif (sim_kind .eq. 'powerlaw') then
+          specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_softenRadius, 0., 0., 0. /)
+          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
+          specs = (/ sim_xCenter + stvec(1), sim_yCenter + stvec(2), sim_zCenter + stvec(3), &
+                     sim_objRadius, 0., 0., 0. /)
+          call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
       endif
-      !do l = 1,gr_numRefineVars-1
-      !    iref = gr_refine_var(l)
-      !    ref_val_cut = dens_cut*gr_refine_cutoff(l)
-      !    ref_level = min(gr_refine_level(l), grv_dynRefineMax)
-      !    call gr_markVarThreshold(iref,ref_val_cut,0,ref_level)
-      !enddo
-
-      do l = 1,gr_numRefineVars
-          iref = gr_refine_var(l)
-
-          do i = 1, blkCount
-             lb = gr_blkList(i)
-             call Grid_getBlkPtr(lb,solnData,CENTER)
-             maxvals(lb) = maxval(solnData(iref,:,:,:))
-             call Grid_releaseBlkPtr(lb,solnData)
-          end do
-
-    !     Communicate maxvals of parents to their leaf children.
-    !     Maximally refined children collect messages from parents.
-
-          maxvals_parent(:) = 0.0
-          nrecv = 0
-          do i = 1, blkCount
-             lb = gr_blkList(i)
-             if (nodetype(lb) == LEAF .AND. lrefine(lb) == prev_refmax) then
-                if(parent(1,lb).gt.-1) then
-                   if (parent(2,lb).ne.gr_meshMe) then
-                      nrecv = nrecv + 1
-                      call MPI_IRecv(maxvals_parent(lb),1, &
-                         FLASH_REAL, &
-                         parent(2,lb), &
-                         lb, &
-                         MPI_COMM_WORLD, &
-                         reqr(nrecv), &
-                         ierr)
-                   else
-                      maxvals_parent(lb) = maxvals(parent(1,lb))
-                   end if
-                end if
-             end if
-          end do
-
-          ! parents send maxvals to children
-
-          nsend = 0
-          do i = 1, blkCount
-             lb = gr_blkList(i)
-             if (nodetype(lb) == PARENT_BLK .AND. lrefine(lb) == prev_refmax-1) then
-                do j = 1,nchild
-                   if(child(1,j,lb).gt.-1) then
-                      if (child(2,j,lb).ne.gr_meshMe) then
-                         nsend = nsend + 1
-                         call MPI_ISend(maxvals(lb), &
-                            1, &
-                            FLASH_REAL, &
-                            child(2,j,lb), &  ! PE TO SEND TO
-                            child(1,j,lb), &  ! THIS IS THE TAG
-                            MPI_COMM_WORLD, &
-                            reqs(nsend), &
-                            ierr)
-                      end if
-                   end if
-                end do
-             end if
-          end do
-
-          if (nsend.gt.0) then
-             call MPI_Waitall (nsend, reqs, stats, ierr)
-          end if
-          if (nrecv.gt.0) then
-             call MPI_Waitall (nrecv, reqr, statr, ierr)
-          end if
-
-    !!      maxvals_parent(:) = 0.0  ! <-- uncomment line for previous behavior
-          do i = 1, blkCount
-             lb = gr_blkList(i)
-             if (nodetype(lb) == LEAF) then
-                if (maxvals_parent(lb) .le. dens_cut*gr_derefine_cutoff(l) .and. &
-                    maxvals(lb) .le. dens_cut*gr_derefine_cutoff(l) .and. &
-                    lrefine(lb) .ge. gr_refine_level(l)) then
-                    derefine(lb) = .true.
-                endif
-                if (maxvals(lb) .gt. dens_cut*gr_refine_cutoff(l) .and. &
-                    lrefine(lb) .lt. gr_refine_level(l)) then
-                    derefine(lb) = .false.
-                    refine(lb) = .true.
-                endif
-                if (lrefine(lb) .ge. grv_dynRefineMax) then
-                    refine(lb) = .false.
-                    if (lrefine(lb) .gt. grv_dynRefineMax) then
-                        derefine(lb) = .true.
-                    endif
-                endif
-             endif
-          enddo
-      enddo
-
+  else
+      if (sim_kind .eq. 'polytrope') then
+          call Multitidal_findExtrema(DENS_VAR, 1, max_dens)
+          ! First mark stuff significantly below threshold for derefine. Should make user parameter. (JFG)
+          specs = (/ real(DENS_VAR), 0.01*sim_fluffRefineCutoff*max_dens, -1., 0., 0., 0., 0. /)
+          call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
+          ! Then mark stuff that satisfies threshold for refine
+          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff*max_dens, 1., 0., 0., 0., 0. /)
+          call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), gr_maxRefine)
+      else
+          specs = (/ real(DENS_VAR), 0., 1., 0., 0., 0., 0. /) ! First mark everything for derefine
+          call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
+          specs = (/ real(DENS_VAR), sim_fluffRefineCutoff, 1., 0., 0., 0., 0. /) ! Then mark stuff that satisfies threshold for refine
+          call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), gr_maxRefine)
+      endif
   endif
 
-  ! Always refine maximally right around com to ensure innermost region of mpole solver doesn't change size
-  call gr_markInRadius(grv_mpolevec(1), grv_mpolevec(2), grv_mpolevec(3), &
-                       4.d0*min_cell,grv_dynRefineMax,0)
-  !call gr_markInRadius(grv_exactvec(1), grv_exactvec(2), grv_exactvec(3), &
-  !                     4.d0*min_cell,grv_dynRefineMax,0)
-  call gr_markInRadius(grv_exactvec(1) - grv_obvec(1) + grv_ptvec(1), &
-                       grv_exactvec(2) - grv_obvec(2) + grv_ptvec(2), &
-                       grv_exactvec(3) - grv_obvec(3) + grv_ptvec(3), &
-                       sim_ptMassRefRad*grv_periDist,sim_ptMassRefine,0)
+  if (sim_kind .eq. 'cylinder') then
+      if (sim_cylinderType .eq. 1) then
+          specs = (/ sim_xCenter + stvec(1) - sim_cylinderRadius, &
+                     sim_xCenter + stvec(1) + sim_cylinderRadius, &
+                     sim_yCenter + stvec(2) - 2.d0*mcs, &
+                     sim_yCenter + stvec(2) + 2.d0*mcs, &
+                     sim_zCenter + stvec(3) - sim_cylinderRadius, &
+                     sim_zCenter + stvec(3) + sim_cylinderRadius, 0. /)
+      else
+          flow_dist = sim_periDist*((dr_simTime+sim_tDelay)/&
+                      (2.d0*PI*dsqrt(sim_periDist**3.d0/(newton*sim_ptMass))))**(2.d0/3.d0)
+          specs = (/ sim_xCenter + flow_dist - 2.d0*mcs, &
+                     sim_xCenter + flow_dist + 2.d0*mcs, &
+                     sim_yCenter - sim_cylinderRadius, &
+                     sim_yCenter + sim_cylinderRadius, &
+                     sim_zCenter - sim_cylinderRadius, &
+                     sim_zCenter + sim_cylinderRadius, 0. /)
+      endif
 
+      call Grid_markRefineSpecialized(RECTANGLE, 7, specs(1:7), gr_maxRefine)
+  elseif (sim_kind .eq. 'wind') then
+      call pt_sinkGatherGlobal()
+      do i = 1, localnpf
+          if (idnint(particles_global(TAG_PART_PROP,i)) .ne. sim_fixedPartTag) then
+              pvec(1:3) = particles_global(POSX_PART_PROP:POSZ_PART_PROP,i)
+          endif
+      enddo
+
+      specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, sim_softenRadius, 0., 0., 0. /)
+      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
+      specs = (/ pvec(1), pvec(2), pvec(3), sim_windNCells*mcs, 0., 0., 0. /)
+      call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
+  !elseif (sim_kind .eq. 'polytrope') then
+  !    specs = (/ sim_xCenter, sim_yCenter, sim_zCenter, 1.5*sim_objRadius, 0., 0., 0. /)
+  !    call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
+  endif
+  
   return
 end subroutine Grid_markRefineDerefine
 

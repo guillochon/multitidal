@@ -1,36 +1,33 @@
-subroutine calc_orbit (t, m1, m2, ob1vec, ob2vec)
-    use Simulation_data, ONLY: sim_orbEcc
+subroutine calc_orbit (t, m1, m2, rp, tp, ecc, ob1vec, ob2vec)
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     implicit none
-    double precision, intent(IN) :: t, m1, m2
+    double precision, intent(IN) :: t, m1, m2, rp, ecc, tp
     double precision, dimension(6), intent(INOUT) :: ob1vec, ob2vec
 
-    if (sim_orbEcc .eq. 1.d0) then
-        call parabolic_orbit(t, m1, m2, ob1vec, ob2vec)
+    if (ecc .eq. 1.d0) then
+        call parabolic_orbit(t, m1, m2, rp, tp, ob1vec, ob2vec)
     else
-        call elliptical_orbit(t, m1, m2, ob1vec, ob2vec)
+        call elliptical_orbit(t, m1, m2, ecc, rp, tp, ob1vec, ob2vec)
     endif
     
     return
 end subroutine calc_orbit
 
-subroutine parabolic_orbit (t, m1, m2, ob1vec, ob2vec)
-    use Gravity_data, ONLY: grv_periDist, grv_periTime
+subroutine parabolic_orbit (t, m1, m2, rp, tp, ob1vec, ob2vec)
     implicit none
 
-    double precision, intent(IN)  :: t, m1, m2
+    double precision, intent(IN)  :: t, m1, m2, rp, tp
     double precision :: newx, newy, newz, velx, vely, velz
-    double precision :: gm, u, r, q, tmt, term1, newton
+    double precision :: gm, u, r, tmt, term1, newton
     double precision, dimension(6), intent(INOUT) :: ob1vec, ob2vec
     
     call PhysicalConstants_get("Newton", newton)
     gm = newton * (m1 + m2)
-    q = grv_periDist
-    tmt = t - grv_periTime
-    term1 = (dsqrt(8.*q**3.+9.*gm*tmt**2.)+3.*dsqrt(gm)*tmt)
-    u = (term1**(2./3.)-2.*q) / (dsqrt(2.*q)*term1**(1./3.))
+    tmt = t - tp
+    term1 = (dsqrt(8.*rp**3.+9.*gm*tmt**2.)+3.*dsqrt(gm)*tmt)
+    u = (term1**(2./3.)-2.*rp) / (dsqrt(2.*rp)*term1**(1./3.))
     u = 2*datan(u)
-    r = 2*q/(1+dcos(u))
+    r = 2*rp/(1+dcos(u))
     newx = -r*dsin(u)
     newy = r*dcos(u)
     newz = 0.d0
@@ -50,16 +47,14 @@ subroutine parabolic_orbit (t, m1, m2, ob1vec, ob2vec)
     return
 end
 
-subroutine elliptical_orbit (t, m1, m2, ob1vec, ob2vec)
-    use Gravity_data, ONLY: grv_ptmass, grv_periDist, grv_periTime
-    use Simulation_data, ONLY : sim_orbEcc
+subroutine elliptical_orbit (t, m1, m2, ecc, rp, tp, ob1vec, ob2vec)
     use PhysicalConstants_interface, ONLY: PhysicalConstants_get
     use Logfile_interface, ONLY: Logfile_stampMessage
     implicit none
 
 #include "constants.h"
 
-    double precision, intent(IN) :: t, m1, m2
+    double precision, intent(IN) :: t, m1, m2, ecc, rp, tp
     double precision, dimension(6), intent(INOUT) :: ob1vec, ob2vec
     double precision :: gm, u, r, a, P, eccanom, ceccanom, newton
     double precision :: newx, newy, newz, velx, vely, velz
@@ -67,19 +62,19 @@ subroutine elliptical_orbit (t, m1, m2, ob1vec, ob2vec)
 
     call PhysicalConstants_get("Newton", newton)
     gm = newton*(m1 + m2)
-    a = grv_periDist/(1.d0 - sim_orbEcc)
+    a = rp/(1.d0 - ecc)
     P = dsqrt(4.d0*PI**2.d0/gm*a**3.d0)
-    call keplereq(2.d0*PI/P*(t - grv_periTime), sim_orbEcc, eccanom)
+    call keplereq(2.d0*PI/P*(t - tp), ecc, eccanom)
     ceccanom = dcos(eccanom)
-    u = dacos((ceccanom - sim_orbEcc)/(1.d0 - sim_orbEcc*ceccanom))
-    r = grv_periDist*(1.d0 + sim_orbEcc)/(1.d0+sim_orbEcc*dcos(u))
+    u = dacos((ceccanom - ecc)/(1.d0 - ecc*ceccanom))
+    r = rp*(1.d0 + ecc)/(1.d0+ecc*dcos(u))
     newx = -sign(r*dsin(u), eccanom)
     newy = r*dcos(u)
     newz = 0.d0
-    velx = sim_orbEcc + dcos(u)
+    velx = ecc + dcos(u)
     vely = sign(dsin(u), eccanom)
-    velx = -velx * dsqrt(gm/a)/dsqrt(1.d0-sim_orbEcc**2.d0)
-    vely = -vely * dsqrt(gm/a)/dsqrt(1.d0-sim_orbEcc**2.d0)
+    velx = -velx * dsqrt(gm/a)/dsqrt(1.d0-ecc**2.d0)
+    vely = -vely * dsqrt(gm/a)/dsqrt(1.d0-ecc**2.d0)
     velz = 0.d0
 
     write(logstr, fmt='(A30, 2ES15.8)') 'Bind ener #1, Bind ener #2:', -gm/2.d0/a, -gm/dsqrt(newx**2.d0 + newy**2.d0 + newz**2.d0) + (velx**2.d0 + vely**2.d0 + velz**2.d0)/2.d0

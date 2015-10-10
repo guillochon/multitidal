@@ -59,12 +59,13 @@ subroutine Driver_computeDt(nbegin, nstep, &
 
   use Driver_data, ONLY : dr_dtMin,dr_dtMax, dr_tstepChangeFactor, &
                           dr_redshift, dr_useRedshift,             &
+                          dr_printTStepLoc,                        &
                           dr_dtSTS, dr_useSTS, dr_globalMe, dr_globalComm,&
                           dr_dtAdvect, dr_dtDiffuse, dr_dtHeatExch
   use Grid_interface, ONLY : Grid_getListOfBlocks, &
     Grid_getBlkIndexLimits, Grid_getCellCoords, Grid_getDeltas, &
     Grid_getBlkPtr, Grid_releaseBlkPtr, Grid_getSingleCellCoords
-  use Hydro_interface, ONLY : Hydro_computeDt
+  use Hydro_interface, ONLY : Hydro_computeDt, Hydro_consolidateCFL
   use Stir_interface, ONLY: Stir_computeDt
   use Cosmology_interface, ONLY: Cosmology_computeDt
   use Cool_interface, ONLY : Cool_computeDt
@@ -74,6 +75,10 @@ subroutine Driver_computeDt(nbegin, nstep, &
   use Burn_interface, ONLY : Burn_computeDt
   use RadTrans_interface, ONLY: RadTrans_computeDt
   use Particles_interface, ONLY: Particles_computeDt
+  use Gravity_interface, ONLY: Gravity_computeDt
+
+  use SolidMechanics_interface, ONLY : SolidMechanics_computeDt
+  use IncompNS_interface, ONLY : IncompNS_computeDt
 
   implicit none
 
@@ -93,7 +98,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
   !! This is arbitrarily fixed. Users that add more units that influence the time
   !! should change this.
 
-  integer, parameter :: nUnits = 13
+  integer, parameter :: nUnits = 15
   real, PARAMETER :: MAX_TSTEP = huge(1.0)
 
   
@@ -141,13 +146,16 @@ subroutine Driver_computeDt(nbegin, nstep, &
   integer :: itempLimit = 0
   integer, parameter :: HYDRO=1,BURN=2,GRAV=3,HEAT=4,COOL=5,TEMP=6,&
                         PART=7,DIFF=8,COSMO=9,STIR=10,HEATXCHG=11, &
-                        RADTRANS=12,STS=13
+                        RADTRANS=12,STS=13,INS=14,SOLID=15
   logical :: printToScrn
   real :: extraHydroInfo
   character (len=20) :: cflNumber
+  real :: extraHydroInfoMin
 
   ! Initializing extraHydroInfo to zero:
-  extraHydroInfo = 0
+  extraHydroInfo = 0.
+  extraHydroInfoMin = 1.e10 !temporary large fake CFL for comparison
+
 
   data limiterName(HYDRO) /'dt_hydro'/
   data limiterName(HEAT) /'dt_Heat'/
@@ -158,6 +166,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
   data limiterName(DIFF) /'dt_Diff '/
   data limiterName(COSMO) /'dt_Cosm'/
   data limiterName(STIR) /'dt_Stir'/
+  data limiterName(GRAV) /'dt_Grav'/
   data limiterName(HEATXCHG) /'dt_HeatXchg'/
   data limiterName(RADTRANS) /'dt_RadTrans'/
   data limiterName(STS)  /'dt_STS'/
@@ -172,7 +181,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
 
 
 
-  printTStepLoc=.true.
+  printTStepLoc = dr_printTStepLoc
   
   dtMinLoc(:) = 0
   lminloc(:,:) = 0
@@ -184,6 +193,8 @@ subroutine Driver_computeDt(nbegin, nstep, &
   enddo
 
   !            Loop over all local leaf-node blocks
+
+  call Hydro_consolidateCFL()
   
   call Grid_getListOfBlocks(LEAF,blockList, numLeafBlocks)
   
@@ -250,8 +261,8 @@ subroutine Driver_computeDt(nbegin, nstep, &
 #ifdef DEBUG_DRIVER
      print*,'going to call Hydro timestep'
 #endif
-     extraHydroInfo = 0.
-     call Hydro_computeDt ( blockList(i), &
+     !extraHydroInfo = 0.
+     call Hydro_computeDt (blockList(i), &
                            xCenter, dx, uxgrid, &
                            yCenter, dy, uygrid, &
                            zCenter, dz, uzgrid, &
@@ -259,6 +270,15 @@ subroutine Driver_computeDt(nbegin, nstep, &
                            solnData,      &
                            dtLocal(1,HYDRO), lminloc(:,HYDRO), &
                            extraInfo=extraHydroInfo )
+
+     !! Extra CFL information
+     if (extraHydroInfo .ne. 0.) then
+        if (extraHydroInfo <= extraHydroInfoMin) then
+           extraHydroInfoMin = extraHydroInfo
+        endif
+     else !if extraHydroInfo == 0.
+        extraHydroInfoMin = extraHydroInfo
+     endif
 
      call Stir_computeDt ( blockList(i),  &
                            blkLimits,blkLimitsGC,  &
@@ -275,16 +295,13 @@ subroutine Driver_computeDt(nbegin, nstep, &
                            solnData,               &
                            dtLocal(1,BURN), lminloc(:,BURN) )
      
-     ! Added by JFG.
-     call Gravity_computeDt ( blockList(i),  &
-                              dtLocal(1,GRAV), lminloc(:,GRAV) )
-!!$     call Gravity_computeDt ( blockList(i), dr_globalMe, &
-!!$                           xCenter,xLeft,xRight, dx, uxgrid, &
-!!$                           yCenter,yLeft,yRight, dy, uygrid, &
-!!$                           zCenter,zLeft,zRight, dz, uzgrid, &
-!!$                           blkLimits,blkLimitsGC,  &
-!!$                           solnData,      &
-!!$                           dtLocal(1,GRAV), lminloc(:,GRAV) )
+     call Gravity_computeDt ( blockList(i), &
+                           dx, &
+                           dy, &
+                           dz, &
+                           blkLimits,blkLimitsGC,  &
+                           solnData, &
+                           dtLocal(1,GRAV), lminloc(:,GRAV) )
      
      
      call Heat_computeDt ( blockList(i),  &
@@ -310,7 +327,8 @@ subroutine Driver_computeDt(nbegin, nstep, &
 
      call Particles_computeDt &
           ( blockList(i), dtLocal(1,PART), lminloc(:,PART))
-                           
+
+
      call Diffuse_computeDt ( blockList(i),  &
                            xCenter,xLeft,xRight, dx, uxgrid, &
                            yCenter,yLeft,yRight, dy, uygrid, &
@@ -327,6 +345,9 @@ subroutine Driver_computeDt(nbegin, nstep, &
 !!$                           solnData,      &
 !!$                           dtLocal(1,COSMO), lminloc(:,COSMO) )
       call Cosmology_computeDt(dtLocal(1,COSMO))
+
+
+      
 
       !! Super time step
       if (dr_useSTS) then
@@ -357,6 +378,18 @@ subroutine Driver_computeDt(nbegin, nstep, &
      call Grid_releaseBlkPtr(blockList(i),solnData)
   enddo
 
+!!$  !! Choose the smallest CFL for screen output
+  extraHydroInfo = 0.
+  call MPI_AllReduce (extraHydroInfoMin, extraHydroInfo, 1, & 
+       FLASH_REAL, MPI_MIN, dr_globalComm, error)
+
+
+  ! IncompNS:
+  call IncompNS_computeDt(dtLocal(1,INS),lminloc(:,INS))
+
+
+  ! SolidMechanics:
+  call SolidMechanics_computeDt(dtLocal(1,SOLID))
 
 
   ! DEV: we disabled temperature timestep limiter for now.  
@@ -436,6 +469,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
   ! unstable, it's not our fault.
   dtNew = min( max( dtNew, dr_dtMin ), dr_dtMax )
 
+
   if (printTStepLoc) then
          
      ! convert the dtMinLoc array into a physical position (x,y,z) where the
@@ -482,6 +516,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
   enddo
 
 !!$print*,iout,nUnits;pause
+
 
   printToScrn = .true.
   if (printToScrn) then
@@ -555,6 +590,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
         endif
 
      else ! elseif (extraHydroInfo .ne. 0.) then
+
         if (printTStepLoc) then
            if (nstep == nbegin) then
 
@@ -625,6 +661,7 @@ subroutine Driver_computeDt(nbegin, nstep, &
 
 endif ! end of printToScrn
       
+
 801 format (1X, I7, 1x, ES10.4, 1x, ES10.4, 2x, '(', ES10.3, ', ', &
             ES 10.3, ', ', ES10.3, ')', ' | ', 11(1X, :, ES9.3),1x,ES10.3)
 802 format (1X, I7, 1x, ES10.4, 1x, F8.3, 1x, ES10.4, 2x, '(', ES9.3, ', ', &

@@ -7,8 +7,8 @@ Module Multitidal_interface
   implicit none
 #include "constants.h"
   interface
-     subroutine Multitidal_findExtrema(blockID,ivar,flag,extrema)
-       integer,intent(IN):: blockID,ivar,flag
+     subroutine Multitidal_findExtrema(ivar,flag,extrema)
+       integer,intent(IN):: ivar,flag
        real,intent(INOUT):: extrema
      end subroutine Multitidal_findExtrema
   end interface

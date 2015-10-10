@@ -1,40 +1,74 @@
 !!****if* source/physics/Gravity/GravityMain/Poisson/Gravity_potentialListOfBlocks
 !!
-!!  NAME 
+!! NAME 
 !!
 !!     Gravity_potentialListOfBlocks
 !!
-!!  SYNOPSIS
+!! SYNOPSIS
 !!
-!!  Gravity_potentialListOfBlocks(integer(IN) :: blockCount,
-!!                                integer(IN) :: blockList(blockCount))
+!!  call Gravity_potentialListOfBlocks(integer(IN) :: blockCount,
+!!                                     integer(IN) :: blockList(blockCount),
+!!                            optional,integer(IN) :: potentialIndex)
 !!
-!!  DESCRIPTION 
-!!      This routine computes the gravitational potential for the gravity
-!!      implementations (i.e., various Poisson implementations) which make
-!!      use of it in computing the gravitational acceleration.
+!! DESCRIPTION
+!!
+!!      This routine computes the gravitational potential on all
+!!      blocks specified in the list, for the gravity implementations
+!!      (i.e., various Poisson implementations), which make use of it
+!!      in computing the gravitational acceleration.
 !!
 !!      Supported boundary conditions are isolated (0) and
 !!      periodic (1).  The same boundary conditions are applied
-!!      in all directions.
+!!      in all directions.  For some implementation of Gravity,
+!!      in particular with Barnes-Hut tee solver, additional combinations
+!!      of boundary conditions may be supported.
 !!
 !! ARGUMENTS
 !!
 !!   blockCount   : The number of blocks in the list
 !!   blockList(:) : The list of blocks on which to calculate potential
+!!   potentialIndex : If present, determines which variable in UNK to use
+!!                    for storing the updated potential.  If not present,
+!!                    GPOT_VAR is assumed.
+!!                    Presence or absense of this optional dummy argument
+!!                    also determines whether some side effects are enabled
+!!                    or disabled; see discussion of two modes under NOTES
+!!                    below.
+!!
+!! NOTES
+!!
+!!  Gravity_potentialListOfBlocks can operate in one of two modes:
+!!  * automatic mode  - when called without the optional potentialIndex.
+!!    Such a call will usually be made once per time step, usually
+!!    from the main time advancement loop in Driver_evolveFlash.
+!!    Various side effects are enabled in this mode, see SIDE EFFECT below.
+!!
+!!  * explicit mode  - when called with the optional potentialIndex.
+!!    The potential is stored in the variable explicitly given, and
+!!    side effects like saving the previous potential in GPOL_VAR
+!!    and updating some sink particle state and properties are
+!!    suppressed.
 !!
 !! SIDE EFFECTS
 !!
 !!  Updates certain variables in permanent UNK storage to contain the
 !!  gravitational potential.  Invokes a solver (of the Poisson equation)
-!!  if necessary. On return,
+!!  if necessary. On return, if potentialIndex is not present,
 !!     GPOT_VAR:  contains potential for the current simulation time.
 !!     GPOL_VAR (if defined): contains potential at the previous simulation time.
+!!  On return, if potentialIndex is present, the UNK variable given by
+!!  potentialIndex contains the newly computed potential.
 !!
 !!  May affect other variables related to particle properties if particles
 !!  are included in the simulation.  In particular,
 !!     PDEN_VAR (if defined): may get updated to the current density from
 !!                particles if particles have mass.
+!!
+!!  There are additional side effects if sink particles are used.
+!!  These effects happen by calls to Particles_sinkAccelGasOnSinks and
+!!  Particles_sinkAccelSinksOnGas, which may update sink particle
+!!  properties and additional UNK variables that store
+!!  accelerations. The calls are only made in automatic mode.
 !!
 !!  May modify certain variables used for intermediate results by the solvers
 !!  invoked. The list of variables depends on the Gravity implementation.
@@ -47,12 +81,11 @@
 !!  For the Multipole implementation:
 !!     (none)
 !!
-!!
 !!***
 
 !!REORDER(4): solnVec
 
-subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
+subroutine Gravity_potentialListOfBlocks(blockCount,blockList, potentialIndex)
 
 
   use Gravity_data, ONLY : grav_poisfact, grav_temporal_extrp, grav_boundary, &
@@ -62,14 +95,22 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
        Cosmology_getOldRedshift
   use Driver_interface, ONLY : Driver_abortFlash
   use Timers_interface, ONLY : Timers_start, Timers_stop
-  use Particles_interface, ONLY: Particles_updateGridVar, Particles_sinkAccelSinksOnGas
+  use Particles_interface, ONLY: Particles_updateGridVar, &
+       Particles_sinkAccelSinksOnGas, Particles_sinkAccelGasOnSinks
   use Grid_interface, ONLY : GRID_PDE_BND_PERIODIC, GRID_PDE_BND_NEUMANN, &
        GRID_PDE_BND_ISOLATED, GRID_PDE_BND_DIRICHLET, &
        Grid_getBlkPtr, Grid_releaseBlkPtr, &
+       Grid_notifySolnDataUpdate, &
        Grid_solvePoisson
-  ! Added by JFG
-  use Driver_data, ONLY : dr_simTime, dr_initialSimTime
-  ! End JFG
+
+  !JFG
+  use pt_sinkInterface, only: pt_sinkGatherGlobal
+  use gr_mpoleData, ONLY: gr_mpoleXcenterOfMass, gr_mpoleYcenterOfMass, gr_mpoleZcenterOfMass
+  use Simulation_data, ONLY: sim_fixedPartTag, sim_moveFixedToCOM, sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ, &
+                             sim_tRelax
+  use Particles_sinkData, ONLY: particles_local, particles_global, localnpf
+  use Driver_data, ONLY: dr_simTime
+  !End JFG
   implicit none
 
 #include "Flash.h"
@@ -78,6 +119,7 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
 
   integer,intent(IN) :: blockCount
   integer,dimension(blockCount),intent(IN) :: blockList
+  integer, intent(IN), optional :: potentialIndex
 
 
   real, POINTER, DIMENSION(:,:,:,:) :: solnVec
@@ -90,8 +132,21 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
   integer       :: lb
   integer       :: bcTypes(6)
   real          :: bcValues(2,6) = 0.
-  logical       :: updateGrav
   integer       :: density
+  integer       :: newPotVar
+  logical       :: saveLastPot
+
+  !JFG
+  integer       :: fixedi, i
+  real          :: dxs(3)
+  !End JFG
+
+  saveLastPot = (.NOT. present(potentialIndex))
+  if (present(potentialIndex)) then
+     newPotVar = potentialIndex
+  else
+     newPotVar = GPOT_VAR
+  end if
 
   call Cosmology_getRedshift(redshift)
   call Cosmology_getOldRedshift(oldRedshift)
@@ -113,9 +168,6 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
 !=========================================================================
 
   if(.not.useGravity) return
-  
-  !call Particles_updateGravity(updateGrav)  change to this
-  !call ParticleUpdateGravity(updateGrav)
   
   if(.not.updateGravity) return
 
@@ -146,18 +198,27 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
      
      do lb = 1, blockCount
         call Grid_getBlkPtr(blocklist(lb), solnVec)
-! Added by JFG
-#ifdef GPO2_VAR
-        solnVec(GPO2_VAR,:,:,:) = solnVec(GPOL_VAR,:,:,:)
-#endif
-! End JFG
 #ifdef GPOL_VAR
-        solnVec(GPOL_VAR,:,:,:) = solnVec(GPOT_VAR,:,:,:)
+        if (saveLastPot) solnVec(GPOL_VAR,:,:,:) = solnVec(GPOT_VAR,:,:,:)
 #endif
-        solnVec(GPOT_VAR,:,:,:) = solnVec(GPOT_VAR,:,:,:) * rescale
+        solnVec(newPotVar,:,:,:) = solnVec(newPotVar,:,:,:) * rescale
+
+        ! CTSS - We should also be storing the old sink particle accelerations:
+#if defined(SGXO_VAR) && defined(SGYO_VAR) && defined(SGZO_VAR)
+        if (saveLastPot) then   !... but only if we are saving the old potential - kW
+           solnVec(SGXO_VAR,:,:,:) = solnVec(SGAX_VAR,:,:,:)
+           solnVec(SGYO_VAR,:,:,:) = solnVec(SGAY_VAR,:,:,:)
+           solnVec(SGZO_VAR,:,:,:) = solnVec(SGAZ_VAR,:,:,:)
+        end if
+#endif
+
         call Grid_releaseBlkPtr(blocklist(lb), solnVec)
      enddo
      
+#ifdef GPOL_VAR
+     if (saveLastPot) call Grid_notifySolnDataUpdate( (/GPOL_VAR/) )
+#endif
+
   endif
 
 ! Poisson is solved with the total density of PDEN_VAR + DENS_VAR 
@@ -166,6 +227,7 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
 #ifdef PDEN_VAR
 #ifdef MASS_PART_PROP
   call Particles_updateGridVar(MASS_PART_PROP, PDEN_VAR)
+  if (.NOT. grav_unjunkPden) call Grid_notifySolnDataUpdate( (/PDEN_VAR/) )
   density = PDEN_VAR
 #ifdef DENS_VAR           
   do lb = 1, blockCount
@@ -179,24 +241,42 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
 #endif
 
   invscale=grav_poisfact*invscale
-  call Grid_solvePoisson (GPOT_VAR, density, bcTypes, bcValues, &
+  call Grid_solvePoisson (newPotVar, density, bcTypes, bcValues, &
        invscale)
-! Added by JFG
-#ifdef GPOL_VAR
-  if (dr_simTime .eq. dr_initialSimTime) then
-      do lb = 1, blockCount
-          call Grid_getBlkPtr(blocklist(lb), solnVec)
-#ifdef GPO2_VAR
-          solnVec(GPO2_VAR,:,:,:) = solnVec(GPOT_VAR,:,:,:)
-          solnVec(ODE2_VAR,:,:,:) = solnVec(DENS_VAR,:,:,:)
-#endif
-          solnVec(GPOL_VAR,:,:,:) = solnVec(GPOT_VAR,:,:,:)
-          solnVec(ODEN_VAR,:,:,:) = solnVec(DENS_VAR,:,:,:)
-          call Grid_releaseBlkPtr(blocklist(lb), solnVec)
+  call Grid_notifySolnDataUpdate( (/newPotVar/) )
+
+  !JFG
+  if (sim_fixedPartTag .ne. 0 .and. sim_moveFixedToCOM) then
+      call pt_sinkGatherGlobal()
+      do i = 1, localnpf
+          if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) then
+              fixedi = i
+              exit
+          else
+              cycle
+          endif
+          call Driver_abortFlash('Error: Unable to find fixed particle tag [2]')
       enddo
+      if (dr_simTime .lt. sim_tRelax) then
+          dxs = (/ gr_mpoleXcenterOfMass, gr_mpoleYcenterOfMass, gr_mpoleZcenterOfMass /) - &
+              particles_global(POSX_PART_PROP:POSZ_PART_PROP,fixedi)
+          do i = 1, localnpf
+              particles_local(POSX_PART_PROP:POSZ_PART_PROP,i) = &
+                  particles_local(POSX_PART_PROP:POSZ_PART_PROP,i) + dxs
+          enddo
+      else
+          particles_local(POSX_PART_PROP:POSZ_PART_PROP,fixedi) = &
+              (/ gr_mpoleXcenterOfMass, gr_mpoleYcenterOfMass, gr_mpoleZcenterOfMass /)
+          do i = 1, localnpf
+              if (idnint(particles_global(TAG_PART_PROP,i)) .eq. sim_fixedPartTag) cycle
+              particles_local(VELX_PART_PROP:VELZ_PART_PROP,i) = &
+                  particles_local(VELX_PART_PROP:VELZ_PART_PROP,i) - &
+                  (/ sim_mpoleVX, sim_mpoleVY, sim_mpoleVZ /)
+          enddo
+      endif
+      call pt_sinkGatherGlobal()
   endif
-#endif
-! End JFG
+  !End JFG
 
 ! Un-junk PDEN if it exists and if requested.
 
@@ -209,11 +289,23 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList)
         solnVec(density,:,:,:) = solnVec(density,:,:,:) - solnVec(DENS_VAR,:,:,:)
         call Grid_releaseBlkPtr(blocklist(lb), solnVec)
      enddo
+     if (density .NE. PDEN_VAR) call Grid_notifySolnDataUpdate( (/density/) )
 #endif
   end if
 #endif
 
-  call Particles_sinkAccelSinksOnGas(blockCount,blockList)
+  if (.NOT. present(potentialIndex)) then
+! Compute acceleration of the sink particles caused by gas
+! We must call Particles_sinkAccelGasOnSinks() here first, because it
+! updates particles_global positions and masses by calling pt_sinkGatherGlobal(),
+! required in Particles_sinkAccelSinksOnGas(). But we avoid another call to
+! pt_sinkGatherGlobal() by calling Particles_sinkAccelGasOnSinks() here first.
+     call Particles_sinkAccelGasOnSinks()
+! Compute acceleration of the gas caused by sink particles
+     call Particles_sinkAccelSinksOnGas(blockCount,blockList)
+! This is both done here to make the computation symmetric (CTSS)
+  end if
+
 
 #ifdef USEBARS
   call MPI_Barrier (grv_meshComm, ierr)

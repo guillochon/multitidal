@@ -132,6 +132,10 @@ subroutine Grid_init()
   use Grid_interface, only: Grid_getVarNonRep
   use paramesh_comm_data, ONLY : amr_mpi_meshComm
 !  use gr_sbInterface, ONLY: gr_sbInit
+
+  ! JFG
+  use Simulation_data, ONLY : sim_maxRefine
+  ! End JFG
   implicit none
 
 #include "Flash.h"
@@ -143,7 +147,6 @@ subroutine Grid_init()
   character(len=MAX_STRING_LENGTH),save :: refVarname,refVarString,paramString
   character(len=MAX_STRING_LENGTH),save :: refCutoffName,refCutOffString
   character(len=MAX_STRING_LENGTH),save :: derefCutoffName,derefCutOffString
-  character(len=MAX_STRING_LENGTH),save :: refLevelName,refLevelString
   character(len=MAX_STRING_LENGTH),save :: refFiltername,refFilterString
   character(len=MAX_STRING_LENGTH) :: xl_bcString,xr_bcString
   character(len=MAX_STRING_LENGTH) :: yl_bcString,yr_bcString
@@ -188,6 +191,14 @@ subroutine Grid_init()
   endif
 #endif
 
+  !Get the physical domain limits. Angles in degrees, will be converted in gr_initGeometry!
+  call RuntimeParameters_get('xmin', gr_imin)
+  call RuntimeParameters_get('xmax', gr_imax)
+  call RuntimeParameters_get('ymin', gr_jmin)
+  call RuntimeParameters_get('ymax', gr_jmax)
+  call RuntimeParameters_get('zmin', gr_kmin)
+  call RuntimeParameters_get('zmax', gr_kmax)
+
   call Paramesh_init()
 !!  gr_meshComm = FLASH_COMM
 ! The following renaming was done: "conserved_var" -> "convertToConsvdForMeshCalls". - KW
@@ -225,6 +236,8 @@ subroutine Grid_init()
 
 #ifndef FLASH_GRID_PARAMESH2
   call RuntimeParameters_get("enableMaskedGCFill", gr_enableMaskedGCFill)
+  call RuntimeParameters_get("gr_sanitizeDataMode",  gr_sanitizeDataMode)
+  call RuntimeParameters_get("gr_sanitizeVerbosity", gr_sanitizeVerbosity)
 #endif
 
   call RuntimeParameters_get("nrefs", gr_nrefs)
@@ -277,15 +290,8 @@ subroutine Grid_init()
 #endif
 
 !------------------------------------------------------------------------------
-! mesh geometry       (gr_geometry was already set above)
+! mesh geometry       (gr_geometry and gr_{i,j,k}{min,max} already set above)
 !------------------------------------------------------------------------------
-  !get the physical domain limits
-  call RuntimeParameters_get('xmin', gr_imin)
-  call RuntimeParameters_get('xmax', gr_imax)
-  call RuntimeParameters_get('ymin', gr_jmin)
-  call RuntimeParameters_get('ymax', gr_jmax)
-  call RuntimeParameters_get('zmin', gr_kmin)
-  call RuntimeParameters_get('zmax', gr_kmax)
 
 ! Determine the geometries of the individual dimensions, and scale
 ! angle value parameters that are expressed in degrees to radians.
@@ -331,7 +337,6 @@ subroutine Grid_init()
   refVarName='refine_var_'
   refCutoffName='refine_cutoff_'
   derefCutoffName='derefine_cutoff_'
-  refLevelName='refine_level_'
   refFilterName='refine_filter_'
 
   do i = 1,gr_numRefineVarsMax
@@ -348,11 +353,9 @@ subroutine Grid_init()
            gr_refine_var(gr_numRefineVars)=refVar
            call concatStringWithInt(refCutoffName,gr_numRefineVars,refCutoffString)
            call concatStringWithInt(derefCutoffName,gr_numRefineVars,derefCutOffString)
-           call concatStringWithInt(refLevelName,gr_numRefineVars,refLevelString)
            call concatStringWithInt(refFilterName,gr_numRefineVars,refFilterString)
            call RuntimeParameters_get( refCutoffString, gr_refine_cutoff(gr_numRefineVars)  )
            call RuntimeParameters_get( derefCutoffString, gr_derefine_cutoff(gr_numRefineVars) )
-           call RuntimeParameters_get( refLevelString,  gr_refine_level(gr_numRefineVars) )
            call RuntimeParameters_get( refFilterString,  gr_refine_filter(gr_numRefineVars) )
            exit ! told you it wasnt a real loop
         end do
@@ -368,7 +371,16 @@ subroutine Grid_init()
   gr_enforceMaxRefinement = .FALSE.
 
   call RuntimeParameters_get("lrefine_del", gr_lrefineDel)
+
   gr_maxRefine=lrefine_max
+
+  ! JFG
+  call RuntimeParameters_get("sim_maxRefine", sim_maxRefine)
+  if (sim_maxRefine .ne. 0) then
+      gr_maxRefine = sim_maxRefine
+  endif
+  ! End JFG
+
   allocate(gr_delta(MDIM,lrefine_max))
 
   call RuntimeParameters_get("gr_lrefineMaxRedDoByLogR", gr_lrefineMaxRedDoByLogR)
@@ -397,10 +409,12 @@ subroutine Grid_init()
         call concatStringWithInt(refVarName,i,refVarString)
         call RuntimeParameters_get(refVarString, gr_lrefmaxTimeValues(i))
 
-        if(gr_lrefmaxTimes(i) > 0.0 .and. i > 1 .and. &
-             gr_lrefmaxTimes(i) < gr_lrefmaxTimes(i-1)) then
-           if(gr_meshMe == MASTER_PE) then
-              call Driver_abortFlash('[Grid_init] Custom lrefine_max times must be in increasing order')
+        if(i > 1) then 
+           if(gr_lrefmaxTimes(i) > 0.0 .and. &
+                gr_lrefmaxTimes(i) < gr_lrefmaxTimes(i-1)) then
+              if(gr_meshMe == MASTER_PE) then
+                 call Driver_abortFlash('[Grid_init] Custom lrefine_max times must be in increasing order')
+              end if
            end if
         end if
 
@@ -510,7 +524,9 @@ subroutine Grid_init()
   !Initialize grid arrays used by IO
   allocate(gr_nToLeft(0:gr_meshNumProcs-1))
   allocate(gr_gid(nfaces+nchild+1, MAXBLOCKS))
-
+#ifdef FLASH_GRID_PARAMESH3OR4
+  allocate(gr_gsurr_blks(2,1+(K1D*2),1+(K2D*2),1+(K3D*2),MAXBLOCKS))
+#endif
 
   !Only call the particle initialization routines when
   !we are using particles.
@@ -521,4 +537,8 @@ subroutine Grid_init()
 
 !  call gr_sbInit()
 
+    ! Reduce guard cell fills
+  call RuntimeParameters_get ("reduceGcellFills", gr_reduceGcellFills)
+
+  gr_region=0.0
 end subroutine Grid_init

@@ -173,6 +173,7 @@ sink_softening_radius = 4.e12
 sink_advanceserialcomputation = .false.
 sink_subdt_factor = 1.e-3
 sink_integrator = "leapfrog_cosmo"
+sink_offDomainSupport = .true.
 
 az_initial = 1.0e-1
 r_fieldloop = 6.0e10

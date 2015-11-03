@@ -12,8 +12,8 @@
 !!
 !!  Initialize the Helmholtz EOS.  The table data is read in on processor 0
 !!  and broadcast to all other processors at the start of FLASH execution.
-!!  This routine first checks for a binary copy of the table (helm_table.bdat), 
-!!  and then for the ASCII version (helm_table.dat).  If the binary table 
+!!  This routine first checks for a binary copy of the table (helm_extended_table.bdat), 
+!!  and then for the ASCII version (helm_extended_table.dat).  If the binary table 
 !!  file was not found, it is created by this routine for subsequent use.
 !!
 !! ARGUMENTS
@@ -95,19 +95,19 @@ subroutine eos_initHelmholtz()
   call RuntimeParameters_get("eos_forceConstantInput",eos_forceConstantInput)
 
   if (eos_meshMe==MASTER_PE) then
-     open(unit=unitEos,file='helm_table.bdat',status='old',iostat=istat)
+     open(unit=unitEos,file='helm_extended_table.bdat',status='old',iostat=istat)
      close(unit=unitEos)
      print*,'about to open file'
      istat=1
      if (istat.ne.0) then
-        write(*,*) '[Eos_init] Cannot open helm_table.bdat!'
-        write(*,*) '[Eos_init] Trying old helm_table.dat!'
+        write(*,*) '[Eos_init] Cannot open helm_extended_table.bdat!'
+        write(*,*) '[Eos_init] Trying old helm_extended_table.dat!'
         
-        open(unit=unitEos,file='helm_table.dat',status='old',iostat=istat)
+        open(unit=unitEos,file='helm_extended_table.dat',status='old',iostat=istat)
 
         if (istat .ne. 0) then
-           write(*,*) '[Eos_init] ERROR: opening helm_table.dat!'
-           call Driver_abortFlash("[Eos_init] ERROR: opening helm_table.dat")
+           write(*,*) '[Eos_init] ERROR: opening helm_extended_table.dat!'
+           call Driver_abortFlash("[Eos_init] ERROR: opening helm_extended_table.dat")
         endif
 
         !..read the helmholtz free energy table

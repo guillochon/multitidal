@@ -1,7 +1,7 @@
 #       Configuration file for MultiTidalPoly
 #       MultiTidalPoly is originally written by James Guillochon
 
-DATAFILES *.dat
+DATAFILES helm_extended_table.dat
 DATAFILES *.dek
 DATAFILES *.h
 

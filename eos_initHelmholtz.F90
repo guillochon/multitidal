@@ -47,7 +47,7 @@
 subroutine eos_initHelmholtz()
 
   use Eos_data, ONLY : eos_type, eos_meshMe, &
-       eos_eintSwitch
+       eos_eintSwitch, eos_smallt
   use eos_helmData 
   use Driver_interface, ONLY : Driver_abortFlash
   use RuntimeParameters_interface, ONLY : RuntimeParameters_get
@@ -88,7 +88,7 @@ subroutine eos_initHelmholtz()
 #endif
 
 #ifdef USE_EOS_YE
-  write(*,*)"USE_EOS_YE should not be defined with Helmholtz EOS.  Use Helmholtz/Ye instead!"
+  write(*,*)"USE_EOS_YE should not be defined with Helmholtz/SpeciesBased EOS.  Use Helmholtz/Ye instead!"
   call Driver_abortFlash("[Eos_init] Use Helmholtz/Ye with USE_EOS_YE mode")
 #endif
 

@@ -77,7 +77,8 @@ subroutine elliptical_orbit (t, m1, m2, ecc, rp, tp, ob1vec, ob2vec)
     vely = -vely * dsqrt(gm/a)/dsqrt(1.d0-ecc**2.d0)
     velz = 0.d0
 
-    write(logstr, fmt='(A30, 2ES15.8)') 'Bind ener #1, Bind ener #2:', -gm/2.d0/a, -gm/dsqrt(newx**2.d0 + newy**2.d0 + newz**2.d0) + (velx**2.d0 + vely**2.d0 + velz**2.d0)/2.d0
+    write(logstr, fmt='(A30, 2ES15.8)') 'Bind ener #1, Bind ener #2:', -gm/2.d0/a, &
+        -gm/dsqrt(newx**2.d0 + newy**2.d0 + newz**2.d0) + (velx**2.d0 + vely**2.d0 + velz**2.d0)/2.d0
     call Logfile_stampMessage(logstr)
 
     ob1vec(1) = -newx * m2 / (m1 + m2)

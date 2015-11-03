@@ -22,8 +22,7 @@
 !!
 !! NOTES
 !!
-!!   written by Robi Banerjee, 2007-2008
-!!   modified by Christoph Federrath, 2008-2012
+!!   written by Christoph Federrath, 2008-2015
 !!   ported to FLASH3.3/4 by Chalence Safranek-Shrader, 2010-2012
 !!   modified by Nathan Goldbaum, 2012
 !!   refactored for FLASH4 by John Bachan, 2012
@@ -43,6 +42,7 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
   use Driver_data, ONLY : dr_globalMe
   use Cosmology_interface, ONLY :  Cosmology_getParams, Cosmology_getRedshift, Cosmology_getOldRedshift
   use Driver_interface, ONLY : Driver_getSimTime, Driver_abortFlash
+  use Timers_interface, ONLY : Timers_start, Timers_stop
   ! Added by JFG
   use pt_sinkInterface, only: pt_sinkGatherGlobal
   use Simulation_data, only: sim_fixedPartTag, sim_tRelax, sim_comAccel, &
@@ -124,6 +124,8 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
 
   if (localnpf .eq. 0) return
 
+  call Timers_start("sinkAdvanceParticles")
+
   ! Decide whether to update global or local list
   if (sink_AdvanceSerialComputation) then
      ! this requires that all CPUs update all particles
@@ -204,6 +206,12 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
 
         ! First step of leapfrog:
         wterm = 0.5 * dt
+
+!!      vH(t+dt/2) = v(t)       + dt * 1/2* a(x(t),t)
+!!      x(t+dt)    = x(t)       + dt *     vH(t+dt/2)
+!!      v(t+dt)    = vH(t+dt/h) + dt * 1/2* a(x(t+dt),t)
+!! i.e.,
+!!      v(t+dt)    = v(t)       + dt * 1/2* [ a(x(t),t) + a(x(t+dt),t) ]
 
         if (sink_AdvanceSerialComputation) then
 
@@ -426,6 +434,7 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
             particles_local(VELZ_PART_PROP, i) = particles_local(VELZ_PART_PROP, i) - sim_mpoleVZ
          end do
      endif
+     ! End JFG
 
      do while (.not. end_subcycling)
 
@@ -497,7 +506,6 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
         ! Advances particle positions fully over the sink particle
         ! subcycle timestep
         ! Velocities are defined in center of timestep
-
 
         if (sink_AdvanceSerialComputation) then
 
@@ -623,6 +631,8 @@ subroutine Particles_sinkAdvanceParticles(dr_dt)
   endif
 
   if (dr_globalMe .eq. MASTER_PE) print*, "Particles_sinkAdvanceParticles: #subcycles:", nsubcycles
+
+  call Timers_stop("sinkAdvanceParticles")
 
   return
 

@@ -65,9 +65,8 @@
 !!                particles if particles have mass.
 !!
 !!  There are additional side effects if sink particles are used.
-!!  These effects happen by calls to Particles_sinkAccelGasOnSinks and
-!!  Particles_sinkAccelSinksOnGas, which may update sink particle
-!!  properties and additional UNK variables that store
+!!  These effects happen by the call to Particles_sinkAccelGasOnSinksAndSinksOnGas,
+!!  which may update sink particle properties and additional UNK variables that store
 !!  accelerations. The calls are only made in automatic mode.
 !!
 !!  May modify certain variables used for intermediate results by the solvers
@@ -96,7 +95,7 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList, potentialIndex)
   use Driver_interface, ONLY : Driver_abortFlash
   use Timers_interface, ONLY : Timers_start, Timers_stop
   use Particles_interface, ONLY: Particles_updateGridVar, &
-       Particles_sinkAccelSinksOnGas, Particles_sinkAccelGasOnSinks
+       Particles_sinkAccelGasOnSinksAndSinksOnGas
   use Grid_interface, ONLY : GRID_PDE_BND_PERIODIC, GRID_PDE_BND_NEUMANN, &
        GRID_PDE_BND_ISOLATED, GRID_PDE_BND_DIRICHLET, &
        Grid_getBlkPtr, Grid_releaseBlkPtr, &
@@ -212,6 +211,14 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList, potentialIndex)
         end if
 #endif
 
+        ! for direct acceleration calculation by tree solver, added by R. Wunsch
+#if defined(GAOX_VAR) && defined(GAOY_VAR) && defined(GAOZ_VAR)
+        if (saveLastPot) then 
+           solnVec(GAOX_VAR,:,:,:) = solnVec(GACX_VAR,:,:,:)
+           solnVec(GAOY_VAR,:,:,:) = solnVec(GACY_VAR,:,:,:)
+           solnVec(GAOZ_VAR,:,:,:) = solnVec(GACZ_VAR,:,:,:)
+        end if
+#endif
         call Grid_releaseBlkPtr(blocklist(lb), solnVec)
      enddo
      
@@ -295,15 +302,8 @@ subroutine Gravity_potentialListOfBlocks(blockCount,blockList, potentialIndex)
 #endif
 
   if (.NOT. present(potentialIndex)) then
-! Compute acceleration of the sink particles caused by gas
-! We must call Particles_sinkAccelGasOnSinks() here first, because it
-! updates particles_global positions and masses by calling pt_sinkGatherGlobal(),
-! required in Particles_sinkAccelSinksOnGas(). But we avoid another call to
-! pt_sinkGatherGlobal() by calling Particles_sinkAccelGasOnSinks() here first.
-     call Particles_sinkAccelGasOnSinks()
-! Compute acceleration of the gas caused by sink particles
-     call Particles_sinkAccelSinksOnGas(blockCount,blockList)
-! This is both done here to make the computation symmetric (CTSS)
+    ! Compute acceleration of the sink particles caused by gas and vice versa
+    call Particles_sinkAccelGasOnSinksAndSinksOnGas()
   end if
 
 

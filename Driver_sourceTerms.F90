@@ -170,8 +170,10 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                             ! Need to work out math.
                             if (sim_rotFac .gt. 0.d0) then
                                 x = xCoord(i) - gr_mpoleXcenterOfMass
-                                y = (yCoord(j) - gr_mpoleYcenterOfMass)*dcos(rotang) - (zCoord(k) - gr_mpoleZcenterOfMass)*dsin(rotang)
-                                !z = (yCoord(j) - gr_mpoleYcenterOfMass)*dsin(rotang) + (zCoord(k) - gr_mpoleZcenterOfMass)*dcos(rotang)
+                                y = (yCoord(j) - gr_mpoleYcenterOfMass)*dcos(rotang) - &
+                                    (zCoord(k) - gr_mpoleZcenterOfMass)*dsin(rotang)
+                                !z = (yCoord(j) - gr_mpoleYcenterOfMass)*dsin(rotang) + &
+                                !   (zCoord(k) - gr_mpoleZcenterOfMass)*dcos(rotang)
                                 vx = solnData(VELX_VAR,i,j,k)
                                 vy = solnData(VELY_VAR,i,j,k)*dcos(rotang) - solnData(VELZ_VAR,i,j,k)*dsin(rotang)
                                 vz = solnData(VELY_VAR,i,j,k)*dsin(rotang) + solnData(VELZ_VAR,i,j,k)*dcos(rotang)
@@ -285,7 +287,8 @@ subroutine Driver_sourceTerms(blockCount, blockList, dt, pass)
                         flow_dist = dsqrt(stvec(1)**2 + stvec(2)**2 + stvec(3)**2)
                         flow_vel = dsqrt(stvec(4)**2 + stvec(5)**2 + stvec(6)**2)
                     else
-                        flow_dist = sim_periDist*((dr_simTime+sim_tDelay)/(2.d0*PI*dsqrt(sim_periDist**3.d0/(newton*sim_ptMass))))**(2.d0/3.d0)
+                        flow_dist = sim_periDist*((dr_simTime+sim_tDelay)/&
+                            (2.d0*PI*dsqrt(sim_periDist**3.d0/(newton*sim_ptMass))))**(2.d0/3.d0)
                         flow_ecc = 1.d0 - 2.d0*sim_periDist/flow_dist
                         flow_vel = dsqrt((1.d0-flow_ecc)/(1.d0+flow_ecc)*newton*sim_ptMass/(0.5d0*flow_dist))
                     endif

@@ -190,8 +190,8 @@ subroutine Simulation_init()
 
     sim_comAccel = 0.d0
     sim_mpoleVX = 0.d0
-    sim_mpolyVY = 0.d0
-    sim_mpolyVZ = 0.d0
+    sim_mpoleVY = 0.d0
+    sim_mpoleVZ = 0.d0
 
     if (gr_globalMe .eq. MASTER_PE) then
         call read_table_dims(sim_profFile, sim_tableRows, sim_tableCols)
@@ -282,9 +282,11 @@ subroutine Simulation_init()
 
         call RuntimeParameters_get("cfl", cfl)
 
-        write(logstr, fmt='(A30, ES15.8)') 'Ambient CFL timestep:', cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGamma*sim_pAmbient/sim_rhoAmbient)
+        write(logstr, fmt='(A30, ES15.8)') 'Ambient CFL timestep:', &
+            cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGamma*sim_pAmbient/sim_rhoAmbient)
         call Logfile_stampMessage(logstr)
-        write(logstr, fmt='(A30, ES15.8)') 'Fluff CFL timestep:', cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGamma*sim_smallP/sim_smallRho)
+        write(logstr, fmt='(A30, ES15.8)') 'Fluff CFL timestep:', &
+            cfl*(sim_xMax - sim_xMin)/NXB/2.d0**(lrefine_max-1)/dsqrt(sim_fluidGamma*sim_smallP/sim_smallRho)
         call Logfile_stampMessage(logstr)
     endif
 

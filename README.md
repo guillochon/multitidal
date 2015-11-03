@@ -6,6 +6,10 @@ A recommended setup for the default parameters are (for pure hydro):
 
 	./setup MultiTidal -noclobber -maxblocks=1000 -auto -3d -objdir=object_multitidal +newMpole +uhd
 
+One file must be copied over to the run directory for the default setup: `SpeciesList.txt`, which can be found in the object directory after running the setup command.
+
 For MHD, substitute `+uhd` with `+usm`.
 
 Use `+parallelIO` if it is supported for faster read/write of HDF5 files.
+
+To load a stellar profile, add `loadProfile=True` to the setup line. This will switch to the Helmholtz equation of state, which is customized by MultiTidal to use an extended Helmholtz table. If you use this flag, you must copy the extended Helmholtz table `helm_extended_table.dat` to your run directory from the object directory.

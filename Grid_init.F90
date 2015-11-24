@@ -142,6 +142,8 @@ subroutine Grid_init()
 #include "constants.h"
   include "Flash_mpi.h"
 
+  logical :: useProtonImaging
+
   integer :: i, j, k, localNumBlocks, ii, numLeafBlks
 
   character(len=MAX_STRING_LENGTH),save :: refVarname,refVarString,paramString
@@ -371,7 +373,6 @@ subroutine Grid_init()
   gr_enforceMaxRefinement = .FALSE.
 
   call RuntimeParameters_get("lrefine_del", gr_lrefineDel)
-
   gr_maxRefine=lrefine_max
 
   ! JFG
@@ -443,6 +444,13 @@ subroutine Grid_init()
   gr_useParticles = gr_useEnergyDeposition
 #else
   gr_useEnergyDeposition = .false.
+#endif
+
+#ifdef FLASH_GRID_PARTICLES
+  call RuntimeParameters_get('useProtonImaging',useProtonImaging)
+  if (useProtonImaging) then
+      gr_useParticles=.true.
+  end if
 #endif
 
   gr_allPeriodic = .true.
@@ -541,4 +549,95 @@ subroutine Grid_init()
   call RuntimeParameters_get ("reduceGcellFills", gr_reduceGcellFills)
 
   gr_region=0.0
+ 
+#ifndef BSS_GRID_ARRAYS
+# if NSCRATCH_GRID_VARS > 0
+  allocate(scratch(SCRATCH_GRID_VARS_BEGIN:SCRATCH_GRID_VARS_END,&
+       gr_iLoGc:gr_iHiGc+1, gr_jLoGc:gr_jHiGc+1,&
+       gr_kLoGc:gr_kHiGc+1,MAXBLOCKS))
+# else
+  allocate(scratch(1,1,1,1,1))
+# endif
+
+# if NSCRATCH_CENTER_VARS > 0
+  allocate(scratch_ctr(SCRATCH_CENTER_VARS_BEGIN:SCRATCH_CENTER_VARS_END,&
+       gr_iLoGc:gr_iHiGc, gr_jLoGc:gr_jHiGc,&
+       gr_kLoGc:gr_kHiGc,MAXBLOCKS))
+# else
+  allocate(scratch_ctr(1,1,1,1,1))
+# endif
+
+# if(NSCRATCH_FACEX_VARS>0)  
+  allocate(scratch_facevarx( SCRATCH_FACEX_VARS_BEGIN:SCRATCH_FACEX_VARS_END,&
+       gr_iLoGc:gr_iHiGc+1, gr_jLoGc:gr_jHiGc,&
+       gr_kLoGc:gr_kHiGc,MAXBLOCKS))
+# else
+  allocate(scratch_facevarx(1,1,1,1,1))
+# endif
+
+# if(NSCRATCH_FACEY_VARS>0)  
+  allocate(scratch_facevary( SCRATCH_FACEY_VARS_BEGIN:SCRATCH_FACEY_VARS_END,&
+       gr_iLoGc:gr_iHiGc, gr_jLoGc:gr_jHiGc+K2D,&
+       gr_kLoGc:gr_kHiGc,MAXBLOCKS))
+# else
+  allocate(scratch_facevary(1,1,1,1,1))
+# endif  
+
+# if(NSCRATCH_FACEZ_VARS>0)
+  allocate(scratch_facevarz( SCRATCH_FACEZ_VARS_BEGIN:SCRATCH_FACEZ_VARS_END,&
+       gr_iLoGc:gr_iHiGc, gr_jLoGc:gr_jHiGc,&
+       gr_kLoGc:gr_kHiGc+K3D,MAXBLOCKS) )
+# else
+  allocate(scratch_facevarz(1,1,1,1,1))
+# endif
+
+  allocate(gr_xflx(NFLUXES,2,NYB,NZB,MAXBLOCKS))
+  allocate(gr_yflx(NFLUXES,NXB,2,NZB,MAXBLOCKS))
+  allocate(gr_zflx(NFLUXES,NXB,NYB,2,MAXBLOCKS))
+  
+# ifdef FLASH_HYDRO_UNSPLIT
+#  if NDIM >= 2
+  allocate(gr_xflx_yface(NFLUXES,2:NXB, 2   ,NZB  ,MAXBLOCKS))
+  allocate(gr_yflx_xface(NFLUXES,2    ,2:NYB,NZB  ,MAXBLOCKS))
+#   if NDIM == 3
+  allocate(gr_xflx_zface(NFLUXES,2:NXB,NYB  , 2   ,MAXBLOCKS))
+  allocate(gr_yflx_zface(NFLUXES,NXB,  2:NYB, 2   ,MAXBLOCKS))
+  allocate(gr_zflx_xface(NFLUXES, 2 ,NYB    ,2:NZB,MAXBLOCKS))
+  allocate(gr_zflx_yface(NFLUXES,NXB, 2     ,2:NZB,MAXBLOCKS))
+#   endif
+#  endif
+# endif
+
+#endif
+
+  if(gr_meshMe == MASTER_PE) call printRefinementInfo()
+
+contains
+
+  subroutine printRefinementInfo()
+    implicit none
+    integer :: l,n
+    real    :: del(MDIM)
+    character(len=20) :: fmtStr
+    character(len=2)  :: colHdr(MDIM) = (/'dx', 'dy', 'dz'/)
+
+    write(*,*) 'Grid_init: resolution based on runtime params:'
+    write(*,'(A9,3(A12:4x))')  'lrefine', (colHdr(n),n=1,NDIM)
+    do l = lrefine_min, lrefine_max
+       del (IAXIS)               = (gr_imax - gr_imin) / (gr_nblockX*NXB*2.**(l-1))
+       if (NDIM > 1)  del(JAXIS) = (gr_jmax - gr_jmin) / (gr_nblockY*NYB*2.**(l-1))
+       if (NDIM == 3) del(KAXIS) = (gr_kmax - gr_kmin) / (gr_nblockZ*NZB*2.**(l-1))
+
+       if (maxval(del(IAXIS:NDIM)) .GT. 999999999999.999) then
+          fmtStr = '(I7,2x,1P,3G16.3)'
+       else if (minval(del(IAXIS:NDIM)) .LE. 0.0009) then
+          fmtStr = '(I7,2x,1P,3G16.3)'
+       else
+          fmtStr = '(I7,2x,3F16.3)'
+       end if
+
+       write(*,fmtStr) l, (del(n),n=1,NDIM)
+    end do
+  end subroutine printRefinementInfo
+
 end subroutine Grid_init

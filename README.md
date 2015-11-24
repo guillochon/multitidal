@@ -25,6 +25,6 @@ To add additional physics/features, the user needs to modify the setup line abov
 
 * For MHD, substitute `+uhd` with `+usm`.
 
-* To load a stellar profile, add `loadProfile=True` to the setup line. This will switch to the Helmholtz equation of state, which is customized by MultiTidal to use an extended Helmholtz table. If you use this flag, you must copy the extended Helmholtz table `helm_extended_table.dat` to your run directory from the object directory.
+* To load a stellar profile, add `loadProfile=True` to the setup line. This will switch to the Helmholtz equation of state, which is customized by MultiTidal to use an extended Helmholtz table. If you use this flag, you must copy the extended Helmholtz table `helm_extended_table.dat` to your run directory from the object directory. An example directory for use when `loadProfile=True` is included in the repository, `example_profile_setup`.
 
 * Use `+parallelIO` in conjunction with the other flags (if it is supported by your cluster) for faster read/write of HDF5 files.

@@ -1,9 +1,15 @@
-Code originally written by James Guillochon. README last updated 10/10/2015.
+Code originally written by James Guillochon. README last updated 11/24/2015.
 
-This simulation setup allows one to simulate the interaction between an extended, polytropic object and a point mass. The code now utilizes the Sinks module to integrate particle trajectories, which brings the benefit of being able to include an arbitrary number of point-like perturbers. The code has been tested to work with FLASH 4.2.2.
+This simulation setup allows one to simulate the interaction between an extended, polytropic object and a point mass. The code now utilizes the Sinks module to integrate particle trajectories, which brings the benefit of being able to include an arbitrary number of point-like perturbers. The code has been tested to work with FLASH 4.2.2, and is currently being tested with FLASH 4.3, the latest version.
 
-A recommended setup for the default parameters are (for pure hydro):
+To install, clone this repository to the Simulation path within the FLASH hierarchy:
 
+	cd /path/to/flash/directory/FLASH4.3/source/Simulation/SimulationMain
+	hg clone ssh://hg@bitbucket.org/Guillochon/multitidal
+
+Then, change back to the main FLASH directory and run the setup script. A recommended setup for the default parameters are (for pure hydro):
+
+	cd /path/to/flash/directory/FLASH4.3
 	./setup MultiTidal -noclobber -maxblocks=1000 -auto -3d -objdir=object_multitidal +newMpole +uhd
 
 Within this repository are a number of "example" run directories that contain files that need to be included when running this setup under various conditions. The example folder that corresponds to the setup line above is `example_setup`, make a full copy of this folder to the location you intend to produce the FLASH outputs. Then, to run FLASH, use `mpirun` (or similar) from that run directory, e.g.

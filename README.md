@@ -14,7 +14,7 @@ Then, change back to the main FLASH directory and run the setup script. A recomm
 
 Within this repository are a number of "example" run directories that contain files that need to be included when running this setup under various conditions. The example folder that corresponds to the setup line above is `example_setup`, make a full copy of this folder to the location you intend to produce the FLASH outputs. Then, to run FLASH, use `mpirun` (or similar) from that run directory, e.g.
 
-	mpirun -np 4 /path/to/flash/directory/FLASH4.3/object/flash4
+	mpirun -np 4 /path/to/flash/directory/FLASH4.3/object_multitidal/flash4
 
 To add additional physics/features, the user needs to modify the setup line above and use a run directory appropriate to that setup:
 

@@ -1,0 +1,235 @@
+# Sets variables that don't require a recompile.
+
+# USER PARAMETERS
+# These parameters typically vary from run to run.
+
+# Are we restarting a run? Uncomment the following lines and select the
+# last written checkpoint file number.
+#restart                    = .true.
+#checkpointFileNumber       = 10
+#plotFileNumber             = 51
+
+# Output options (plot files and checkpoint files).
+basenm                     = "multitidal_"
+checkpointFileIntervalTime = 10000.
+#checkpointFileIntervalTime = 5.e6
+#checkpointFileIntervalStep = 10
+plotFileIntervalTime       = 1000.
+particlefileintervaltime   = 0.
+wall_clock_checkpoint      = 14350.
+
+# Box dimensions. Object being disrupted is placed at exact center of box.
+xmax = 4.e14
+ymax = 4.e14
+zmax = 4.e14
+
+sim_xCenter = 2.e14
+sim_yCenter = 2.e14
+sim_zCenter = 2.e14
+
+# Grid variable lower limits. Should each be at least a couple
+# orders of magnitude less than typical simulation values.
+smalle = 1.e7
+smallt = 1.e3
+smlrho = 1.e-12
+smallp = 1.e-5
+
+# Maximum time to run simulation.
+tmax = 1.e6
+
+useCool = .false.
+
+sim_kind = "polytrope"
+sim_gravityType = "newton"
+
+sim_objPolyN  = 1.5
+sim_objMass = 1.9891e33
+sim_objCentDens = 8.45
+
+sim_condCoeff = 0.0
+
+coolDtFactor = 1.d5
+
+# Massive perturber parameters.
+sim_ptMass = 1.9891e39
+sim_starPtMass = 1.0e0
+
+# Parent parameters
+sim_parentMass = 0.d0
+sim_parentPeri = 1.49597871e13
+
+# Initial orbit.
+sim_periBeta  = 0.7
+sim_startBeta = 0.1
+sim_orbEcc    = 0.99999
+
+sim_moveFixedToCOM = .true.
+
+# Zero out acceleration about one of the particles (1: resolved object, 2+: one of the pt. masses)
+sim_fixedParticle = 1
+
+# BH mass distribution properties
+sim_useRadialProfile = .false.
+sim_xRayFraction = 0.0
+
+# Background fluff parameters.
+sim_rhoAmbient = 1.0e-17
+sim_pAmbient   = 1.0e-4
+sim_tAmbient   = 1.0e0
+
+# Parameters of initial relaxation of object to grid.
+
+sim_tRelax    = 1.0e4
+sim_relaxRate = 0.9
+sim_tSpinup   = 0.0e4
+sim_rotFac    = 0.0
+dtinit        = 1.e-10
+dtmax         = 1.e8
+#tstep_change_factor = 1.2
+
+# Parameters determining behavior of fluid during simulation.
+sim_fluidGamma      = 1.666666666666667
+sim_fluffDampCoeff  = 0.99
+sim_fluffDampCutoff = 1.e-14   # Should be slightly larger than sim_rhoAmbient
+sim_fluffRefineCutoff = 1.e-3  # Relative to max for polytrope, absolute for all else
+sim_totForceSub     = 2
+
+# Parameters affecting the multipole gravity solver. Please read FLASH4 documentation before modifying.
+mpole_lmax          = 20
+mpole_maxradialzones = 2
+mpole_zoneradiusfraction_1 = 0.001
+mpole_zonetype_2     = "logarithmic"
+mpole_zoneexponent_2 = 0.001
+
+# Refinement parameters. Highest refinement levels should be specified first.
+lrefine_min       = 1
+lrefine_max       = 15
+#refine_var_1      = "dens"  
+#refine_var_2      = "pres"
+
+sim_maxBlocks = 300000
+
+# Variables to include in plot files.
+plot_var_1 = "dens"
+plot_var_2 = "temp"
+plot_var_3 = "velx"
+plot_var_4 = "vely"
+plot_var_5 = "velz"
+plot_var_6 = "magx"
+plot_var_7 = "magy"
+plot_var_8 = "magz"
+
+# STATIC PARAMETERS
+# These parameters should almost always be left alone.
+nend               = 1000000000
+
+smallu             = 1.e-10
+smallx             = 1.e-30
+small              = 1.e-15
+
+eosmodeInit        = "dens_pres" 
+
+grv_cfl            = 0.1
+cfl                = 0.8
+eintSwitch         = 1.0e-4
+
+sim_nsubzones      = 4
+
+xl_boundary_type    = "diode"
+xr_boundary_type    = "diode"
+yl_boundary_type    = "diode"
+yr_boundary_type    = "diode"
+zl_boundary_type    = "diode"
+zr_boundary_type    = "diode"
+grav_boundary_type  = "isolated"
+
+dr_shortenLastStepBeforeTMax = .true.
+
+# Conduction
+#useDiffuse      = .false.
+#useDiffuseTherm = .false.
+#useDiffuseVisc  = .false.
+#useDiffuseSpecies = .false.
+#dt_diff_factor = 1.0e300
+#diff_useEleCond = .false.
+#diff_eleFlMode  = "fl_larsen"
+#diff_eleFlCoef  = 1.0
+#diff_thetaImplct = 1.0
+#diff_eleXlBoundaryType = "outflow"
+#diff_eleXrBoundaryType = "outflow"
+#diff_eleYlBoundaryType = "outflow"
+#diff_eleYrBoundaryType = "outflow"
+#diff_eleZlBoundaryType = "outflow"
+#diff_eleZrBoundaryType = "outflow"
+#diffusion_cutoff_density = 1.e0
+
+useSinkParticles = .true.
+keepLostParticles = .true.
+refineOnJeansLength = .false.
+refineOnSinkParticles = .false.
+sink_density_thresh = 1.e30
+sink_accretion_radius = 0.e0
+sink_softening_radius = 4.e12
+sink_advanceserialcomputation = .false.
+sink_subdt_factor = 1.e-3
+sink_integrator = "leapfrog_cosmo"
+sink_offDomainSupport = .true.
+
+az_initial = 1.0e-1
+r_fieldloop = 6.0e10
+UnitSystem = "cgs"
+
+geometry    = "cartesian"
+convertToConsvdInMeshInterp = .true.
+
+gr_sanitizeverbosity = 0
+gr_sanitizedatamode = 0
+gr_restrictallmethod = 2
+
+#	DivB control switch
+killdivb	= .true.
+
+#	Flux Conservation for AMR
+flux_correct    = .true.
+
+## -------------------------------------------------------------##
+##  SWITCHES SPECIFIC TO THE UNSPLIT STAGGERED MESH MHD SOLVER  ##
+#   I. INTERPOLATION SCHEME:
+order       = 3      # Interpolation order (first/second/third/fifth order)
+slopeLimiter    = "hybrid"   # Slope limiters (minmod, mc, vanLeer, hybrid, limited)
+charLimiting    = .true. # Characteristic limiting vs. Primitive limiting
+use_3dFullCTU = .true.
+
+#interpol_order = 2
+
+use_avisc   = .true. # use artificial viscosity (originally for PPM)
+cvisc       = 0.1     # coefficient for artificial viscosity
+use_flattening  = .true. # use flattening (dissipative) (originally for PPM)
+use_steepening  = .false. # use contact steepening (originally for PPM)
+use_upwindTVD   = .false. # use upwind biased TVD slope for PPM (need nguard=6)
+use_hybridOrder = .true.
+use_gravHalfUpdate = .true.
+use_gravConsv = .true.
+#use_gravPotUpdate = .true.
+
+#   II. MAGNETIC(B) AND ELECTRIC(E) FIELDS:
+E_modification  = .true.           # High order algorithm for E-field construction
+E_upwind = .true.
+energyFix   = .true.           # Update magnetic energy using staggered B-fields
+ForceHydroLimit = .false.          # Pure Hydro Limit (B=0)
+prolMethod      = "balsara_prol" # Prolongation method (injecton_prol, balsara_prol)
+
+
+#   III. RIEMANN SOLVERS:
+RiemannSolver   = "HYBRID"       # Roe, HLL, HLLC, HLLD, LLF, Marquina
+entropy         = .true.     # Entropy fix for the Roe solver
+
+
+#   IV. STRONG SHOCK HANDELING SCHEME:
+shockDetect = .true.     # Shock Detect for numerical stability
+## -------------------------------------------------------------##
+
+
+#   V.  Magnetic Resistivity
+useMagneticResistivity  = .false.
+resistivity             = 1.0E-4

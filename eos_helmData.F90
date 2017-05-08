@@ -36,6 +36,10 @@ module eos_helmData
   ! how accurately to do the Newton iteration to get T from e
   real, save :: eos_tol
 
+  real, save :: eos_larget
+
+  real, save :: eos_fluffDens
+
   integer,save :: eos_hfetInit
 
   ! force the iterative solver to leave inputs alone (always true in MODE_DENS_TEMP)

@@ -339,28 +339,85 @@ subroutine Simulation_initBlock (blockId, myPE)
 #ifdef HE4_SPEC
               xn(HE4_SPEC) = sumVars(HE4_PROF)
 #endif
+#ifdef LI7_SPEC
+              xn(LI7_SPEC) = sumVars(LI7_PROF)
+#endif
+#ifdef BE9_SPEC
+              xn(BE9_SPEC) = sumVars(BE9_PROF)
+#endif
 #ifdef C12_SPEC
               xn(C12_SPEC) = sumVars(C12_PROF)
+#endif
+#ifdef C13_SPEC
+              xn(C13_SPEC) = sumVars(C13_PROF)
 #endif
 #ifdef N14_SPEC
               xn(N14_SPEC) = sumVars(N14_PROF)
 #endif
+#ifdef N15_SPEC
+              xn(N15_SPEC) = sumVars(N15_PROF)
+#endif
 #ifdef O16_SPEC
               xn(O16_SPEC) = sumVars(O16_PROF)
+#endif
+#ifdef O17_SPEC
+              xn(O17_SPEC) = sumVars(O17_PROF)
+#endif
+#ifdef O18_SPEC
+              xn(O18_SPEC) = sumVars(O18_PROF)
+#endif
+#ifdef F19_SPEC
+              xn(F19_SPEC) = sumVars(F19_PROF)
 #endif
 #ifdef NE20_SPEC
               xn(NE20_SPEC) = sumVars(NE20_PROF)
 #endif
+#ifdef NE21_SPEC
+              xn(NE21_SPEC) = sumVars(NE21_PROF)
+#endif
+#ifdef NE22_SPEC
+              xn(NE22_SPEC) = sumVars(NE22_PROF)
+#endif
+#ifdef NA23_SPEC
+              xn(NA23_SPEC) = sumVars(NA23_PROF)
+#endif
 #ifdef MG24_SPEC
               xn(MG24_SPEC) = sumVars(MG24_PROF)
+#endif
+#ifdef MG25_SPEC
+              xn(MG25_SPEC) = sumVars(MG25_PROF)
+#endif
+#ifdef MG26_SPEC
+              xn(MG26_SPEC) = sumVars(MG26_PROF)
+#endif
+#ifdef AL27_SPEC
+              xn(AL27_SPEC) = sumVars(AL27_PROF)
 #endif
 #ifdef SI28_SPEC
               xn(SI28_SPEC) = sumVars(SI28_PROF)
 #endif
+#ifdef SI29_SPEC
+              xn(SI29_SPEC) = sumVars(SI29_PROF)
+#endif
+#ifdef SI30_SPEC
+              xn(SI30_SPEC) = sumVars(SI30_PROF)
+#endif
+#ifdef P31_SPEC
+              xn(P31_SPEC) = sumVars(P31_PROF)
+#endif
+#ifdef S32_SPEC
+              xn(S32_SPEC) = sumVars(S32_PROF)
+#endif
+#ifdef S33_SPEC
+              xn(S33_SPEC) = sumVars(S33_PROF)
+#endif
+#ifdef S34_SPEC
+              xn(S34_SPEC) = sumVars(S34_PROF)
+#endif
               xn = xn / sum(xn)
            else
               sumVars(RHO_PROF) = sim_rhoAmbient
-              sumVars(TEMP_PROF) = sim_tAmbient
+              sumVars(PRES_PROF) = sim_pAmbient
               xn(H1_SPEC) = 1.0
            endif
 #else
@@ -418,6 +475,7 @@ subroutine Simulation_initBlock (blockId, myPE)
 
            solnData(DENS_VAR,i,j,k)=sumVars(RHO_PROF)
            solnData(TEMP_VAR,i,j,k)=sumVars(TEMP_PROF)
+           solnData(PRES_VAR,i,j,k)=sumVars(PRES_PROF)
 #else
            solnData(DENS_VAR,i,j,k)=rho
            solnData(PRES_VAR,i,j,k)=p
@@ -434,6 +492,7 @@ subroutine Simulation_initBlock (blockId, myPE)
 #ifdef LOADPROFILE
            call Grid_putPointData(blockId, CENTER, DENS_VAR, EXTERIOR, axis, sumVars(RHO_PROF))
            call Grid_putPointData(blockId, CENTER, TEMP_VAR, EXTERIOR, axis, sumVars(TEMP_PROF))    
+           call Grid_putPointData(blockId, CENTER, PRES_VAR, EXTERIOR, axis, sumVars(PRES_PROF))    
            do put=1,NSPECIES
               if (xn(SPECIES_BEGIN+put-1) == 0.0) xn(SPECIES_BEGIN+put-1) = sim_smallX
               call Grid_putPointData(blockID,CENTER,SPECIES_BEGIN+put-1,&

@@ -152,6 +152,7 @@ subroutine Simulation_init()
         call Driver_abortFlash('Error: sim_powerLawExponent must be greater than -3.0')
     endif
 
+    call RuntimeParameters_get('refinement_type',refinement_type)
     call RuntimeParameters_get('sim_kind',sim_kind)
     call RuntimeParameters_get('sim_tAmbient', sim_tAmbient)
     call RuntimeParameters_get('sim_gravityType',sim_gravityType)

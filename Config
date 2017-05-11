@@ -131,6 +131,7 @@ PARAMETER sim_moveFixedToCOM        BOOLEAN FALSE
 PARAMETER sim_COMCutoff             REAL    1.E-1
 PARAMETER sim_condCoeff             REAL    1.E0
 
+PARAMETER refinement_type     STRING  "rel_to_max"
 PARAMETER sim_kind            STRING  "polytrope"
 PARAMETER sim_gravityType     STRING  "newton"
 PARAMETER sim_fieldGeometry   STRING  "random"

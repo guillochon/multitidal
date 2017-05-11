@@ -50,7 +50,7 @@ subroutine Grid_markRefineDerefine()
   use Driver_data, ONLY: dr_simTime
   use Simulation_data, ONLY: sim_objRadius, &
       sim_fluffRefineCutoff, sim_fluffDampCutoff, sim_cylinderRadius, &
-      sim_xCenter, sim_yCenter, sim_zCenter, sim_kind, stvec, &
+      sim_xCenter, sim_yCenter, sim_zCenter, refinement_type, sim_kind, stvec, &
       sim_softenRadius, sim_fixedPartTag, sim_windNCells, &
       sim_tDelay, sim_periDist, sim_ptMass, sim_cylinderType, &
       sim_maxBlocks
@@ -171,7 +171,7 @@ subroutine Grid_markRefineDerefine()
           call Grid_markRefineSpecialized(INRADIUS, 4, specs(1:4), gr_maxRefine)
       endif
   else
-      if (sim_kind .eq. 'polytrope') then
+      if (refinement_type .eq. 'rel_to_max') then
           call Multitidal_findExtrema(DENS_VAR, 1, max_dens)
           ! First mark stuff significantly below threshold for derefine. Should make user parameter. (JFG)
           specs = (/ real(DENS_VAR), 0.01*sim_fluffRefineCutoff*max_dens, -1., 0., 0., 0., 0. /)
@@ -179,7 +179,7 @@ subroutine Grid_markRefineDerefine()
           ! Then mark stuff that satisfies threshold for refine
           specs = (/ real(DENS_VAR), sim_fluffRefineCutoff*max_dens, 1., 0., 0., 0., 0. /)
           call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), gr_maxRefine)
-      else
+      elseif (refinement_type .eq. 'absolute') then
           specs = (/ real(DENS_VAR), 0., 1., 0., 0., 0., 0. /) ! First mark everything for derefine
           call Grid_markRefineSpecialized(THRESHOLD, 3, specs(1:3), -1)
           specs = (/ real(DENS_VAR), sim_fluffRefineCutoff, 1., 0., 0., 0., 0. /) ! Then mark stuff that satisfies threshold for refine

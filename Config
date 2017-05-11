@@ -170,35 +170,3 @@ PARAMETER plot_var_23 STRING "none"
 
 PPDEFINE HIDE_SANITIZE
 
-# Add some new refinement parameters
-PARAMETER refine_level_1      INTEGER 0
-PARAMETER refine_level_2      INTEGER 0
-PARAMETER refine_level_3      INTEGER 0
-PARAMETER refine_level_4      INTEGER 0
-PARAMETER refine_level_5      INTEGER 0
-PARAMETER refine_level_6      INTEGER 0
-PARAMETER refine_level_7      INTEGER 0
-PARAMETER refine_level_8      INTEGER 0
-PARAMETER refine_level_9      INTEGER 0
-
-# Add parameters corresponding to extra refinement levels
-PARAMETER refine_var_5 STRING "none"
-PARAMETER refine_cutoff_5 REAL 0.8
-PARAMETER derefine_cutoff_5 REAL 0.2
-PARAMETER refine_filter_5 REAL 0.01
-PARAMETER refine_var_6 STRING "none"
-PARAMETER refine_cutoff_6 REAL 0.8
-PARAMETER derefine_cutoff_6 REAL 0.2
-PARAMETER refine_filter_6 REAL 0.01
-PARAMETER refine_var_7 STRING "none"
-PARAMETER refine_cutoff_7 REAL 0.8
-PARAMETER derefine_cutoff_7 REAL 0.2
-PARAMETER refine_filter_7 REAL 0.01
-PARAMETER refine_var_8 STRING "none"
-PARAMETER refine_cutoff_8 REAL 0.8
-PARAMETER derefine_cutoff_8 REAL 0.2
-PARAMETER refine_filter_8 REAL 0.01
-PARAMETER refine_var_9 STRING "none"
-PARAMETER refine_cutoff_9 REAL 0.8
-PARAMETER derefine_cutoff_9 REAL 0.2
-PARAMETER refine_filter_9 REAL 0.01
